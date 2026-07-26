@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, Edit2, Search, Save, X, Upload, UserMinus, UserCheck } from 'lucide-react';
-import type { Faculty } from '../types';
+import { Users, Plus, Trash2, Edit2, Search, Save, X, Upload, UserMinus, UserCheck, Link2 } from 'lucide-react';
+import type { Faculty, Batch } from '../types';
 import { storage } from '../utils/storage';
 
 export default function FacultyManager() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [allBatches, setAllBatches] = useState<Batch[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isEditing, setIsEditing] = useState(false);
@@ -12,13 +13,16 @@ export default function FacultyManager() {
     name: '',
     subjects: [],
     maxPeriodsPerDay: 4,
-    isAbsent: false
+    isAbsent: false,
+    assignedBatches: []
   });
   const [subjectInput, setSubjectInput] = useState('');
+  const [batchSearch, setBatchSearch] = useState('');
 
   useEffect(() => {
     storage.initialize();
     setFaculties(storage.getFaculty());
+    setAllBatches(storage.getBatches());
   }, []);
 
   const saveToStorage = (updated: Faculty[]) => {
@@ -48,7 +52,8 @@ export default function FacultyManager() {
         name: currentFaculty.name,
         subjects: currentFaculty.subjects || [],
         maxPeriodsPerDay: currentFaculty.maxPeriodsPerDay || 4,
-        isAbsent: false
+        isAbsent: false,
+        assignedBatches: currentFaculty.assignedBatches || []
       };
       saveToStorage([...faculties, newFaculty]);
     }
@@ -64,17 +69,19 @@ export default function FacultyManager() {
 
   const handleOpenEdit = (faculty?: Faculty) => {
     if (faculty) {
-      setCurrentFaculty({ ...faculty });
+      setCurrentFaculty({ ...faculty, assignedBatches: faculty.assignedBatches || [] });
     } else {
-      setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false });
+      setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: [] });
     }
+    setBatchSearch('');
     setIsEditing(true);
   };
 
   const handleCloseModal = () => {
     setIsEditing(false);
-    setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false });
+    setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: [] });
     setSubjectInput('');
+    setBatchSearch('');
   };
 
   const handleAddSubject = () => {
@@ -94,6 +101,14 @@ export default function FacultyManager() {
       ...currentFaculty,
       subjects: (currentFaculty.subjects || []).filter(s => s !== subj)
     });
+  };
+
+  const toggleAssignedBatch = (batchId: string) => {
+    const current = currentFaculty.assignedBatches || [];
+    const updated = current.includes(batchId)
+      ? current.filter(id => id !== batchId)
+      : [...current, batchId];
+    setCurrentFaculty({ ...currentFaculty, assignedBatches: updated });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,6 +133,13 @@ export default function FacultyManager() {
     f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.subjects.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const filteredBatchOptions = allBatches.filter(b =>
+    b.name.toLowerCase().includes(batchSearch.toLowerCase()) ||
+    b.roomNumber.toLowerCase().includes(batchSearch.toLowerCase())
+  );
+
+  const getBatchName = (id: string) => allBatches.find(b => b.id === id)?.name || 'Unknown batch';
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -163,13 +185,14 @@ export default function FacultyManager() {
                 <th className="p-4">Status</th>
                 <th className="p-4">Faculty Name</th>
                 <th className="p-4">Qualified Subjects</th>
+                <th className="p-4">Assigned Batches</th>
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
               {filteredFaculties.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-400">
+                  <td colSpan={5} className="p-8 text-center text-gray-400">
                     No faculty members found.
                   </td>
                 </tr>
@@ -203,6 +226,16 @@ export default function FacultyManager() {
                           </span>
                         ))}
                       </div>
+                    </td>
+
+                    <td className="p-4">
+                      {faculty.assignedBatches && faculty.assignedBatches.length > 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold border border-amber-100">
+                          <Link2 className="w-3 h-3" /> {faculty.assignedBatches.length} batch{faculty.assignedBatches.length > 1 ? 'es' : ''}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Unrestricted</span>
+                      )}
                     </td>
 
                     <td className="p-4 text-right space-x-2 whitespace-nowrap">
@@ -241,8 +274,8 @@ export default function FacultyManager() {
 
       {isEditing && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex justify-between items-center p-6 border-b bg-gray-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b bg-gray-50 sticky top-0">
               <h2 className="text-xl font-bold text-gray-900">
                 {currentFaculty.id ? 'Edit Faculty' : 'Add New Faculty'}
               </h2>
@@ -304,6 +337,55 @@ export default function FacultyManager() {
                     </span>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-1 border-t pt-4">
+                <label className="text-xs font-semibold uppercase text-gray-500 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" /> Assigned Batches (optional)
+                </label>
+                <p className="text-xs text-gray-500">
+                  Leave empty for unrestricted (can teach any batch needing their subject). Select specific batches to lock this faculty to only those — no other faculty can substitute for them there.
+                </p>
+                <input
+                  type="text"
+                  placeholder="Search batches..."
+                  value={batchSearch}
+                  onChange={e => setBatchSearch(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm mt-1"
+                />
+                <div className="max-h-48 overflow-y-auto border rounded-lg divide-y mt-2">
+                  {filteredBatchOptions.length === 0 ? (
+                    <div className="p-3 text-xs text-gray-400 text-center">No batches match your search.</div>
+                  ) : (
+                    filteredBatchOptions.map(batch => {
+                      const isSelected = (currentFaculty.assignedBatches || []).includes(batch.id);
+                      return (
+                        <label key={batch.id} className="flex items-center gap-2 p-2.5 hover:bg-gray-50 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleAssignedBatch(batch.id)}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="font-medium text-gray-800">{batch.name}</span>
+                          <span className="text-gray-400 text-xs">Room {batch.roomNumber} &middot; {batch.building}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                {(currentFaculty.assignedBatches || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(currentFaculty.assignedBatches || []).map(id => (
+                      <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-medium border border-amber-100">
+                        {getBatchName(id)}
+                        <button type="button" onClick={() => toggleAssignedBatch(id)} className="hover:text-red-600">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">

@@ -1,40 +1,84 @@
-import { useState, useEffect, useRef } from 'react';
-import { Calendar, Image as ImageIcon, Loader2, Play, Lock, Unlock, Clock, MapPin } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Calendar, Image as ImageIcon, Loader2, Play, Lock, Unlock, Clock, MapPin, RefreshCw, AlertTriangle } from 'lucide-react';
 import html2canvas from 'html2canvas';
-import type { Faculty, Batch, Allocation } from '../types';
-import { generateTimetableV2 } from '../utils/scheduler';
+import type { Faculty, Batch, Allocation, DayOfWeek } from '../types';
+import { WEEKDAYS } from '../types';
+import { generateTimetableV2, patchAbsences } from '../utils/scheduler';
 import { storage } from '../utils/storage';
 
+const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
+
 export default function Timetable() {
+  const [currentDay, setCurrentDay] = useState<DayOfWeek>('Monday');
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [hasGenerated, setHasGenerated] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     storage.initialize();
-    const storedFaculties = storage.getFaculty();
-    const storedBatches = storage.getBatches();
-
-    setFaculties(storedFaculties);
-    setBatches(storedBatches);
-
-    const generated = generateTimetableV2(storedBatches, storedFaculties, []);
-    setAllocations(generated);
+    setFaculties(storage.getFaculty());
+    setBatches(storage.getBatches());
   }, []);
 
-  const handleRegenerate = () => {
+  useEffect(() => {
+    loadDay(currentDay);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDay, batches.length]);
+
+  const loadDay = (day: DayOfWeek) => {
+    const existing = storage.getDayTimetable(day);
+    if (existing) {
+      setAllocations(existing.allocations);
+      setHasGenerated(true);
+    } else {
+      setAllocations([]);
+      setHasGenerated(false);
+    }
+  };
+
+  const persistDay = (day: DayOfWeek, newAllocations: Allocation[]) => {
+    storage.setDayTimetable(day, {
+      id: `tt_${day}`,
+      date: day,
+      status: 'Draft',
+      allocations: newAllocations,
+    });
+  };
+
+  const handleGenerate = () => {
     setIsGenerating(true);
+    setTimeout(() => {
+      const freshFaculties = storage.getFaculty();
+      const freshBatches = storage.getBatches();
+      setFaculties(freshFaculties);
+      setBatches(freshBatches);
+
+      const weekContext = storage.getWeekAllocationsExcluding(currentDay);
+      const generated = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext);
+
+      setAllocations(generated);
+      setHasGenerated(true);
+      persistDay(currentDay, generated);
+      setIsGenerating(false);
+    }, 400);
+  };
+
+  const handleSyncAbsences = () => {
+    setIsSyncing(true);
     setTimeout(() => {
       const freshFaculties = storage.getFaculty();
       setFaculties(freshFaculties);
 
-      const updatedAllocations = generateTimetableV2(batches, freshFaculties, allocations);
-      setAllocations(updatedAllocations);
-      setIsGenerating(false);
-    }, 400);
+      const patched = patchAbsences(batches, freshFaculties, allocations);
+      setAllocations(patched);
+      persistDay(currentDay, patched);
+      setIsSyncing(false);
+    }, 300);
   };
 
   const toggleFreeze = (batchId: string, periodIndex: number) => {
@@ -44,18 +88,18 @@ export default function Timetable() {
         batchId,
         periodIndex,
         newFacultyId: target.facultyId,
-        reason: target.frozen ? 'Unfroze slot' : 'Froze slot',
+        reason: target.frozen ? `Unfroze slot (${currentDay})` : `Froze slot (${currentDay})`,
       });
     }
 
-    setAllocations(prev =>
-      prev.map(a => {
-        if (a.batchId === batchId && a.periodIndex === periodIndex) {
-          return { ...a, frozen: !a.frozen };
-        }
-        return a;
-      })
-    );
+    const updated = allocations.map(a => {
+      if (a.batchId === batchId && a.periodIndex === periodIndex) {
+        return { ...a, frozen: !a.frozen };
+      }
+      return a;
+    });
+    setAllocations(updated);
+    persistDay(currentDay, updated);
   };
 
   const getFacultyName = (id: string) => {
@@ -84,15 +128,38 @@ export default function Timetable() {
       });
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
-      link.download = 'Smart_Timetable.png';
+      link.download = `Timetable_${currentDay}.png`;
       link.click();
     } finally {
       setIsExporting(false);
     }
   };
 
+  const quota = useMemo(() => {
+    const allDays = storage.getAllWeekAllocations();
+    let pcmb = 0, lang = 0;
+    WEEKDAYS.forEach(d => {
+      (allDays[d] || []).forEach(a => {
+        if (!a.facultyId) return; // gaps don't count toward the quota
+        if (PCMB_SUBJECTS.includes(a.subject)) pcmb++; else lang++;
+      });
+    });
+    const total = pcmb + lang;
+    const settings = storage.getSettings();
+    const actualPCMBPct = total === 0 ? 0 : Math.round((pcmb / total) * 100);
+    return {
+      pcmb, lang, total,
+      targetPCMB: settings.pcmbWeight,
+      targetLang: settings.languageWeight,
+      actualPCMBPct,
+      actualLangPct: total === 0 ? 0 : 100 - actualPCMBPct,
+    };
+  }, [allocations]);
+
+  const gapCount = allocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[90rem] mx-auto space-y-8 font-sans bg-slate-50/50 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[90rem] mx-auto space-y-6 font-sans bg-slate-50/50 min-h-screen">
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex items-center gap-4">
@@ -101,23 +168,32 @@ export default function Timetable() {
           </div>
           <div>
             <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-700 tracking-tight">
-              Master Timetable
+              Weekly Timetable
             </h1>
             <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-              V2 Engine Active
+              V2 Engine Active — {currentDay}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
           <button
-            onClick={handleRegenerate}
+            onClick={handleGenerate}
             disabled={isGenerating}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-70 disabled:hover:translate-y-0"
           >
             {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
-            Regenerate
+            {hasGenerated ? 'Regenerate' : 'Generate'} {currentDay}
+          </button>
+          <button
+            onClick={handleSyncAbsences}
+            disabled={isSyncing || !hasGenerated}
+            title="Re-check today's allocations against the current absence list, without regenerating the whole day"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-amber-50 border-2 border-amber-200 text-amber-700 font-semibold rounded-xl hover:bg-amber-100 transition-all duration-200 disabled:opacity-50"
+          >
+            {isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+            Sync Absences
           </button>
           <button
             onClick={exportAsImage}
@@ -130,99 +206,161 @@ export default function Timetable() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto" ref={tableRef}>
-          <table className="w-full text-left border-collapse min-w-[1200px]">
-
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200">
-                <th className="p-5 font-bold text-slate-700 uppercase tracking-wider text-xs w-64">
-                  Batch Information
-                </th>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <th key={i} className="p-5 font-bold text-slate-700 uppercase tracking-wider text-xs text-center border-l border-slate-200 w-48">
-                    Period {i + 1}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {batches.map((batch) => (
-                <tr key={batch.id} className="group hover:bg-blue-50/30 transition-colors duration-200">
-
-                  <td className="p-5 bg-white group-hover:bg-transparent transition-colors">
-                    <div className="font-extrabold text-slate-800 text-base mb-1">
-                      {batch.name || 'Unnamed Batch'}
-                    </div>
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md w-max">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {batch.building || 'Main Block'}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md w-max">
-                        Room {batch.roomNumber || '-'}
-                      </span>
-                    </div>
-                  </td>
-
-                  {Array.from({ length: 6 }).map((_, i) => {
-                    const period = (batch.periods && Array.isArray(batch.periods)) ? batch.periods[i] : null;
-                    const allocation = allocations.find(a => a.batchId === batch.id && a.periodIndex === i);
-
-                    return (
-                      <td key={i} className="p-3 border-l border-slate-100 align-top">
-
-                        {period && period.startTime && (
-                          <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-2">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(period.startTime)} - {formatTime(period.endTime)}
-                          </div>
-                        )}
-
-                        <div
-                          className={`relative group/card flex flex-col justify-center h-20 px-3 py-2 rounded-xl transition-all duration-200 ${
-                            !allocation
-                              ? 'bg-slate-50 border-2 border-dashed border-slate-200 text-slate-400 hover:border-slate-300'
-                              : allocation.frozen
-                                ? 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm shadow-amber-100 text-amber-900'
-                                : 'bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80 shadow-sm shadow-blue-100 text-blue-900 hover:shadow-md hover:-translate-y-0.5'
-                          }`}
-                          title={allocation?.explanation ? allocation.explanation.join('\n') : 'Unassigned'}
-                        >
-                          <div className={`font-bold text-sm leading-tight text-center ${!allocation ? 'text-slate-400' : ''}`}>
-                            {allocation?.subject || 'Empty Slot'}
-                          </div>
-
-                          <div className={`text-xs text-center mt-1 font-medium ${!allocation ? 'hidden' : allocation.frozen ? 'text-amber-700' : 'text-blue-600'}`}>
-                            {getFacultyName(allocation?.facultyId || '')}
-                          </div>
-
-                          {allocation && (
-                            <button
-                              onClick={() => toggleFreeze(batch.id, i)}
-                              className={`absolute -top-2 -right-2 p-1.5 rounded-full shadow-sm transition-all duration-200 ${
-                                allocation.frozen
-                                  ? 'bg-amber-400 text-white hover:bg-amber-500 hover:scale-110 z-10'
-                                  : 'bg-white text-slate-400 border border-slate-200 opacity-0 group-hover/card:opacity-100 hover:text-indigo-600 hover:border-indigo-200 hover:scale-110 z-10'
-                              }`}
-                              title={allocation.frozen ? 'Unfreeze Slot' : 'Freeze Slot'}
-                            >
-                              {allocation.frozen ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                            </button>
-                          )}
-                        </div>
-
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-
-          </table>
-        </div>
+      <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+        {WEEKDAYS.map(day => {
+          const dayHasData = !!storage.getDayTimetable(day);
+          return (
+            <button
+              key={day}
+              onClick={() => setCurrentDay(day)}
+              className={`flex-1 min-w-[100px] px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                currentDay === day ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {day}
+              {dayHasData && <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full ${currentDay === day ? 'bg-white' : 'bg-emerald-400'}`}></span>}
+            </button>
+          );
+        })}
       </div>
+
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Weekly PCMB / Language Balance</h2>
+          <span className="text-xs text-slate-400">Target: {quota.targetPCMB}% PCMB · {quota.targetLang}% Language</span>
+        </div>
+        <div className="flex h-3 w-full rounded-full overflow-hidden bg-slate-100">
+          <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${quota.actualPCMBPct}%` }} />
+          <div className="bg-indigo-300 h-full transition-all duration-500" style={{ width: `${quota.actualLangPct}%` }} />
+        </div>
+        <div className="flex justify-between text-xs font-medium text-slate-500">
+          <span>PCMB: {quota.pcmb} periods ({quota.actualPCMBPct}%)</span>
+          <span>Language: {quota.lang} periods ({quota.actualLangPct}%)</span>
+        </div>
+        {gapCount > 0 && (
+          <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <AlertTriangle className="w-4 h-4" />
+            {gapCount} unresolved gap{gapCount > 1 ? 's' : ''} on {currentDay} — a faculty went absent and no substitute or alternate subject was available.
+          </div>
+        )}
+      </div>
+
+      {!hasGenerated && (
+        <div className="bg-white p-10 rounded-2xl shadow-sm border border-dashed border-slate-300 text-center text-slate-500">
+          No timetable generated for <span className="font-semibold">{currentDay}</span> yet. Click "Generate {currentDay}" above to build it.
+        </div>
+      )}
+
+      {hasGenerated && (
+        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto" ref={tableRef}>
+            <table className="w-full text-left border-collapse min-w-[1200px]">
+
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200">
+                  <th className="p-5 font-bold text-slate-700 uppercase tracking-wider text-xs w-64">
+                    Batch Information
+                  </th>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <th key={i} className="p-5 font-bold text-slate-700 uppercase tracking-wider text-xs text-center border-l border-slate-200 w-48">
+                      Period {i + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {batches.map((batch) => (
+                  <tr key={batch.id} className="group hover:bg-blue-50/30 transition-colors duration-200">
+
+                    <td className="p-5 bg-white group-hover:bg-transparent transition-colors">
+                      <div className="font-extrabold text-slate-800 text-base mb-1">
+                        {batch.name || 'Unnamed Batch'}
+                      </div>
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md w-max">
+                          <MapPin className="w-3.5 h-3.5" />
+                          {batch.building || 'Main Block'}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md w-max">
+                          Room {batch.roomNumber || '-'}
+                        </span>
+                      </div>
+                    </td>
+
+                    {Array.from({ length: 6 }).map((_, i) => {
+                      const period = (batch.periods && Array.isArray(batch.periods)) ? batch.periods[i] : null;
+                      const allocation = allocations.find(a => a.batchId === batch.id && a.periodIndex === i);
+                      const isGap = !!(allocation && allocation.vacatedFacultyId && !allocation.facultyId);
+
+                      return (
+                        <td key={i} className="p-3 border-l border-slate-100 align-top">
+
+                          {period && period.startTime && (
+                            <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-2">
+                              <Clock className="w-3 h-3" />
+                              {formatTime(period.startTime)} - {formatTime(period.endTime)}
+                            </div>
+                          )}
+
+                          <div
+                            className={`relative group/card flex flex-col justify-center h-20 px-3 py-2 rounded-xl transition-all duration-200 ${
+                              isGap
+                                ? 'bg-red-50 border-2 border-dashed border-red-300 text-red-600'
+                                : !allocation
+                                  ? 'bg-slate-50 border-2 border-dashed border-slate-200 text-slate-400 hover:border-slate-300'
+                                  : allocation.frozen
+                                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm shadow-amber-100 text-amber-900'
+                                    : 'bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80 shadow-sm shadow-blue-100 text-blue-900 hover:shadow-md hover:-translate-y-0.5'
+                            }`}
+                            title={allocation?.explanation ? allocation.explanation.join('\n') : 'Unassigned'}
+                          >
+                            {isGap ? (
+                              <>
+                                <div className="font-bold text-xs leading-tight text-center flex items-center justify-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5" /> Gap
+                                </div>
+                                <div className="text-[11px] text-center mt-1 font-medium">
+                                  was {allocation!.vacatedFacultyName} (absent)
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className={`font-bold text-sm leading-tight text-center ${!allocation ? 'text-slate-400' : ''}`}>
+                                  {allocation?.subject || 'Empty Slot'}
+                                </div>
+                                <div className={`text-xs text-center mt-1 font-medium ${!allocation ? 'hidden' : allocation.frozen ? 'text-amber-700' : 'text-blue-600'}`}>
+                                  {getFacultyName(allocation?.facultyId || '')}
+                                </div>
+                              </>
+                            )}
+
+                            {allocation && !isGap && (
+                              <button
+                                onClick={() => toggleFreeze(batch.id, i)}
+                                className={`absolute -top-2 -right-2 p-1.5 rounded-full shadow-sm transition-all duration-200 ${
+                                  allocation.frozen
+                                    ? 'bg-amber-400 text-white hover:bg-amber-500 hover:scale-110 z-10'
+                                    : 'bg-white text-slate-400 border border-slate-200 opacity-0 group-hover/card:opacity-100 hover:text-indigo-600 hover:border-indigo-200 hover:scale-110 z-10'
+                                }`}
+                                title={allocation.frozen ? 'Unfreeze Slot' : 'Freeze Slot'}
+                              >
+                                {allocation.frozen ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                          </div>
+
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

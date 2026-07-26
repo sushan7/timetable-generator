@@ -1,4 +1,5 @@
-import type { Faculty, Batch, SchedulerSettings, AuditLog } from '../types';
+import type { Faculty, Batch, SchedulerSettings, AuditLog, Timetable, DayOfWeek, Allocation } from '../types';
+import { WEEKDAYS } from '../types';
 import { initialFaculty, initialBatches } from './seedData';
 
 const KEYS = {
@@ -6,6 +7,7 @@ const KEYS = {
   BATCHES: 'sdtg_batches',
   SETTINGS: 'sdtg_settings',
   AUDIT: 'sdtg_audit_logs',
+  WEEK: 'sdtg_week_timetables',
 };
 
 export const defaultSettings: SchedulerSettings = {
@@ -17,6 +19,8 @@ export const defaultSettings: SchedulerSettings = {
   enableConsecutivePeriodAvoidance: true,
 };
 
+type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
+
 export const storage = {
   initialize: () => {
     if (!localStorage.getItem(KEYS.FACULTY)) {
@@ -27,15 +31,12 @@ export const storage = {
     }
   },
 
-  // Faculty
   getFaculty: (): Faculty[] => JSON.parse(localStorage.getItem(KEYS.FACULTY) || '[]'),
   setFaculty: (data: Faculty[]) => localStorage.setItem(KEYS.FACULTY, JSON.stringify(data)),
 
-  // Batches
   getBatches: (): Batch[] => JSON.parse(localStorage.getItem(KEYS.BATCHES) || '[]'),
   setBatches: (data: Batch[]) => localStorage.setItem(KEYS.BATCHES, JSON.stringify(data)),
 
-  // Settings
   getSettings: (): SchedulerSettings => {
     try {
       const stored = localStorage.getItem(KEYS.SETTINGS);
@@ -47,7 +48,6 @@ export const storage = {
   setSettings: (settings: SchedulerSettings) =>
     localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings)),
 
-  // Audit
   getAuditLogs: (): AuditLog[] => {
     try {
       const stored = localStorage.getItem(KEYS.AUDIT);
@@ -66,5 +66,44 @@ export const storage = {
     };
     logs.unshift(newLog);
     localStorage.setItem(KEYS.AUDIT, JSON.stringify(logs));
+  },
+
+  // --- Weekly timetables ---
+  getWeekTimetables: (): WeekTimetables => {
+    try {
+      const stored = localStorage.getItem(KEYS.WEEK);
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  },
+  setWeekTimetables: (data: WeekTimetables) =>
+    localStorage.setItem(KEYS.WEEK, JSON.stringify(data)),
+
+  getDayTimetable: (day: DayOfWeek): Timetable | null => {
+    const week = storage.getWeekTimetables();
+    return week[day] || null;
+  },
+
+  setDayTimetable: (day: DayOfWeek, timetable: Timetable) => {
+    const week = storage.getWeekTimetables();
+    week[day] = timetable;
+    storage.setWeekTimetables(week);
+  },
+
+  // Allocations from every OTHER day this week — feeds the weekly quota bias
+  getWeekAllocationsExcluding: (day: DayOfWeek): Allocation[] => {
+    const week = storage.getWeekTimetables();
+    return WEEKDAYS
+      .filter(d => d !== day)
+      .flatMap(d => week[d]?.allocations || []);
+  },
+
+  // Every day's allocations (including current), keyed by day — feeds the quota summary UI
+  getAllWeekAllocations: (): Record<DayOfWeek, Allocation[]> => {
+    const week = storage.getWeekTimetables();
+    const result = {} as Record<DayOfWeek, Allocation[]>;
+    WEEKDAYS.forEach(d => { result[d] = week[d]?.allocations || []; });
+    return result;
   },
 };

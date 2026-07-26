@@ -19,8 +19,8 @@ let batchIdCounter = 1;
 const makeBatches = (
   building: string,
   yearCategory: string,
-  rooms: [string, string][], // Array of [Batch Name, Room Number]
-  times: [string, string][]  // Array of [Start Time, End Time] in 24hr format
+  rooms: [string, string][],
+  times: [string, string][]
 ): Batch[] => {
   return rooms.map(([name, roomNumber]) => ({
     id: `seeded_batch_${batchIdCounter++}`,
@@ -29,11 +29,15 @@ const makeBatches = (
     name,
     roomNumber,
     periods: createPeriods(times),
-    // Assigning 6 default dummy subjects so the scheduler has something to render immediately
+    // count = relative weight in the day's rotation, not a literal daily total.
+    // PCMB weight sum = 6, language weight sum = 4 → 60/40 split, matching default settings.
     subjects: [
       { subject: 'Physics', count: 2 },
       { subject: 'Chemistry', count: 2 },
-      { subject: 'Mathematics', count: 2 }
+      { subject: 'Mathematics', count: 1 },
+      { subject: 'Biology', count: 1 },
+      { subject: 'English', count: 2 },
+      { subject: 'Second Language', count: 2 }
     ]
   }));
 };

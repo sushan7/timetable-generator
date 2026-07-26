@@ -9,7 +9,11 @@ export interface Faculty {
   subjects: string[];
   maxPeriodsPerDay?: number;
   isAbsent?: boolean;
+  assignedBatches?: string[]; // batch IDs this faculty is exclusively locked to; empty/undefined = unrestricted
 }
+
+export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+export type DayOfWeek = typeof WEEKDAYS[number];
 
 export interface Batch {
   id: string;
@@ -35,6 +39,8 @@ export interface Allocation {
   manualEdited?: boolean;
   frozen?: boolean;
   explanation?: string[];
+  vacatedFacultyId?: string;   // set when the original faculty went absent after generation
+  vacatedFacultyName?: string; // cached name, so the UI can show it even if faculty is later deleted
 }
 
 export interface Timetable {
