@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronRight, Upload, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Batch, PeriodTiming } from '../types';
+import { storage } from '../utils/storage';
 
 const BUILDINGS = ['Building 1', 'Building 2'];
 
-const defaultPeriods: PeriodTiming[] = Array(6).fill({ startTime: '', endTime: '' });
+const defaultPeriods: PeriodTiming[] = Array(6).fill(null).map(() => ({ startTime: '', endTime: '' }));
 
 export default function BatchManagement() {
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -13,7 +14,6 @@ export default function BatchManagement() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form State
   const [building, setBuilding] = useState('Building 1');
   const [yearCategory, setYearCategory] = useState('');
   const [name, setName] = useState('');
@@ -23,21 +23,14 @@ export default function BatchManagement() {
     { subject: '', count: 1 }
   ]);
 
-  // Migrate & Load Data
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem('batches') || '[]');
-    const migrated = stored.map((b: any) => ({
-      ...b,
-      building: b.building || 'Building 1',
-      yearCategory: b.yearCategory || 'Default',
-      periods: b.periods?.length === 6 ? b.periods : defaultPeriods
-    }));
-    setBatches(migrated);
+    storage.initialize();
+    setBatches(storage.getBatches());
   }, []);
 
   const saveToStorage = (newBatches: Batch[]) => {
     setBatches(newBatches);
-    localStorage.setItem('batches', JSON.stringify(newBatches));
+    storage.setBatches(newBatches);
   };
 
   const validatePeriods = (p: PeriodTiming[]) => {
@@ -75,8 +68,7 @@ export default function BatchManagement() {
     };
 
     saveToStorage([...batches, newBatch]);
-    
-    // Reset Form
+
     setName('');
     setRoomNumber('');
     setPeriods(defaultPeriods);
@@ -87,7 +79,6 @@ export default function BatchManagement() {
     saveToStorage(batches.filter(b => b.id !== id));
   };
 
-  // Helper to parse dirty 12hr time strings into 24hr "HH:mm"
   const parseTimeStr = (str: string) => {
     if (!str) return '';
     const match = str.match(/(\d+):(\d+)\s*(AM|PM)?/i);
@@ -119,10 +110,10 @@ export default function BatchManagement() {
           const parsedPeriods: PeriodTiming[] = [];
           for (let i = 1; i <= 6; i++) {
             const periodRaw = row[`Period ${i}`] || '';
-            const times = periodRaw.split('–'); // Split by en-dash or hyphen
+            const times = periodRaw.split('–');
             const splitChar = times.length > 1 ? '–' : '-';
             const parts = periodRaw.split(splitChar);
-            
+
             parsedPeriods.push({
               startTime: parseTimeStr(parts[0] || ''),
               endTime: parseTimeStr(parts[1] || '')
@@ -141,7 +132,7 @@ export default function BatchManagement() {
             name: row['Batch Name'],
             roomNumber: row['Room No.'],
             periods: parsedPeriods,
-            subjects: [] // Assign empty subjects initially for imported data
+            subjects: []
           });
         });
 
@@ -162,13 +153,12 @@ export default function BatchManagement() {
         </div>
       )}
 
-      {/* Form Section */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-gray-900">Add New Batch</h2>
           <div>
             <input type="file" accept=".xlsx,.csv" className="hidden" ref={fileInputRef} onChange={handleImport} />
-            <button 
+            <button
               onClick={() => fileInputRef.current?.click()}
               className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
             >
@@ -181,17 +171,17 @@ export default function BatchManagement() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Building</label>
-              <select 
+              <select
                 value={building} onChange={e => setBuilding(e.target.value)}
                 className="w-full p-2 border rounded-lg" required
               >
                 {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium mb-1">Year / Category</label>
-              <input 
+              <input
                 list="years" value={yearCategory} onChange={e => setYearCategory(e.target.value)}
                 className="w-full p-2 border rounded-lg" required placeholder="e.g. 1st Year"
               />
@@ -204,7 +194,7 @@ export default function BatchManagement() {
 
             <div>
               <label className="block text-sm font-medium mb-1">Batch Name</label>
-              <input 
+              <input
                 value={name} onChange={e => setName(e.target.value)}
                 className="w-full p-2 border rounded-lg" required placeholder="Lakshya-1"
               />
@@ -212,7 +202,7 @@ export default function BatchManagement() {
 
             <div>
               <label className="block text-sm font-medium mb-1">Room No.</label>
-              <input 
+              <input
                 value={roomNumber} onChange={e => setRoomNumber(e.target.value)}
                 className="w-full p-2 border rounded-lg" required placeholder="206"
               />
@@ -225,22 +215,22 @@ export default function BatchManagement() {
               {periods.map((period, i) => (
                 <div key={i} className="space-y-2 bg-gray-50 p-2 rounded border">
                   <div className="text-xs font-semibold text-center text-gray-500">Period {i + 1}</div>
-                  <input 
+                  <input
                     type="time" required
                     value={period.startTime}
                     onChange={(e) => {
                       const newP = [...periods];
-                      newP[i].startTime = e.target.value;
+                      newP[i] = { ...newP[i], startTime: e.target.value };
                       setPeriods(newP);
                     }}
                     className="w-full text-sm p-1 border rounded"
                   />
-                  <input 
+                  <input
                     type="time" required
                     value={period.endTime}
                     onChange={(e) => {
                       const newP = [...periods];
-                      newP[i].endTime = e.target.value;
+                      newP[i] = { ...newP[i], endTime: e.target.value };
                       setPeriods(newP);
                     }}
                     className="w-full text-sm p-1 border rounded"
@@ -256,7 +246,6 @@ export default function BatchManagement() {
         </form>
       </div>
 
-      {/* List Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -271,7 +260,7 @@ export default function BatchManagement() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {batches.map(batch => (
-              <React.Fragment key={batch.id}>
+              <Fragment key={batch.id}>
                 <tr className="hover:bg-gray-50">
                   <td className="p-4">
                     <button onClick={() => setExpandedId(expandedId === batch.id ? null : batch.id)}>
@@ -302,7 +291,7 @@ export default function BatchManagement() {
                     </td>
                   </tr>
                 )}
-              </React.Fragment>
+              </Fragment>
             ))}
           </tbody>
         </table>

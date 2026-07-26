@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Users, Plus, Trash2, Edit2, Search, Save, X, Upload, UserMinus, UserCheck } from 'lucide-react';
 import type { Faculty } from '../types';
-import { HARDCODED_FACULTIES } from '../utils/faculties';
-
-const STORAGE_KEY = 'sdtg_faculties';
+import { storage } from '../utils/storage';
 
 export default function FacultyManager() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Modal State
+
   const [isEditing, setIsEditing] = useState(false);
   const [currentFaculty, setCurrentFaculty] = useState<Partial<Faculty>>({
     name: '',
@@ -20,36 +17,28 @@ export default function FacultyManager() {
   const [subjectInput, setSubjectInput] = useState('');
 
   useEffect(() => {
-    // FORCE INITIALIZATION WITH HARDCODED DATA IF EMPTY
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored || JSON.parse(stored).length === 0) {
-      setFaculties(HARDCODED_FACULTIES);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(HARDCODED_FACULTIES));
-    } else {
-      setFaculties(JSON.parse(stored));
-    }
+    storage.initialize();
+    setFaculties(storage.getFaculty());
   }, []);
 
   const saveToStorage = (updated: Faculty[]) => {
     setFaculties(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    storage.setFaculty(updated);
   };
 
-  // --- ABSENT TOGGLE ---
   const toggleAbsent = (id: string) => {
-    const updated = faculties.map(f => 
+    const updated = faculties.map(f =>
       f.id === id ? { ...f, isAbsent: !f.isAbsent } : f
     );
     saveToStorage(updated);
   };
 
-  // --- MANUAL EDITING LOGIC ---
   const handleSaveFaculty = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentFaculty.name) return;
 
     if (currentFaculty.id) {
-      const updated = faculties.map(f => 
+      const updated = faculties.map(f =>
         f.id === currentFaculty.id ? (currentFaculty as Faculty) : f
       );
       saveToStorage(updated);
@@ -125,15 +114,14 @@ export default function FacultyManager() {
     reader.readAsText(file);
   };
 
-  const filteredFaculties = faculties.filter(f => 
+  const filteredFaculties = faculties.filter(f =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     f.subjects.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      
-      {/* Header */}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4">
         <div className="flex items-center gap-3">
           <Users className="w-8 h-8 text-blue-600" />
@@ -156,7 +144,6 @@ export default function FacultyManager() {
         </div>
       </div>
 
-      {/* Search Bar */}
       <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border max-w-md">
         <Search className="w-5 h-5 text-gray-400" />
         <input
@@ -168,7 +155,6 @@ export default function FacultyManager() {
         />
       </div>
 
-      {/* Faculty Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -190,8 +176,6 @@ export default function FacultyManager() {
               ) : (
                 filteredFaculties.map(faculty => (
                   <tr key={faculty.id} className={`hover:bg-gray-50 transition-colors ${faculty.isAbsent ? 'bg-red-50/50' : ''}`}>
-                    
-                    {/* Status Column */}
                     <td className="p-4">
                       {faculty.isAbsent ? (
                         <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1 w-max">
@@ -204,7 +188,6 @@ export default function FacultyManager() {
                       )}
                     </td>
 
-                    {/* Name Column */}
                     <td className={`p-4 font-medium ${faculty.isAbsent ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                       {faculty.name}
                       {faculty.maxPeriodsPerDay !== 4 && (
@@ -212,7 +195,6 @@ export default function FacultyManager() {
                       )}
                     </td>
 
-                    {/* Subjects Column */}
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1.5">
                         {faculty.subjects.map((subj, idx) => (
@@ -223,13 +205,12 @@ export default function FacultyManager() {
                       </div>
                     </td>
 
-                    {/* Actions Column */}
                     <td className="p-4 text-right space-x-2 whitespace-nowrap">
                       <button
                         onClick={() => toggleAbsent(faculty.id)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          faculty.isAbsent 
-                            ? 'bg-green-600 text-white hover:bg-green-700' 
+                          faculty.isAbsent
+                            ? 'bg-green-600 text-white hover:bg-green-700'
                             : 'bg-red-50 text-red-600 hover:bg-red-100'
                         }`}
                       >
@@ -258,7 +239,6 @@ export default function FacultyManager() {
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
       {isEditing && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
