@@ -95,7 +95,9 @@ const tryAssignSlot = (
       if (faculty.isAbsent) return;
 
       const currentLoad = dailyWorkload[faculty.id] || 0;
-      const maxLimit = faculty.maxPeriodsPerDay || settings.maxDailyPeriods;
+      // Hard ceiling of 4/day, even if a faculty's individual setting is higher.
+      // A lower individual setting still applies if the person set one.
+      const maxLimit = Math.min(faculty.maxPeriodsPerDay || settings.maxDailyPeriods, 4);
       if (currentLoad >= maxLimit) return;
 
       const hasTimeConflict = allocations.some(a => {

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Calendar, Image as ImageIcon, Loader2, Play, Lock, Unlock, Clock, MapPin, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Calendar, Image as ImageIcon, Loader2, Play, Lock, Unlock, Clock, MapPin, RefreshCw, AlertTriangle, Building2, Users } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import type { Faculty, Batch, Allocation, DayOfWeek } from '../types';
 import { WEEKDAYS } from '../types';
 import { generateTimetableV2, patchAbsences } from '../utils/scheduler';
 import { storage } from '../utils/storage';
+import { SECTIONS, groupBatchesBySection, type SectionId } from '../utils/sections';
 
 const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
 
@@ -17,7 +18,7 @@ export default function Timetable() {
   const [isExporting, setIsExporting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const tableRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     storage.initialize();
@@ -119,10 +120,10 @@ export default function Timetable() {
   };
 
   const exportAsImage = async () => {
-    if (!tableRef.current) return;
+    if (!pageRef.current) return;
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(tableRef.current, {
+      const canvas = await html2canvas(pageRef.current, {
         scale: 2,
         backgroundColor: '#f8fafc'
       });
@@ -135,12 +136,14 @@ export default function Timetable() {
     }
   };
 
+  const sectionedBatches = useMemo(() => groupBatchesBySection(batches), [batches]);
+
   const quota = useMemo(() => {
     const allDays = storage.getAllWeekAllocations();
     let pcmb = 0, lang = 0;
     WEEKDAYS.forEach(d => {
       (allDays[d] || []).forEach(a => {
-        if (!a.facultyId) return; // gaps don't count toward the quota
+        if (!a.facultyId) return;
         if (PCMB_SUBJECTS.includes(a.subject)) pcmb++; else lang++;
       });
     });
@@ -156,10 +159,20 @@ export default function Timetable() {
     };
   }, [allocations]);
 
+  const getSectionStats = (sectionBatches: Batch[]) => {
+    const batchIds = new Set(sectionBatches.map(b => b.id));
+    const sectionAllocations = allocations.filter(a => batchIds.has(a.batchId));
+    const totalSlots = sectionBatches.reduce((sum, b) => sum + b.periods.filter(p => p.startTime).length, 0);
+    const filled = sectionAllocations.filter(a => a.facultyId).length;
+    const gaps = sectionAllocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
+    const uniqueFaculty = new Set(sectionAllocations.filter(a => a.facultyId).map(a => a.facultyId)).size;
+    return { totalSlots, filled, gaps, uniqueFaculty, batchCount: sectionBatches.length };
+  };
+
   const gapCount = allocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[90rem] mx-auto space-y-6 font-sans bg-slate-50/50 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[95rem] mx-auto space-y-6 font-sans bg-slate-50/50 min-h-screen" ref={pageRef}>
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex items-center gap-4">
@@ -172,7 +185,7 @@ export default function Timetable() {
             </h1>
             <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
-              V2 Engine Active — {currentDay}
+              V2 Engine Active — {currentDay} — 4 lecture/day cap
             </p>
           </div>
         </div>
@@ -251,116 +264,152 @@ export default function Timetable() {
         </div>
       )}
 
-      {hasGenerated && (
-        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto" ref={tableRef}>
-            <table className="w-full text-left border-collapse min-w-[1200px]">
+      {hasGenerated && SECTIONS.map(section => {
+        const sectionBatches = sectionedBatches[section.id];
+        if (sectionBatches.length === 0) return null;
+        const stats = getSectionStats(sectionBatches);
+        const fillPct = stats.totalSlots === 0 ? 0 : Math.round((stats.filled / stats.totalSlots) * 100);
 
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200">
-                  <th className="p-5 font-bold text-slate-700 uppercase tracking-wider text-xs w-64">
-                    Batch Information
-                  </th>
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <th key={i} className="p-5 font-bold text-slate-700 uppercase tracking-wider text-xs text-center border-l border-slate-200 w-48">
-                      Period {i + 1}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
+        return (
+          <div key={section.id} className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
 
-              <tbody className="divide-y divide-slate-100">
-                {batches.map((batch) => (
-                  <tr key={batch.id} className="group hover:bg-blue-50/30 transition-colors duration-200">
+            <div className="p-5 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-lg">{section.label}</h3>
+                  <p className="text-xs text-slate-500">{stats.batchCount} batch{stats.batchCount !== 1 ? 'es' : ''}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-slate-600">
+                  <Users className="w-3.5 h-3.5" /> {stats.uniqueFaculty} faculty involved
+                </span>
+                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                  {stats.filled}/{stats.totalSlots} periods filled ({fillPct}%)
+                </span>
+                {stats.gaps > 0 && (
+                  <span className="px-2.5 py-1 bg-red-50 text-red-700 rounded-full border border-red-100">
+                    {stats.gaps} gap{stats.gaps > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
 
-                    <td className="p-5 bg-white group-hover:bg-transparent transition-colors">
-                      <div className="font-extrabold text-slate-800 text-base mb-1">
-                        {batch.name || 'Unnamed Batch'}
-                      </div>
-                      <div className="flex flex-col gap-1.5 mt-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md w-max">
-                          <MapPin className="w-3.5 h-3.5" />
-                          {batch.building || 'Main Block'}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md w-max">
-                          Room {batch.roomNumber || '-'}
-                        </span>
-                      </div>
-                    </td>
-
-                    {Array.from({ length: 6 }).map((_, i) => {
-                      const period = (batch.periods && Array.isArray(batch.periods)) ? batch.periods[i] : null;
-                      const allocation = allocations.find(a => a.batchId === batch.id && a.periodIndex === i);
-                      const isGap = !!(allocation && allocation.vacatedFacultyId && !allocation.facultyId);
-
-                      return (
-                        <td key={i} className="p-3 border-l border-slate-100 align-top">
-
-                          {period && period.startTime && (
-                            <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-2">
-                              <Clock className="w-3 h-3" />
-                              {formatTime(period.startTime)} - {formatTime(period.endTime)}
-                            </div>
-                          )}
-
-                          <div
-                            className={`relative group/card flex flex-col justify-center h-20 px-3 py-2 rounded-xl transition-all duration-200 ${
-                              isGap
-                                ? 'bg-red-50 border-2 border-dashed border-red-300 text-red-600'
-                                : !allocation
-                                  ? 'bg-slate-50 border-2 border-dashed border-slate-200 text-slate-400 hover:border-slate-300'
-                                  : allocation.frozen
-                                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm shadow-amber-100 text-amber-900'
-                                    : 'bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80 shadow-sm shadow-blue-100 text-blue-900 hover:shadow-md hover:-translate-y-0.5'
-                            }`}
-                            title={allocation?.explanation ? allocation.explanation.join('\n') : 'Unassigned'}
-                          >
-                            {isGap ? (
-                              <>
-                                <div className="font-bold text-xs leading-tight text-center flex items-center justify-center gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5" /> Gap
-                                </div>
-                                <div className="text-[11px] text-center mt-1 font-medium">
-                                  was {allocation!.vacatedFacultyName} (absent)
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className={`font-bold text-sm leading-tight text-center ${!allocation ? 'text-slate-400' : ''}`}>
-                                  {allocation?.subject || 'Empty Slot'}
-                                </div>
-                                <div className={`text-xs text-center mt-1 font-medium ${!allocation ? 'hidden' : allocation.frozen ? 'text-amber-700' : 'text-blue-600'}`}>
-                                  {getFacultyName(allocation?.facultyId || '')}
-                                </div>
-                              </>
-                            )}
-
-                            {allocation && !isGap && (
-                              <button
-                                onClick={() => toggleFreeze(batch.id, i)}
-                                className={`absolute -top-2 -right-2 p-1.5 rounded-full shadow-sm transition-all duration-200 ${
-                                  allocation.frozen
-                                    ? 'bg-amber-400 text-white hover:bg-amber-500 hover:scale-110 z-10'
-                                    : 'bg-white text-slate-400 border border-slate-200 opacity-0 group-hover/card:opacity-100 hover:text-indigo-600 hover:border-indigo-200 hover:scale-110 z-10'
-                                }`}
-                                title={allocation.frozen ? 'Unfreeze Slot' : 'Freeze Slot'}
-                              >
-                                {allocation.frozen ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                              </button>
-                            )}
-                          </div>
-
-                        </td>
-                      );
-                    })}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[1100px]">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="p-4 font-bold text-slate-700 uppercase tracking-wider text-xs w-60">Batch Information</th>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <th key={i} className="p-4 font-bold text-slate-700 uppercase tracking-wider text-xs text-center border-l border-slate-200 w-44">
+                        Period {i + 1}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
+                </thead>
 
-            </table>
+                <tbody className="divide-y divide-slate-100">
+                  {sectionBatches.map((batch) => (
+                    <tr key={batch.id} className="group hover:bg-blue-50/30 transition-colors duration-200">
+
+                      <td className="p-4 bg-white group-hover:bg-transparent transition-colors">
+                        <div className="font-extrabold text-slate-800 text-base mb-1">
+                          {batch.name || 'Unnamed Batch'}
+                        </div>
+                        <div className="flex flex-col gap-1.5 mt-2">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md w-max">
+                            <MapPin className="w-3.5 h-3.5" />
+                            {batch.yearCategory}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md w-max">
+                            Room {batch.roomNumber || '-'}
+                          </span>
+                        </div>
+                      </td>
+
+                      {Array.from({ length: 6 }).map((_, i) => {
+                        const period = (batch.periods && Array.isArray(batch.periods)) ? batch.periods[i] : null;
+                        const allocation = allocations.find(a => a.batchId === batch.id && a.periodIndex === i);
+                        const isGap = !!(allocation && allocation.vacatedFacultyId && !allocation.facultyId);
+                        const hasNoTiming = !period || !period.startTime;
+
+                        return (
+                          <td key={i} className="p-3 border-l border-slate-100 align-top">
+
+                            {!hasNoTiming && (
+                              <div className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-2">
+                                <Clock className="w-3 h-3" />
+                                {formatTime(period!.startTime)} - {formatTime(period!.endTime)}
+                              </div>
+                            )}
+
+                            {hasNoTiming ? (
+                              <div className="h-20 flex items-center justify-center text-[11px] text-slate-300 italic">
+                                No period slot
+                              </div>
+                            ) : (
+                              <div
+                                className={`relative group/card flex flex-col justify-center h-20 px-3 py-2 rounded-xl transition-all duration-200 ${
+                                  isGap
+                                    ? 'bg-red-50 border-2 border-dashed border-red-300 text-red-600'
+                                    : !allocation
+                                      ? 'bg-slate-50 border-2 border-dashed border-slate-200 text-slate-400 hover:border-slate-300'
+                                      : allocation.frozen
+                                        ? 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm shadow-amber-100 text-amber-900'
+                                        : 'bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80 shadow-sm shadow-blue-100 text-blue-900 hover:shadow-md hover:-translate-y-0.5'
+                                }`}
+                                title={allocation?.explanation ? allocation.explanation.join('\n') : 'Unassigned — free period'}
+                              >
+                                {isGap ? (
+                                  <>
+                                    <div className="font-bold text-xs leading-tight text-center flex items-center justify-center gap-1">
+                                      <AlertTriangle className="w-3.5 h-3.5" /> Gap
+                                    </div>
+                                    <div className="text-[11px] text-center mt-1 font-medium">
+                                      was {allocation!.vacatedFacultyName} (absent)
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className={`font-bold text-sm leading-tight text-center ${!allocation ? 'text-slate-400' : ''}`}>
+                                      {allocation?.subject || 'Free Period'}
+                                    </div>
+                                    <div className={`text-xs text-center mt-1 font-medium ${!allocation ? 'hidden' : allocation.frozen ? 'text-amber-700' : 'text-blue-600'}`}>
+                                      {getFacultyName(allocation?.facultyId || '')}
+                                    </div>
+                                  </>
+                                )}
+
+                                {allocation && !isGap && (
+                                  <button
+                                    onClick={() => toggleFreeze(batch.id, i)}
+                                    className={`absolute -top-2 -right-2 p-1.5 rounded-full shadow-sm transition-all duration-200 ${
+                                      allocation.frozen
+                                        ? 'bg-amber-400 text-white hover:bg-amber-500 hover:scale-110 z-10'
+                                        : 'bg-white text-slate-400 border border-slate-200 opacity-0 group-hover/card:opacity-100 hover:text-indigo-600 hover:border-indigo-200 hover:scale-110 z-10'
+                                    }`}
+                                    title={allocation.frozen ? 'Unfreeze Slot' : 'Freeze Slot'}
+                                  >
+                                    {allocation.frozen ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }

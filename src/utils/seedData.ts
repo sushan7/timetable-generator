@@ -16,11 +16,21 @@ const createPeriods = (times: [string, string][]): PeriodTiming[] => {
 let batchIdCounter = 1;
 
 // Helper to quickly generate multiple batches with the same timings
+const DEFAULT_SUBJECTS = [
+  { subject: 'Physics', count: 2 },
+  { subject: 'Chemistry', count: 2 },
+  { subject: 'Mathematics', count: 1 },
+  { subject: 'Biology', count: 1 },
+  { subject: 'English', count: 2 },
+  { subject: 'Second Language', count: 2 }
+];
+
 const makeBatches = (
   building: string,
   yearCategory: string,
   rooms: [string, string][],
-  times: [string, string][]
+  times: [string, string][],
+  subjectOverride?: { subject: string; count: number }[]
 ): Batch[] => {
   return rooms.map(([name, roomNumber]) => ({
     id: `seeded_batch_${batchIdCounter++}`,
@@ -30,15 +40,7 @@ const makeBatches = (
     roomNumber,
     periods: createPeriods(times),
     // count = relative weight in the day's rotation, not a literal daily total.
-    // PCMB weight sum = 6, language weight sum = 4 → 60/40 split, matching default settings.
-    subjects: [
-      { subject: 'Physics', count: 2 },
-      { subject: 'Chemistry', count: 2 },
-      { subject: 'Mathematics', count: 1 },
-      { subject: 'Biology', count: 1 },
-      { subject: 'English', count: 2 },
-      { subject: 'Second Language', count: 2 }
-    ]
+    subjects: subjectOverride || DEFAULT_SUBJECTS
   }));
 };
 
@@ -83,9 +85,14 @@ export const initialBatches: Batch[] = [
     ["Jnana", "213(B/C)"], ["Vijnana", "207(CS)"], ["Achievers", "212(B/C)"]
   ], TIMINGS.PU2_AIIMS),
 
+  // NLT is a long-term PCMB-focused batch — no languages, ever.
   ...makeBatches("Building 1", "NLT", [
     ["NLT Batch 1", "205(B)"], ["NLT Batch 2", "205(A)"]
-  ], TIMINGS.NLT_BATCH),
+  ], TIMINGS.NLT_BATCH, [
+    { subject: 'Physics', count: 2 },
+    { subject: 'Chemistry', count: 2 },
+    { subject: 'Biology', count: 2 }
+  ]),
 
 
   // --- BUILDING 2 ---

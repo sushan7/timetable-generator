@@ -13,7 +13,7 @@ const KEYS = {
 export const defaultSettings: SchedulerSettings = {
   pcmbWeight: 60,
   languageWeight: 40,
-  maxDailyPeriods: 6,
+  maxDailyPeriods: 4,
   weekStartDay: 'Monday',
   enableGapOptimization: true,
   enableConsecutivePeriodAvoidance: true,
