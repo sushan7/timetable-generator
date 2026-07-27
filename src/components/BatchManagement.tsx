@@ -3,9 +3,11 @@ import { Plus, Trash2, ChevronDown, ChevronRight, Upload, AlertCircle } from 'lu
 import * as XLSX from 'xlsx';
 import type { Batch, PeriodTiming } from '../types';
 import { storage } from '../utils/storage';
+import Button from './ui/Button';
+import Badge from './ui/Badge';
+import Card from './ui/Card';
 
 const BUILDINGS = ['Building 1', 'Building 2'];
-
 const defaultPeriods: PeriodTiming[] = Array(6).fill(null).map(() => ({ startTime: '', endTime: '' }));
 
 export default function BatchManagement() {
@@ -19,9 +21,7 @@ export default function BatchManagement() {
   const [name, setName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
   const [periods, setPeriods] = useState<PeriodTiming[]>(defaultPeriods);
-  const [subjects, setSubjects] = useState<{ subject: string; count: number }[]>([
-    { subject: '', count: 1 }
-  ]);
+  const [subjects, setSubjects] = useState<{ subject: string; count: number }[]>([{ subject: '', count: 1 }]);
 
   useEffect(() => {
     storage.initialize();
@@ -50,7 +50,6 @@ export default function BatchManagement() {
       setError("Batch name must be unique.");
       return;
     }
-
     const periodError = validatePeriods(periods);
     if (periodError) {
       setError(periodError);
@@ -58,15 +57,9 @@ export default function BatchManagement() {
     }
 
     const newBatch: Batch = {
-      id: crypto.randomUUID(),
-      building,
-      yearCategory,
-      name,
-      roomNumber,
-      periods,
+      id: crypto.randomUUID(), building, yearCategory, name, roomNumber, periods,
       subjects: subjects.filter(s => s.subject.trim() !== '')
     };
-
     saveToStorage([...batches, newBatch]);
 
     setName('');
@@ -75,15 +68,13 @@ export default function BatchManagement() {
     setSubjects([{ subject: '', count: 1 }]);
   };
 
-  const handleDelete = (id: string) => {
-    saveToStorage(batches.filter(b => b.id !== id));
-  };
+  const handleDelete = (id: string) => saveToStorage(batches.filter(b => b.id !== id));
 
   const parseTimeStr = (str: string) => {
     if (!str) return '';
     const match = str.match(/(\d+):(\d+)\s*(AM|PM)?/i);
     if (!match) return '';
-    let [_, h, m, ampm] = match;
+    let [, h, m, ampm] = match;
     let hours = parseInt(h);
     if (ampm && ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
     if (ampm && ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
@@ -100,10 +91,8 @@ export default function BatchManagement() {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
+        const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
-
         const importedBatches: Batch[] = [];
 
         data.forEach((row, idx) => {
@@ -113,17 +102,11 @@ export default function BatchManagement() {
             const times = periodRaw.split('–');
             const splitChar = times.length > 1 ? '–' : '-';
             const parts = periodRaw.split(splitChar);
-
-            parsedPeriods.push({
-              startTime: parseTimeStr(parts[0] || ''),
-              endTime: parseTimeStr(parts[1] || '')
-            });
+            parsedPeriods.push({ startTime: parseTimeStr(parts[0] || ''), endTime: parseTimeStr(parts[1] || '') });
           }
 
           const validationErr = validatePeriods(parsedPeriods);
-          if (validationErr) {
-            throw new Error(`Row ${idx + 2} (${row['Batch Name']}): ${validationErr}`);
-          }
+          if (validationErr) throw new Error(`Row ${idx + 2} (${row['Batch Name']}): ${validationErr}`);
 
           importedBatches.push({
             id: crypto.randomUUID(),
@@ -146,145 +129,116 @@ export default function BatchManagement() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {error && (
-        <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" /> {error}
+        <div className="p-4 bg-red-50 text-red-700 border border-red-100 rounded-lg flex items-center gap-2 text-sm font-medium">
+          <AlertCircle className="w-5 h-5 shrink-0" /> {error}
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <Card>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Add New Batch</h2>
+          <h2 className="text-lg font-bold text-slate-900">Add New Batch</h2>
           <div>
             <input type="file" accept=".xlsx,.csv" className="hidden" ref={fileInputRef} onChange={handleImport} />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
-            >
-              <Upload className="w-4 h-4" /> Import Excel
-            </button>
+            <Button variant="secondary" icon={<Upload className="w-4 h-4" />} onClick={() => fileInputRef.current?.click()}>
+              Import Excel
+            </Button>
           </div>
         </div>
 
         <form onSubmit={handleAddBatch} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Building</label>
-              <select
-                value={building} onChange={e => setBuilding(e.target.value)}
-                className="w-full p-2 border rounded-lg" required
-              >
+              <label className="block text-sm font-medium text-slate-700 mb-1">Building</label>
+              <select value={building} onChange={e => setBuilding(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm" required>
                 {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
-
             <div>
-              <label className="block text-sm font-medium mb-1">Year / Category</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Year / Category</label>
               <input
                 list="years" value={yearCategory} onChange={e => setYearCategory(e.target.value)}
-                className="w-full p-2 border rounded-lg" required placeholder="e.g. 1st Year"
+                className="w-full p-2 border border-slate-200 rounded-lg text-sm" required placeholder="e.g. 1st Year"
               />
               <datalist id="years">
-                <option value="1st Year" />
-                <option value="2nd Year" />
-                <option value="NLT" />
+                <option value="1st Year" /><option value="2nd Year" /><option value="NLT" />
               </datalist>
             </div>
-
             <div>
-              <label className="block text-sm font-medium mb-1">Batch Name</label>
-              <input
-                value={name} onChange={e => setName(e.target.value)}
-                className="w-full p-2 border rounded-lg" required placeholder="Lakshya-1"
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-1">Batch Name</label>
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm" required placeholder="Lakshya-1" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium mb-1">Room No.</label>
-              <input
-                value={roomNumber} onChange={e => setRoomNumber(e.target.value)}
-                className="w-full p-2 border rounded-lg" required placeholder="206"
-              />
+              <label className="block text-sm font-medium text-slate-700 mb-1">Room No.</label>
+              <input value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-sm" required placeholder="206" />
             </div>
           </div>
 
-          <div className="border-t pt-4">
-            <h3 className="text-sm font-semibold mb-3 text-gray-700">Period Timings (Must be chronological)</h3>
+          <div className="border-t border-slate-100 pt-4">
+            <h3 className="text-sm font-semibold mb-3 text-slate-700">Period Timings (Must be chronological)</h3>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               {periods.map((period, i) => (
-                <div key={i} className="space-y-2 bg-gray-50 p-2 rounded border">
-                  <div className="text-xs font-semibold text-center text-gray-500">Period {i + 1}</div>
+                <div key={i} className="space-y-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                  <div className="text-xs font-semibold text-center text-slate-500">Period {i + 1}</div>
                   <input
-                    type="time" required
-                    value={period.startTime}
-                    onChange={(e) => {
-                      const newP = [...periods];
-                      newP[i] = { ...newP[i], startTime: e.target.value };
-                      setPeriods(newP);
-                    }}
-                    className="w-full text-sm p-1 border rounded"
+                    type="time" required value={period.startTime}
+                    onChange={(e) => { const newP = [...periods]; newP[i] = { ...newP[i], startTime: e.target.value }; setPeriods(newP); }}
+                    className="w-full text-sm p-1 border border-slate-200 rounded"
                   />
                   <input
-                    type="time" required
-                    value={period.endTime}
-                    onChange={(e) => {
-                      const newP = [...periods];
-                      newP[i] = { ...newP[i], endTime: e.target.value };
-                      setPeriods(newP);
-                    }}
-                    className="w-full text-sm p-1 border rounded"
+                    type="time" required value={period.endTime}
+                    onChange={(e) => { const newP = [...periods]; newP[i] = { ...newP[i], endTime: e.target.value }; setPeriods(newP); }}
+                    className="w-full text-sm p-1 border border-slate-200 rounded"
                   />
                 </div>
               ))}
             </div>
           </div>
 
-          <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> Save Batch
-          </button>
+          <Button type="submit" variant="primary" icon={<Plus className="w-4 h-4" />}>Save Batch</Button>
         </form>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <Card padding={false}>
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="p-4 font-semibold text-gray-600 w-10"></th>
-              <th className="p-4 font-semibold text-gray-600">Building</th>
-              <th className="p-4 font-semibold text-gray-600">Category</th>
-              <th className="p-4 font-semibold text-gray-600">Batch Name</th>
-              <th className="p-4 font-semibold text-gray-600">Room</th>
-              <th className="p-4 font-semibold text-gray-600">Actions</th>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="p-4 w-10"></th>
+              <th className="p-4 font-semibold text-slate-600 text-sm">Building</th>
+              <th className="p-4 font-semibold text-slate-600 text-sm">Category</th>
+              <th className="p-4 font-semibold text-slate-600 text-sm">Batch Name</th>
+              <th className="p-4 font-semibold text-slate-600 text-sm">Room</th>
+              <th className="p-4 font-semibold text-slate-600 text-sm">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {batches.map(batch => (
               <Fragment key={batch.id}>
-                <tr className="hover:bg-gray-50">
+                <tr className="hover:bg-slate-50">
                   <td className="p-4">
-                    <button onClick={() => setExpandedId(expandedId === batch.id ? null : batch.id)}>
-                      {expandedId === batch.id ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+                    <button onClick={() => setExpandedId(expandedId === batch.id ? null : batch.id)} className="text-slate-400 hover:text-slate-700">
+                      {expandedId === batch.id ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                     </button>
                   </td>
-                  <td className="p-4">{batch.building}</td>
-                  <td className="p-4"><span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-sm">{batch.yearCategory}</span></td>
-                  <td className="p-4 font-medium text-gray-900">{batch.name}</td>
-                  <td className="p-4">{batch.roomNumber}</td>
+                  <td className="p-4 text-sm text-slate-700">{batch.building}</td>
+                  <td className="p-4"><Badge tone="info">{batch.yearCategory}</Badge></td>
+                  <td className="p-4 font-medium text-slate-900 text-sm">{batch.name}</td>
+                  <td className="p-4 text-sm text-slate-700">{batch.roomNumber}</td>
                   <td className="p-4">
-                    <button onClick={() => handleDelete(batch.id)} className="text-red-500 hover:text-red-700">
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(batch.id)} className="hover:text-red-600 hover:bg-red-50">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </td>
                 </tr>
                 {expandedId === batch.id && (
-                  <tr className="bg-gray-50/50">
-                    <td colSpan={6} className="p-4 border-l-4 border-blue-500">
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={6} className="p-4 border-l-4 border-indigo-500">
                       <div className="grid grid-cols-6 gap-4">
                         {batch.periods.map((p, i) => (
-                          <div key={i} className="bg-white p-2 border rounded-lg text-center shadow-sm">
-                            <div className="text-xs font-semibold text-gray-500 mb-1">Period {i + 1}</div>
-                            <div className="text-sm font-medium text-blue-700">{p.startTime} - {p.endTime}</div>
+                          <div key={i} className="bg-white p-2 border border-slate-200 rounded-lg text-center">
+                            <div className="text-xs font-semibold text-slate-500 mb-1">Period {i + 1}</div>
+                            <div className="text-sm font-medium text-indigo-700">{p.startTime} - {p.endTime}</div>
                           </div>
                         ))}
                       </div>
@@ -295,7 +249,7 @@ export default function BatchManagement() {
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   );
 }

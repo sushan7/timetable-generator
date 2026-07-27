@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, Edit2, Search, Save, X, Upload, UserMinus, UserCheck, Link2 } from 'lucide-react';
+import { Users, Plus, Trash2, Edit2, Upload, UserMinus, UserCheck, Link2, X, Save } from 'lucide-react';
 import type { Faculty, Batch } from '../types';
 import { storage } from '../utils/storage';
+import PageHeader from '../components/ui/PageHeader';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
+import Card from '../components/ui/Card';
+import Modal from '../components/ui/Modal';
+import EmptyState from '../components/ui/EmptyState';
+import SearchInput from '../components/ui/SearchInput';
 
 export default function FacultyManager() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [allBatches, setAllBatches] = useState<Batch[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [currentFaculty, setCurrentFaculty] = useState<Partial<Faculty>>({
-    name: '',
-    subjects: [],
-    maxPeriodsPerDay: 4,
-    isAbsent: false,
-    assignedBatches: []
+    name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: []
   });
   const [subjectInput, setSubjectInput] = useState('');
   const [batchSearch, setBatchSearch] = useState('');
@@ -31,10 +35,7 @@ export default function FacultyManager() {
   };
 
   const toggleAbsent = (id: string) => {
-    const updated = faculties.map(f =>
-      f.id === id ? { ...f, isAbsent: !f.isAbsent } : f
-    );
-    saveToStorage(updated);
+    saveToStorage(faculties.map(f => (f.id === id ? { ...f, isAbsent: !f.isAbsent } : f)));
   };
 
   const handleSaveFaculty = (e: React.FormEvent) => {
@@ -42,10 +43,7 @@ export default function FacultyManager() {
     if (!currentFaculty.name) return;
 
     if (currentFaculty.id) {
-      const updated = faculties.map(f =>
-        f.id === currentFaculty.id ? (currentFaculty as Faculty) : f
-      );
-      saveToStorage(updated);
+      saveToStorage(faculties.map(f => (f.id === currentFaculty.id ? (currentFaculty as Faculty) : f)));
     } else {
       const newFaculty: Faculty = {
         id: `fac_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -62,17 +60,16 @@ export default function FacultyManager() {
 
   const handleDelete = (id: string) => {
     if (confirm('Are you sure you want to remove this faculty member?')) {
-      const updated = faculties.filter(f => f.id !== id);
-      saveToStorage(updated);
+      saveToStorage(faculties.filter(f => f.id !== id));
     }
   };
 
   const handleOpenEdit = (faculty?: Faculty) => {
-    if (faculty) {
-      setCurrentFaculty({ ...faculty, assignedBatches: faculty.assignedBatches || [] });
-    } else {
-      setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: [] });
-    }
+    setCurrentFaculty(
+      faculty
+        ? { ...faculty, assignedBatches: faculty.assignedBatches || [] }
+        : { name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: [] }
+    );
     setBatchSearch('');
     setIsEditing(true);
   };
@@ -88,26 +85,18 @@ export default function FacultyManager() {
     if (!subjectInput.trim()) return;
     const currentSubjects = currentFaculty.subjects || [];
     if (!currentSubjects.includes(subjectInput.trim())) {
-      setCurrentFaculty({
-        ...currentFaculty,
-        subjects: [...currentSubjects, subjectInput.trim()]
-      });
+      setCurrentFaculty({ ...currentFaculty, subjects: [...currentSubjects, subjectInput.trim()] });
     }
     setSubjectInput('');
   };
 
   const handleRemoveSubject = (subj: string) => {
-    setCurrentFaculty({
-      ...currentFaculty,
-      subjects: (currentFaculty.subjects || []).filter(s => s !== subj)
-    });
+    setCurrentFaculty({ ...currentFaculty, subjects: (currentFaculty.subjects || []).filter(s => s !== subj) });
   };
 
   const toggleAssignedBatch = (batchId: string) => {
     const current = currentFaculty.assignedBatches || [];
-    const updated = current.includes(batchId)
-      ? current.filter(id => id !== batchId)
-      : [...current, batchId];
+    const updated = current.includes(batchId) ? current.filter(id => id !== batchId) : [...current, batchId];
     setCurrentFaculty({ ...currentFaculty, assignedBatches: updated });
   };
 
@@ -120,11 +109,12 @@ export default function FacultyManager() {
         const json = JSON.parse(event.target?.result as string);
         if (Array.isArray(json)) {
           saveToStorage(json);
-          alert(`Successfully imported ${json.length} faculty members!`);
+          setImportMessage({ type: 'success', text: `Successfully imported ${json.length} faculty members.` });
         }
-      } catch (err) {
-        alert('Invalid JSON file format.');
+      } catch {
+        setImportMessage({ type: 'error', text: 'Invalid JSON file format.' });
       }
+      setTimeout(() => setImportMessage(null), 4000);
     };
     reader.readAsText(file);
   };
@@ -142,46 +132,43 @@ export default function FacultyManager() {
   const getBatchName = (id: string) => allBatches.find(b => b.id === id)?.name || 'Unknown batch';
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <PageHeader
+        icon={<Users className="w-6 h-6" />}
+        title="Faculty Management"
+        subtitle={`${faculties.length} member${faculties.length !== 1 ? 's' : ''} loaded`}
+        actions={
+          <>
+            <label>
+              <Button variant="secondary" icon={<Upload className="w-4 h-4" />} type="button" onClick={() => document.getElementById('faculty-json-input')?.click()}>
+                Import JSON
+              </Button>
+              <input id="faculty-json-input" type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+            </label>
+            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => handleOpenEdit()}>
+              Add Faculty
+            </Button>
+          </>
+        }
+      />
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4">
-        <div className="flex items-center gap-3">
-          <Users className="w-8 h-8 text-blue-600" />
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Faculty Management</h1>
-            <p className="text-sm text-gray-500">Manage your pool and absence ({faculties.length} members loaded)</p>
-          </div>
+      {importMessage && (
+        <div className={`text-sm font-medium px-4 py-2.5 rounded-lg border ${
+          importMessage.type === 'success'
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+            : 'bg-red-50 text-red-700 border-red-100'
+        }`}>
+          {importMessage.text}
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm cursor-pointer text-sm">
-            <Upload className="w-4 h-4" /> Import JSON
-            <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
-          </label>
-          <button
-            onClick={() => handleOpenEdit()}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm text-sm"
-          >
-            <Plus className="w-4 h-4" /> Add Faculty Member
-          </button>
-        </div>
-      </div>
+      )}
 
-      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border max-w-md">
-        <Search className="w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by faculty name or subject..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          className="w-full outline-none text-sm bg-transparent"
-        />
-      </div>
+      <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search by faculty name or subject..." className="max-w-md" />
 
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <Card padding={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b text-xs uppercase text-gray-500 font-semibold">
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
                 <th className="p-4">Status</th>
                 <th className="p-4">Faculty Name</th>
                 <th className="p-4">Qualified Subjects</th>
@@ -189,80 +176,53 @@ export default function FacultyManager() {
                 <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="divide-y divide-slate-100 text-sm">
               {filteredFaculties.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-400">
-                    No faculty members found.
+                  <td colSpan={5} className="p-8">
+                    <EmptyState title="No faculty members found" />
                   </td>
                 </tr>
               ) : (
                 filteredFaculties.map(faculty => (
-                  <tr key={faculty.id} className={`hover:bg-gray-50 transition-colors ${faculty.isAbsent ? 'bg-red-50/50' : ''}`}>
+                  <tr key={faculty.id} className={`hover:bg-slate-50 transition-colors ${faculty.isAbsent ? 'bg-red-50/40' : ''}`}>
                     <td className="p-4">
                       {faculty.isAbsent ? (
-                        <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold flex items-center gap-1 w-max">
-                          <UserMinus className="w-3 h-3" /> Absent
-                        </span>
+                        <Badge tone="danger" icon={<UserMinus className="w-3 h-3" />}>Absent</Badge>
                       ) : (
-                        <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-1 w-max">
-                          <UserCheck className="w-3 h-3" /> Present
-                        </span>
+                        <Badge tone="success" icon={<UserCheck className="w-3 h-3" />}>Present</Badge>
                       )}
                     </td>
-
-                    <td className={`p-4 font-medium ${faculty.isAbsent ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                    <td className={`p-4 font-medium ${faculty.isAbsent ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                       {faculty.name}
                       {faculty.maxPeriodsPerDay !== 4 && (
-                        <span className="ml-2 text-xs text-gray-400 font-normal">(Max: {faculty.maxPeriodsPerDay})</span>
+                        <span className="ml-2 text-xs text-slate-400 font-normal">(Max: {faculty.maxPeriodsPerDay})</span>
                       )}
                     </td>
-
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1.5">
-                        {faculty.subjects.map((subj, idx) => (
-                          <span key={idx} className="px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-100">
-                            {subj}
-                          </span>
-                        ))}
+                        {faculty.subjects.map((subj, idx) => <Badge key={idx} tone="info">{subj}</Badge>)}
                       </div>
                     </td>
-
                     <td className="p-4">
                       {faculty.assignedBatches && faculty.assignedBatches.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-semibold border border-amber-100">
-                          <Link2 className="w-3 h-3" /> {faculty.assignedBatches.length} batch{faculty.assignedBatches.length > 1 ? 'es' : ''}
-                        </span>
+                        <Badge tone="warning" icon={<Link2 className="w-3 h-3" />}>
+                          {faculty.assignedBatches.length} batch{faculty.assignedBatches.length > 1 ? 'es' : ''}
+                        </Badge>
                       ) : (
-                        <span className="text-xs text-gray-400">Unrestricted</span>
+                        <span className="text-xs text-slate-400">Unrestricted</span>
                       )}
                     </td>
-
                     <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                      <button
-                        onClick={() => toggleAbsent(faculty.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                          faculty.isAbsent
-                            ? 'bg-green-600 text-white hover:bg-green-700'
-                            : 'bg-red-50 text-red-600 hover:bg-red-100'
-                        }`}
-                      >
+                      <Button size="sm" variant={faculty.isAbsent ? 'primary' : 'danger'} onClick={() => toggleAbsent(faculty.id)}>
                         {faculty.isAbsent ? 'Mark Present' : 'Mark Absent'}
-                      </button>
-                      <button
-                        onClick={() => handleOpenEdit(faculty)}
-                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Edit Faculty"
-                      >
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(faculty)} title="Edit Faculty">
                         <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(faculty.id)}
-                        className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete Faculty"
-                      >
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete(faculty.id)} title="Delete Faculty" className="hover:text-red-600 hover:bg-red-50">
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -270,143 +230,108 @@ export default function FacultyManager() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
-      {isEditing && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b bg-gray-50 sticky top-0">
-              <h2 className="text-xl font-bold text-gray-900">
-                {currentFaculty.id ? 'Edit Faculty' : 'Add New Faculty'}
-              </h2>
-              <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveFaculty} className="p-6 space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase text-gray-500">Faculty Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Dr. Jane Smith"
-                  value={currentFaculty.name || ''}
-                  onChange={e => setCurrentFaculty({ ...currentFaculty, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase text-gray-500">Max Daily Periods Limit</label>
-                <input
-                  type="number"
-                  placeholder="4"
-                  value={currentFaculty.maxPeriodsPerDay ?? 4}
-                  onChange={e => setCurrentFaculty({ ...currentFaculty, maxPeriodsPerDay: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold uppercase text-gray-500">Qualified Subjects</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="e.g., Mathematics"
-                    value={subjectInput}
-                    onChange={e => setSubjectInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubject(); } }}
-                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddSubject}
-                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {(currentFaculty.subjects || []).map((subj, idx) => (
-                    <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium border border-blue-100">
-                      {subj}
-                      <button type="button" onClick={() => handleRemoveSubject(subj)} className="hover:text-red-600">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1 border-t pt-4">
-                <label className="text-xs font-semibold uppercase text-gray-500 flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5" /> Assigned Batches (optional)
-                </label>
-                <p className="text-xs text-gray-500">
-                  Leave empty for unrestricted (can teach any batch needing their subject). Select specific batches to lock this faculty to only those — no other faculty can substitute for them there.
-                </p>
-                <input
-                  type="text"
-                  placeholder="Search batches..."
-                  value={batchSearch}
-                  onChange={e => setBatchSearch(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm mt-1"
-                />
-                <div className="max-h-48 overflow-y-auto border rounded-lg divide-y mt-2">
-                  {filteredBatchOptions.length === 0 ? (
-                    <div className="p-3 text-xs text-gray-400 text-center">No batches match your search.</div>
-                  ) : (
-                    filteredBatchOptions.map(batch => {
-                      const isSelected = (currentFaculty.assignedBatches || []).includes(batch.id);
-                      return (
-                        <label key={batch.id} className="flex items-center gap-2 p-2.5 hover:bg-gray-50 cursor-pointer text-sm">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleAssignedBatch(batch.id)}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="font-medium text-gray-800">{batch.name}</span>
-                          <span className="text-gray-400 text-xs">Room {batch.roomNumber} &middot; {batch.building}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-                {(currentFaculty.assignedBatches || []).length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {(currentFaculty.assignedBatches || []).map(id => (
-                      <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded-md text-xs font-medium border border-amber-100">
-                        {getBatchName(id)}
-                        <button type="button" onClick={() => toggleAssignedBatch(id)} className="hover:text-red-600">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 border text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
-                >
-                  <Save className="w-4 h-4" /> Save Faculty
-                </button>
-              </div>
-            </form>
+      <Modal
+        isOpen={isEditing}
+        onClose={handleCloseModal}
+        title={currentFaculty.id ? 'Edit Faculty' : 'Add New Faculty'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={handleCloseModal}>Cancel</Button>
+            <Button variant="primary" icon={<Save className="w-4 h-4" />} form="faculty-form" type="submit">Save Faculty</Button>
+          </>
+        }
+      >
+        <form id="faculty-form" onSubmit={handleSaveFaculty} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase text-slate-500">Faculty Name</label>
+            <input
+              type="text" required placeholder="e.g., Dr. Jane Smith"
+              value={currentFaculty.name || ''}
+              onChange={e => setCurrentFaculty({ ...currentFaculty, name: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
           </div>
-        </div>
-      )}
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase text-slate-500">Max Daily Periods Limit</label>
+            <input
+              type="number" placeholder="4"
+              value={currentFaculty.maxPeriodsPerDay ?? 4}
+              onChange={e => setCurrentFaculty({ ...currentFaculty, maxPeriodsPerDay: Number(e.target.value) })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase text-slate-500">Qualified Subjects</label>
+            <div className="flex gap-2">
+              <input
+                type="text" placeholder="e.g., Mathematics"
+                value={subjectInput}
+                onChange={e => setSubjectInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubject(); } }}
+                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm"
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={handleAddSubject}>Add</Button>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(currentFaculty.subjects || []).map((subj, idx) => (
+                <Badge key={idx} tone="info">
+                  {subj}
+                  <button type="button" onClick={() => handleRemoveSubject(subj)} className="hover:text-red-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1 border-t border-slate-100 pt-4">
+            <label className="text-xs font-semibold uppercase text-slate-500 flex items-center gap-1.5">
+              <Link2 className="w-3.5 h-3.5" /> Assigned Batches (optional)
+            </label>
+            <p className="text-xs text-slate-500">
+              Leave empty for unrestricted. Select specific batches to lock this faculty to only those.
+            </p>
+            <input
+              type="text" placeholder="Search batches..."
+              value={batchSearch}
+              onChange={e => setBatchSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1"
+            />
+            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 mt-2">
+              {filteredBatchOptions.length === 0 ? (
+                <div className="p-3 text-xs text-slate-400 text-center">No batches match your search.</div>
+              ) : (
+                filteredBatchOptions.map(batch => {
+                  const isSelected = (currentFaculty.assignedBatches || []).includes(batch.id);
+                  return (
+                    <label key={batch.id} className="flex items-center gap-2 p-2.5 hover:bg-slate-50 cursor-pointer text-sm">
+                      <input type="checkbox" checked={isSelected} onChange={() => toggleAssignedBatch(batch.id)} className="w-4 h-4 text-indigo-600 rounded" />
+                      <span className="font-medium text-slate-800">{batch.name}</span>
+                      <span className="text-slate-400 text-xs">Room {batch.roomNumber} &middot; {batch.building}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            {(currentFaculty.assignedBatches || []).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {(currentFaculty.assignedBatches || []).map(id => (
+                  <Badge key={id} tone="warning">
+                    {getBatchName(id)}
+                    <button type="button" onClick={() => toggleAssignedBatch(id)} className="hover:text-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 @theme {
   --font-sans: "Inter", system-ui, sans-serif;
@@ -6,6 +7,11 @@
 
 @layer base {
   body {
-    @apply antialiased text-gray-900 bg-gray-50;
+    @apply antialiased text-slate-800 bg-slate-50;
+  }
+  /* Consistent focus ring across native form elements, so we don't
+     redefine focus styles in every input across the app */
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+    @apply outline-none ring-2 ring-indigo-500 ring-offset-1;
   }
 }
