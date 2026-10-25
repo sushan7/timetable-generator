@@ -41,13 +41,15 @@ export interface Allocation {
   explanation?: string[];
   vacatedFacultyId?: string;   // set when the original faculty went absent after generation
   vacatedFacultyName?: string; // cached name, so the UI can show it even if faculty is later deleted
+  updatedAt?: number;
 }
 
 export interface Timetable {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string; // DayOfWeek or YYYY-MM-DD
   status: TimetableStatus;
   allocations: Allocation[];
+  lastGeneratedAt?: number;
 }
 
 export interface SchedulerSettings {
@@ -62,10 +64,11 @@ export interface SchedulerSettings {
 export interface AuditLog {
   id: string;
   timestamp: number;
-  action: 'MANUAL_OVERRIDE' | 'FREEZE_TOGGLE' | 'STATUS_CHANGE';
+  action: 'MANUAL_OVERRIDE' | 'FREEZE_TOGGLE' | 'STATUS_CHANGE' | 'TIMETABLE_GENERATE' | 'ABSENCE_SYNC';
   batchId?: string;
   periodIndex?: number;
   previousFacultyId?: string;
   newFacultyId?: string;
   reason?: string;
+  day?: DayOfWeek;
 }

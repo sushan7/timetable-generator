@@ -1,19 +1,9 @@
 import type { Batch, Faculty, Allocation, SchedulerSettings } from '../types';
 import { storage } from './storage';
+import { isOverlapping } from './validation';
 
 const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
 const isPCMBSubject = (subject: string) => PCMB_SUBJECTS.includes(subject);
-
-const parseTime = (timeStr: string) => {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-};
-
-const isOverlapping = (startA: string, endA: string, startB: string, endB: string) => {
-  if (!startA || !endA || !startB || !endB) return false;
-  return parseTime(startA) < parseTime(endB) && parseTime(endA) > parseTime(startB);
-};
 
 const getEligibleFaculty = (faculties: Faculty[], batch: Batch, subject: string): Faculty[] => {
   const owners = faculties.filter(
@@ -89,15 +79,14 @@ const tryAssignSlot = (
     const eligibleFaculty = getEligibleFaculty(faculties, batch, targetSubject)
       .filter(f => f.id !== excludeFacultyId);
 
-    let candidateScores: { faculty: Faculty; score: number; reasons: string[] }[] = [];
+    const candidateScores: { faculty: Faculty; score: number; reasons: string[] }[] = [];
 
     eligibleFaculty.forEach(faculty => {
       if (faculty.isAbsent) return;
 
       const currentLoad = dailyWorkload[faculty.id] || 0;
-      // Hard ceiling of 4/day, even if a faculty's individual setting is higher.
-      // A lower individual setting still applies if the person set one.
-      const maxLimit = Math.min(faculty.maxPeriodsPerDay || settings.maxDailyPeriods, 4);
+      // Respect configured limit per faculty or global settings
+      const maxLimit = faculty.maxPeriodsPerDay || settings.maxDailyPeriods;
       if (currentLoad >= maxLimit) return;
 
       const hasTimeConflict = allocations.some(a => {
@@ -105,12 +94,12 @@ const tryAssignSlot = (
         const otherBatch = batches.find(b => b.id === a.batchId);
         if (!otherBatch) return false;
         const otherTiming = otherBatch.periods[a.periodIndex];
-        return isOverlapping(periodTiming.startTime, periodTiming.endTime, otherTiming.startTime, otherTiming.endTime);
+        return otherTiming && isOverlapping(periodTiming.startTime, periodTiming.endTime, otherTiming.startTime, otherTiming.endTime);
       });
       if (hasTimeConflict) return;
 
       let score = 100;
-      let reasons: string[] = [
+      const reasons: string[] = [
         faculty.assignedBatches && faculty.assignedBatches.includes(batch.id)
           ? `Assigned faculty for this batch.`
           : `Eligible for subject & time (unrestricted).`
@@ -161,6 +150,7 @@ const tryAssignSlot = (
         manualEdited: false,
         frozen: false,
         explanation: winner.reasons,
+        updatedAt: Date.now(),
       };
     }
   }
@@ -174,21 +164,26 @@ export const generateTimetableV2 = (
   existingDraft: Allocation[],
   weekAllocations: Allocation[] = []
 ): Allocation[] => {
-
   const settings = storage.getSettings();
   const allocations: Allocation[] = existingDraft.filter(a => a.frozen);
 
   const dailyWorkload: Record<string, number> = {};
   allocations.forEach(a => {
-    dailyWorkload[a.facultyId] = (dailyWorkload[a.facultyId] || 0) + 1;
+    if (a.facultyId) {
+      dailyWorkload[a.facultyId] = (dailyWorkload[a.facultyId] || 0) + 1;
+    }
   });
 
-  batches.forEach(batch => {
-    batch.periods.forEach((periodTiming, pIndex) => {
-      if (!periodTiming.startTime || !periodTiming.endTime) return;
+  // Slot scheduling by period index (0..5) across all batches for balanced allocation
+  const maxPeriodSlots = Math.max(...batches.map(b => b.periods.length), 6);
+
+  for (let pIndex = 0; pIndex < maxPeriodSlots; pIndex++) {
+    for (const batch of batches) {
+      const periodTiming = batch.periods[pIndex];
+      if (!periodTiming || !periodTiming.startTime || !periodTiming.endTime) continue;
 
       const hasFrozenCell = allocations.some(a => a.batchId === batch.id && a.periodIndex === pIndex);
-      if (hasFrozenCell) return;
+      if (hasFrozenCell) continue;
 
       const todayAllocationsForBatch = allocations.filter(a => a.batchId === batch.id);
       const weekAllocationsForBatch = weekAllocations.filter(a => a.batchId === batch.id);
@@ -203,16 +198,20 @@ export const generateTimetableV2 = (
         allocations.push(newAllocation);
         dailyWorkload[newAllocation.facultyId] = (dailyWorkload[newAllocation.facultyId] || 0) + 1;
       }
-    });
+    }
+  }
+
+  storage.logAuditAction('TIMETABLE_GENERATE', {
+    reason: `Generated timetable allocations with ${allocations.length} total scheduled slots.`,
   });
 
   return allocations;
 };
 
-// Re-checks an already-generated day's allocations against the CURRENT absence list,
-// without touching anything else. Affected slots are either re-filled (subject swap,
-// excluding the now-absent faculty) or, if nothing eligible is found, flagged as a
-// visible Gap (vacatedFacultyId set, facultyId cleared).
+// Re-checks an already-generated day's allocations against the CURRENT absence list.
+// Works bidirectionally:
+// 1. Patches slots where assigned faculty is now absent
+// 2. Recovers slots where faculty is back to present or a substitute is available
 export const patchAbsences = (
   batches: Batch[],
   faculties: Faculty[],
@@ -232,47 +231,112 @@ export const patchAbsences = (
   for (let i = 0; i < allocations.length; i++) {
     const alloc = allocations[i];
     if (alloc.frozen) continue;
-    const faculty = facultyById[alloc.facultyId];
-    if (!faculty || !faculty.isAbsent) continue;
+
+    const currentFaculty = alloc.facultyId ? facultyById[alloc.facultyId] : null;
+    const vacatedFaculty = alloc.vacatedFacultyId ? facultyById[alloc.vacatedFacultyId] : null;
 
     const batch = batches.find(b => b.id === alloc.batchId);
     if (!batch) continue;
     const periodTiming = batch.periods[alloc.periodIndex];
+    if (!periodTiming || !periodTiming.startTime || !periodTiming.endTime) continue;
 
-    dailyWorkload[faculty.id] = Math.max(0, (dailyWorkload[faculty.id] || 1) - 1);
+    // Case 1: Slot has a faculty who became absent
+    if (currentFaculty && currentFaculty.isAbsent) {
+      dailyWorkload[currentFaculty.id] = Math.max(0, (dailyWorkload[currentFaculty.id] || 1) - 1);
 
-    const restOfAllocations = allocations.filter((_, idx) => idx !== i);
-    const orderedSubjects = getSubjectPriorityOrder(
-      batch,
-      restOfAllocations.filter(a => a.batchId === batch.id),
-      [], // weekly bias skipped for a single-slot live patch; daily balance still applies
-      settings
-    );
+      const restOfAllocations = allocations.filter((_, idx) => idx !== i);
+      const orderedSubjects = getSubjectPriorityOrder(
+        batch,
+        restOfAllocations.filter(a => a.batchId === batch.id),
+        [],
+        settings
+      );
 
-    const replacement = tryAssignSlot(
-      batch, batches, alloc.periodIndex, periodTiming, orderedSubjects,
-      faculties, restOfAllocations, dailyWorkload, settings, faculty.id
-    );
+      const replacement = tryAssignSlot(
+        batch, batches, alloc.periodIndex, periodTiming, orderedSubjects,
+        faculties, restOfAllocations, dailyWorkload, settings, currentFaculty.id
+      );
 
-    if (replacement) {
-      dailyWorkload[replacement.facultyId] = (dailyWorkload[replacement.facultyId] || 0) + 1;
-      allocations[i] = {
-        ...replacement,
-        vacatedFacultyId: faculty.id,
-        vacatedFacultyName: faculty.name,
-      };
-    } else {
-      allocations[i] = {
-        ...alloc,
-        facultyId: '',
-        autoGenerated: true,
-        manualEdited: false,
-        vacatedFacultyId: faculty.id,
-        vacatedFacultyName: faculty.name,
-        explanation: [`Gap: ${faculty.name} is absent. No substitute or alternate subject available for this slot.`],
-      };
+      if (replacement) {
+        dailyWorkload[replacement.facultyId] = (dailyWorkload[replacement.facultyId] || 0) + 1;
+        allocations[i] = {
+          ...replacement,
+          vacatedFacultyId: currentFaculty.id,
+          vacatedFacultyName: currentFaculty.name,
+        };
+      } else {
+        allocations[i] = {
+          ...alloc,
+          facultyId: '',
+          autoGenerated: true,
+          manualEdited: false,
+          vacatedFacultyId: currentFaculty.id,
+          vacatedFacultyName: currentFaculty.name,
+          explanation: [`Gap: ${currentFaculty.name} is absent. No substitute or alternate subject available for this slot.`],
+          updatedAt: Date.now(),
+        };
+      }
+      continue;
+    }
+
+    // Case 2: Slot was previously a Gap, check if vacated faculty returned or substitute is now available
+    if (!alloc.facultyId && alloc.vacatedFacultyId) {
+      // Check if original faculty is back to present
+      if (vacatedFaculty && !vacatedFaculty.isAbsent) {
+        const canRestore = !allocations.some((other, idx) => {
+          if (idx === i || other.facultyId !== vacatedFaculty.id) return false;
+          const otherBatch = batches.find(b => b.id === other.batchId);
+          if (!otherBatch) return false;
+          const otherTiming = otherBatch.periods[other.periodIndex];
+          return otherTiming && isOverlapping(periodTiming.startTime, periodTiming.endTime, otherTiming.startTime, otherTiming.endTime);
+        });
+
+        const currentLoad = dailyWorkload[vacatedFaculty.id] || 0;
+        const maxLimit = vacatedFaculty.maxPeriodsPerDay || settings.maxDailyPeriods;
+
+        if (canRestore && currentLoad < maxLimit) {
+          dailyWorkload[vacatedFaculty.id] = currentLoad + 1;
+          allocations[i] = {
+            ...alloc,
+            facultyId: vacatedFaculty.id,
+            vacatedFacultyId: undefined,
+            vacatedFacultyName: undefined,
+            explanation: [`Restored: ${vacatedFaculty.name} is now present.`],
+            updatedAt: Date.now(),
+          };
+          continue;
+        }
+      }
+
+      // Try assigning any available substitute
+      const restOfAllocations = allocations.filter((_, idx) => idx !== i);
+      const orderedSubjects = getSubjectPriorityOrder(
+        batch,
+        restOfAllocations.filter(a => a.batchId === batch.id),
+        [],
+        settings
+      );
+
+      const replacement = tryAssignSlot(
+        batch, batches, alloc.periodIndex, periodTiming, orderedSubjects,
+        faculties, restOfAllocations, dailyWorkload, settings
+      );
+
+      if (replacement) {
+        dailyWorkload[replacement.facultyId] = (dailyWorkload[replacement.facultyId] || 0) + 1;
+        allocations[i] = {
+          ...replacement,
+          vacatedFacultyId: undefined,
+          vacatedFacultyName: undefined,
+          explanation: [`Substitute assigned: replaced gap with ${replacement.subject}.`],
+        };
+      }
     }
   }
+
+  storage.logAuditAction('ABSENCE_SYNC', {
+    reason: `Synchronized faculty absences and re-balanced affected schedule allocations.`,
+  });
 
   return allocations;
 };
