@@ -5,16 +5,20 @@ export default function Card({
   children,
   className,
   padding = true,
+  onClick,
 }: {
   children: ReactNode;
   className?: string;
   padding?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <div
+      onClick={onClick}
       className={cn(
-        'bg-white rounded-2xl border border-slate-200/90 shadow-xs transition-shadow',
-        padding && 'p-6',
+        'bg-white rounded-lg border border-[#E5E2DA] shadow-2xs',
+        padding && 'p-5 sm:p-6',
+        onClick && 'cursor-pointer hover:border-[#D9D5CC] transition-colors',
         className
       )}
     >

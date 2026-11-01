@@ -131,7 +131,7 @@ const tryAssignSlot = (
       }
 
       if (targetSubject !== primarySubject) {
-        reasons.unshift(`Subject swapped from "${primarySubject}" — no eligible faculty available.`);
+        reasons.unshift(`Subject swapped from "${primarySubject}" : no eligible faculty available.`);
       }
 
       candidateScores.push({ faculty, score, reasons });

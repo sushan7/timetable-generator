@@ -1,6 +1,16 @@
 import { useState, useRef, Fragment, useMemo } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronRight, Upload, AlertCircle, Building2, CheckCircle2, Layers } from 'lucide-react';
-
+import {
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Upload,
+  AlertCircle,
+  Building2,
+  CheckCircle2,
+  Layers,
+  Clock,
+} from 'lucide-react';
 import type { Batch, PeriodTiming } from '../types';
 import { storage } from '../utils/storage';
 import { parseTimeMinutes } from '../utils/validation';
@@ -49,17 +59,15 @@ export default function Batches() {
   };
 
   const validatePeriods = (p: PeriodTiming[]): string | null => {
-    // Collect periods that have either start or end time defined
     const activePeriods = p.filter(item => item.startTime || item.endTime);
     if (activePeriods.length < 1) {
-      return "A batch must have at least one valid period timing defined.";
+      return 'A batch must have at least one valid period timing defined.';
     }
 
     let prevEndMinutes = -1;
 
     for (let i = 0; i < p.length; i++) {
       const { startTime, endTime } = p[i];
-      // Trailing empty slots are valid
       if (!startTime && !endTime) continue;
 
       if (!startTime || !endTime) {
@@ -89,7 +97,7 @@ export default function Batches() {
 
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError("Batch name is required.");
+      setError('Batch name is required.');
       return;
     }
 
@@ -104,7 +112,6 @@ export default function Batches() {
       return;
     }
 
-    // Ensure array is padded to exactly 6 slots
     const paddedPeriods = [...periods];
     while (paddedPeriods.length < 6) {
       paddedPeriods.push({ startTime: '', endTime: '' });
@@ -150,7 +157,6 @@ export default function Batches() {
     const minutes = match[2];
     let ampm = match[3]?.toUpperCase() || fallbackAmPm;
 
-    // If afternoon heuristics apply and ampm is missing
     if (!ampm && hours >= 1 && hours <= 6) {
       ampm = 'PM';
     }
@@ -167,7 +173,6 @@ export default function Batches() {
 
     setIsImporting(true);
     try {
-      // Dynamic import of xlsx for lightweight bundle loading
       const XLSX = await import('xlsx');
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array' });
@@ -227,7 +232,8 @@ export default function Batches() {
       setSuccessMsg(`Successfully imported ${importedBatches.length} batch(es) from Excel.`);
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error importing file. Check column headers and format.';
+      const msg =
+        err instanceof Error ? err.message : 'Error importing file. Check column headers and format.';
       setError(msg);
     } finally {
       setIsImporting(false);
@@ -240,9 +246,11 @@ export default function Batches() {
       if (selectedBuilding !== 'ALL' && b.building !== selectedBuilding) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        return b.name.toLowerCase().includes(q) ||
-               b.roomNumber.toLowerCase().includes(q) ||
-               b.yearCategory.toLowerCase().includes(q);
+        return (
+          b.name.toLowerCase().includes(q) ||
+          b.roomNumber.toLowerCase().includes(q) ||
+          b.yearCategory.toLowerCase().includes(q)
+        );
       }
       return true;
     });
@@ -251,11 +259,11 @@ export default function Batches() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <PageHeader
-        icon={<Building2 className="w-6 h-6" />}
-        title="Batch & Section Management"
-        subtitle={`${batches.length} total academic batches and room timing schedules`}
+        icon={<Building2 className="w-5 h-5" />}
+        title="Batches &amp; Timing Schedules"
+        subtitle={`${batches.length} total academic batches and classroom timings registered`}
         actions={
-          <>
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="file"
               accept=".xlsx,.xls,.csv"
@@ -278,20 +286,20 @@ export default function Batches() {
             >
               Add New Batch
             </Button>
-          </>
+          </div>
         }
       />
 
       {error && (
-        <div className="p-4 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl flex items-center gap-2 text-sm font-medium shadow-2xs">
-          <AlertCircle className="w-5 h-5 shrink-0 text-rose-500" />
+        <div className="p-3.5 bg-rose-50 text-rose-800 border border-rose-200 rounded-lg flex items-start gap-2.5 text-sm font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm font-medium shadow-2xs">
-          <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500" />
+        <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
           <span>{successMsg}</span>
         </div>
       )}
@@ -299,12 +307,13 @@ export default function Batches() {
       {/* Building Filter Pills & Search */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
+          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold select-none">
             <button
+              type="button"
               onClick={() => setSelectedBuilding('ALL')}
-              className={`px-3.5 py-1.5 rounded-lg transition-all ${
+              className={`px-3 py-1.5 rounded-md transition-colors ${
                 selectedBuilding === 'ALL'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -313,10 +322,11 @@ export default function Batches() {
             {BUILDINGS.map(b => (
               <button
                 key={b}
+                type="button"
                 onClick={() => setSelectedBuilding(b)}
-                className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                className={`px-3 py-1.5 rounded-md transition-colors ${
                   selectedBuilding === b
-                    ? 'bg-white text-indigo-700 shadow-xs'
+                    ? 'bg-white text-indigo-700 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -330,7 +340,7 @@ export default function Batches() {
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder="Search batches by name or room..."
-          className="max-w-xs w-full"
+          className="w-full sm:w-72"
         />
       </div>
 
@@ -338,14 +348,14 @@ export default function Batches() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/90 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold tracking-wider">
-                <th className="p-4 w-12 text-center"></th>
-                <th className="p-4">Batch Name</th>
-                <th className="p-4">Campus Building</th>
-                <th className="p-4">Year / Category</th>
-                <th className="p-4">Room No.</th>
-                <th className="p-4">Active Periods</th>
-                <th className="p-4 text-right">Actions</th>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-600 font-semibold">
+                <th className="p-3.5 w-12 text-center"></th>
+                <th className="p-3.5">Batch Name</th>
+                <th className="p-3.5">Campus Building</th>
+                <th className="p-3.5">Year / Category</th>
+                <th className="p-3.5">Room No.</th>
+                <th className="p-3.5">Active Periods</th>
+                <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
@@ -353,47 +363,53 @@ export default function Batches() {
                 <tr>
                   <td colSpan={7} className="p-10 text-center">
                     <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="font-semibold text-slate-600 text-sm">No batches match your search</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Try selecting another building or clearing your query.</p>
+                    <p className="font-semibold text-slate-700 text-sm">No batches found</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Try selecting another building filter or clearing your search.
+                    </p>
                   </td>
                 </tr>
               ) : (
                 filteredBatches.map(batch => {
-                  const activePeriodCount = batch.periods.filter(p => p.startTime && p.endTime).length;
+                  const activePeriodCount = batch.periods.filter(
+                    p => p.startTime && p.endTime
+                  ).length;
                   const isExpanded = expandedId === batch.id;
                   return (
                     <Fragment key={batch.id}>
                       <tr
-                        className={`hover:bg-slate-50/70 transition-colors ${isExpanded ? 'bg-indigo-50/20' : ''}`}
+                        className={`hover:bg-slate-50/70 transition-colors ${
+                          isExpanded ? 'bg-slate-50/90' : ''
+                        }`}
                       >
-                        <td className="p-4 text-center">
+                        <td className="p-3.5 text-center">
                           <button
                             type="button"
                             onClick={() => setExpandedId(isExpanded ? null : batch.id)}
-                            className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
                             aria-label={isExpanded ? 'Collapse timings' : 'Expand timings'}
                           >
-                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
                           </button>
                         </td>
-                        <td className="p-4 font-bold text-slate-900">
-                          {batch.name}
-                        </td>
-                        <td className="p-4 text-slate-600">
-                          {batch.building}
-                        </td>
-                        <td className="p-4">
+                        <td className="p-3.5 font-bold text-slate-900">{batch.name}</td>
+                        <td className="p-3.5 text-slate-600">{batch.building}</td>
+                        <td className="p-3.5">
                           <Badge tone="info">{batch.yearCategory}</Badge>
                         </td>
-                        <td className="p-4 font-medium text-slate-700">
+                        <td className="p-3.5 font-medium text-slate-700">
                           Room {batch.roomNumber || '-'}
                         </td>
-                        <td className="p-4">
-                          <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md">
-                            {activePeriodCount} period{activePeriodCount !== 1 ? 's' : ''} / day
+                        <td className="p-3.5">
+                          <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md border border-slate-200/80">
+                            {activePeriodCount} period{activePeriodCount !== 1 ? 's' : ''}/day
                           </span>
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-3.5 text-right">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -408,25 +424,28 @@ export default function Batches() {
 
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={7} className="p-4 sm:p-6 border-l-4 border-indigo-600">
-                            <div className="mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                              Daily Timing Schedule for {batch.name}
+                          <td colSpan={7} className="p-4 sm:p-5 border-l border-slate-200 bg-slate-50/50">
+                            <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold text-slate-700">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Daily Period Timings for {batch.name}</span>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
                               {batch.periods.map((p, i) => (
                                 <div
                                   key={i}
-                                  className={`p-3 rounded-xl border text-center transition-all ${
+                                  className={`p-2.5 rounded-lg border text-center transition-all ${
                                     p.startTime && p.endTime
-                                      ? 'bg-white border-indigo-100 shadow-2xs'
-                                      : 'bg-slate-100/60 border-dashed border-slate-200 text-slate-400'
+                                      ? 'bg-white border-slate-200 shadow-2xs'
+                                      : 'bg-slate-100/50 border-dashed border-slate-200 text-slate-400'
                                   }`}
                                 >
-                                  <div className="text-[11px] font-bold text-slate-400 mb-1">
+                                  <div className="text-[11px] font-bold text-slate-400 mb-0.5">
                                     Period {i + 1}
                                   </div>
-                                  <div className="text-xs font-bold text-indigo-950">
-                                    {p.startTime && p.endTime ? `${p.startTime} – ${p.endTime}` : 'Unassigned'}
+                                  <div className="text-xs font-semibold text-slate-800">
+                                    {p.startTime && p.endTime
+                                      ? `${p.startTime} – ${p.endTime}`
+                                      : 'No timing'}
                                   </div>
                                 </div>
                               ))}
@@ -447,37 +466,50 @@ export default function Batches() {
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Create New Academic Batch"
+        title="Add New Academic Batch"
+        subtitle="Specify campus building, section details, and daily period timings"
+        maxWidth="xl"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} form="add-batch-form" type="submit">
+            <Button variant="secondary" onClick={() => setIsAddModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              form="add-batch-form"
+              type="submit"
+            >
               Save Batch
             </Button>
           </>
         }
       >
-        <form id="add-batch-form" onSubmit={handleAddBatch} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <form id="add-batch-form" onSubmit={handleAddBatch} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase text-slate-500">Campus Building</label>
+              <label className="text-xs font-semibold text-slate-700">Campus Building</label>
               <select
                 value={building}
                 onChange={e => setBuilding(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
                 required
               >
-                {BUILDINGS.map(b => <option key={b} value={b}>{b}</option>)}
+                {BUILDINGS.map(b => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase text-slate-500">Year / Section Category</label>
+              <label className="text-xs font-semibold text-slate-700">Year / Section Category</label>
               <input
                 list="years-list"
                 value={yearCategory}
                 onChange={e => setYearCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
                 required
                 placeholder="e.g. First PU"
               />
@@ -490,41 +522,43 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase text-slate-500">Batch Name</label>
+              <label className="text-xs font-semibold text-slate-700">Batch Name</label>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
                 required
                 placeholder="e.g. Lakshya 10"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase text-slate-500">Room Number</label>
+              <label className="text-xs font-semibold text-slate-700">Room Number</label>
               <input
                 value={roomNumber}
                 onChange={e => setRoomNumber(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
                 required
                 placeholder="e.g. 204(A)"
               />
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4 space-y-3">
+          <div className="border-t border-slate-100 pt-4 space-y-2.5">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-bold uppercase text-slate-700">
+              <label className="text-xs font-bold text-slate-800">
                 Period Timings (Chronological 24-Hour Format)
               </label>
-              <span className="text-[11px] text-slate-400">Leave unused trailing periods blank</span>
+              <span className="text-[11px] text-slate-400">Leave unused trailing periods empty</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {periods.map((period, i) => (
-                <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
-                  <div className="text-[11px] font-bold text-slate-500 text-center">Period {i + 1}</div>
-                  <div className="space-y-1">
+                <div key={i} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                  <div className="text-[11px] font-bold text-slate-500 text-center">
+                    Period {i + 1}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
                     <input
                       type="time"
                       value={period.startTime}
@@ -533,7 +567,7 @@ export default function Batches() {
                         newP[i] = { ...newP[i], startTime: e.target.value };
                         setPeriods(newP);
                       }}
-                      className="w-full text-xs p-1.5 border border-slate-200 rounded-lg bg-white"
+                      className="w-full text-xs p-1.5 border border-slate-200 rounded bg-white text-center focus:border-indigo-600 outline-none"
                       title="Start Time"
                     />
                     <input
@@ -544,7 +578,7 @@ export default function Batches() {
                         newP[i] = { ...newP[i], endTime: e.target.value };
                         setPeriods(newP);
                       }}
-                      className="w-full text-xs p-1.5 border border-slate-200 rounded-lg bg-white"
+                      className="w-full text-xs p-1.5 border border-slate-200 rounded bg-white text-center focus:border-indigo-600 outline-none"
                       title="End Time"
                     />
                   </div>

@@ -8,11 +8,11 @@ import {
   FileSpreadsheet,
   CheckCircle,
   Lock,
-  Search,
   Filter,
   AlertTriangle,
   Save,
   Trash2,
+  Download,
 } from 'lucide-react';
 import type { Faculty, Batch, Allocation, DayOfWeek, TimetableStatus } from '../types';
 import { generateTimetableV2, patchAbsences } from '../utils/scheduler';
@@ -23,10 +23,11 @@ import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import Modal from '../components/ui/Modal';
+import SearchInput from '../components/ui/SearchInput';
+import DropdownMenu, { type DropdownItem } from '../components/ui/DropdownMenu';
 import DayTabs from '../components/timetable/DayTabs';
 import BalanceBar from '../components/timetable/BalanceBar';
 import SectionTable from '../components/timetable/SectionTable';
-
 
 const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
 
@@ -60,6 +61,7 @@ export default function Timetable() {
   });
 
   const [isExporting, setIsExporting] = useState(false);
+  const [exportType, setExportType] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
@@ -81,7 +83,11 @@ export default function Timetable() {
     setHasGenerated(!!existing);
   };
 
-  const persistDay = (day: DayOfWeek, newAllocations: Allocation[], status: TimetableStatus = currentStatus) => {
+  const persistDay = (
+    day: DayOfWeek,
+    newAllocations: Allocation[],
+    status: TimetableStatus = currentStatus
+  ) => {
     storage.setDayTimetable(day, {
       id: `tt_${day}`,
       date: day,
@@ -96,7 +102,6 @@ export default function Timetable() {
     persistDay(currentDay, allocations, newStatus);
     storage.setTimetableStatus(currentDay, newStatus);
   };
-
 
   const handleGenerate = () => {
     if (currentStatus === 'Finalized') {
@@ -121,7 +126,7 @@ export default function Timetable() {
       setCurrentStatus('Draft');
       persistDay(currentDay, generated, 'Draft');
       setIsGenerating(false);
-    }, 300);
+    }, 250);
   };
 
   const handleSyncAbsences = () => {
@@ -134,7 +139,7 @@ export default function Timetable() {
       setAllocations(patched);
       persistDay(currentDay, patched);
       setIsSyncing(false);
-    }, 250);
+    }, 200);
   };
 
   const toggleFreeze = (batchId: string, periodIndex: number) => {
@@ -185,7 +190,6 @@ export default function Timetable() {
     const existingIdx = updatedAllocations.findIndex(
       a => a.batchId === batch.id && a.periodIndex === periodIndex
     );
-
 
     if (!facultyId) {
       // Slot cleared to free period
@@ -249,7 +253,7 @@ export default function Timetable() {
       };
 
       const elements = clonedDoc.querySelectorAll('*');
-      elements.forEach((node) => {
+      elements.forEach(node => {
         const el = node as HTMLElement;
         if (!el.style) return;
         const comp = window.getComputedStyle(el);
@@ -273,6 +277,7 @@ export default function Timetable() {
   const exportAsImage = async () => {
     if (!pageRef.current) return;
     setIsExporting(true);
+    setExportType('PNG');
     try {
       const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(pageRef.current, {
@@ -280,7 +285,7 @@ export default function Timetable() {
         backgroundColor: '#f8fafc',
         useCORS: true,
         logging: false,
-        onclone: (clonedDoc) => sanitizeClonedDocColors(clonedDoc),
+        onclone: clonedDoc => sanitizeClonedDocColors(clonedDoc),
       });
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
@@ -291,6 +296,7 @@ export default function Timetable() {
       alert('Could not generate image export.');
     } finally {
       setIsExporting(false);
+      setExportType(null);
     }
   };
 
@@ -298,6 +304,7 @@ export default function Timetable() {
   const exportAsPdf = async () => {
     if (!pageRef.current) return;
     setIsExporting(true);
+    setExportType('PDF');
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
@@ -307,7 +314,7 @@ export default function Timetable() {
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
-        onclone: (clonedDoc) => sanitizeClonedDocColors(clonedDoc),
+        onclone: clonedDoc => sanitizeClonedDocColors(clonedDoc),
       });
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
@@ -323,22 +330,24 @@ export default function Timetable() {
       alert('Could not generate PDF export.');
     } finally {
       setIsExporting(false);
+      setExportType(null);
     }
   };
 
-
   // Export as Excel (XLSX)
   const exportAsExcel = async () => {
+    setIsExporting(true);
+    setExportType('Excel');
     try {
       const XLSX = await import('xlsx');
       const rows: Record<string, string>[] = [];
 
       batches.forEach(b => {
         const row: Record<string, string> = {
-          'Building': b.building,
-          'Category': b.yearCategory,
+          Building: b.building,
+          Category: b.yearCategory,
           'Batch Name': b.name,
-          'Room': b.roomNumber,
+          Room: b.roomNumber,
         };
 
         for (let i = 0; i < 6; i++) {
@@ -358,6 +367,9 @@ export default function Timetable() {
     } catch (e) {
       console.error('Failed to export Excel', e);
       alert('Could not export to Excel.');
+    } finally {
+      setIsExporting(false);
+      setExportType(null);
     }
   };
 
@@ -367,9 +379,11 @@ export default function Timetable() {
       if (activeSectionFilter !== 'ALL' && !b.building.includes(activeSectionFilter)) return false;
       if (filterQuery) {
         const q = filterQuery.toLowerCase();
-        return b.name.toLowerCase().includes(q) ||
-               b.roomNumber.toLowerCase().includes(q) ||
-               b.yearCategory.toLowerCase().includes(q);
+        return (
+          b.name.toLowerCase().includes(q) ||
+          b.roomNumber.toLowerCase().includes(q) ||
+          b.yearCategory.toLowerCase().includes(q)
+        );
       }
       return true;
     });
@@ -378,7 +392,6 @@ export default function Timetable() {
   const sectionedBatches = useMemo(() => groupBatchesBySection(filteredBatches), [filteredBatches]);
 
   const quota = useMemo(() => {
-    // Current day's reactive allocations combined with other days in the week
     const otherDaysAllocations = storage.getWeekAllocationsExcluding(currentDay);
     const allWeeklyAllocations = [...otherDaysAllocations, ...allocations];
 
@@ -402,8 +415,8 @@ export default function Timetable() {
     };
   }, [allocations, currentDay]);
 
-
   const gapCount = allocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
+  const absentFacultyCount = faculties.filter(f => f.isAbsent).length;
 
   // Selected faculty conflict evaluation for the edit modal
   const conflictEvaluation = useMemo(() => {
@@ -422,22 +435,56 @@ export default function Timetable() {
     );
   }, [editingSlot, faculties, batches, allocations]);
 
+  // Consolidated export dropdown items
+  const exportItems: DropdownItem[] = [
+    {
+      id: 'png',
+      label: 'Download Image (PNG)',
+      description: 'High-resolution snapshot for displays & sharing',
+      icon: <ImageIcon className="w-4 h-4" />,
+      onClick: exportAsImage,
+      disabled: isExporting || !hasGenerated,
+    },
+    {
+      id: 'pdf',
+      label: 'Download Document (PDF)',
+      description: 'Printable landscape format with full grid',
+      icon: <FileText className="w-4 h-4" />,
+      onClick: exportAsPdf,
+      disabled: isExporting || !hasGenerated,
+    },
+    {
+      id: 'excel',
+      label: 'Export Spreadsheet (Excel)',
+      description: 'Structured XLSX workbook for administration',
+      icon: <FileSpreadsheet className="w-4 h-4" />,
+      onClick: exportAsExcel,
+      disabled: isExporting || !hasGenerated,
+    },
+  ];
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[95rem] mx-auto space-y-6" ref={pageRef}>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[95rem] mx-auto space-y-5" ref={pageRef}>
       <PageHeader
-        icon={<Calendar className="w-6 h-6" />}
-        title="Weekly Academic Timetable"
-        subtitle={`V2 Engine &middot; ${currentDay} &middot; Status: ${currentStatus}`}
+        icon={<Calendar className="w-5 h-5" />}
+        title="Academic Timetable Matrix"
+        subtitle={
+          <span>
+            {currentDay} &middot; Status: <strong className="text-slate-700">{currentStatus}</strong> &middot;{' '}
+            {allocations.filter(a => a.facultyId).length} periods active
+          </span>
+        }
         actions={
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Status toggle pill */}
-            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 text-xs font-semibold shadow-2xs">
-              <span className="px-2 text-slate-400">Status:</span>
+            {/* Status Segmented Control */}
+            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-xs font-semibold shadow-2xs select-none">
               <button
                 type="button"
                 onClick={() => handleStatusChange('Draft')}
-                className={`px-2.5 py-1 rounded-lg transition-colors ${
-                  currentStatus === 'Draft' ? 'bg-amber-100 text-amber-800' : 'text-slate-600 hover:text-slate-900'
+                className={`px-3 py-1.5 rounded-md transition-colors ${
+                  currentStatus === 'Draft'
+                    ? 'bg-amber-100 text-amber-900 font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Draft
@@ -445,14 +492,43 @@ export default function Timetable() {
               <button
                 type="button"
                 onClick={() => handleStatusChange('Finalized')}
-                className={`px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 ${
-                  currentStatus === 'Finalized' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                  currentStatus === 'Finalized'
+                    ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <CheckCircle className="w-3 h-3" /> Finalized
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Finalized</span>
               </button>
             </div>
 
+            {/* Sync Absences Action */}
+            <Button
+              variant="secondary"
+              icon={<RefreshCw className="w-4 h-4" />}
+              loading={isSyncing}
+              disabled={!hasGenerated}
+              onClick={handleSyncAbsences}
+              title="Re-evaluate schedule against teacher attendance"
+            >
+              Sync Absences
+              {absentFacultyCount > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.2 bg-rose-100 text-rose-800 rounded text-[11px] font-bold">
+                  {absentFacultyCount} absent
+                </span>
+              )}
+            </Button>
+
+            {/* Consolidated Export Action Dropdown */}
+            <DropdownMenu
+              label={isExporting ? `Exporting ${exportType || ''}...` : 'Export'}
+              icon={<Download className="w-4 h-4" />}
+              items={exportItems}
+              disabled={isExporting || !hasGenerated}
+            />
+
+            {/* Primary Generation CTA */}
             <Button
               variant="primary"
               icon={<Play className="w-4 h-4" />}
@@ -461,84 +537,57 @@ export default function Timetable() {
             >
               {hasGenerated ? 'Regenerate' : 'Generate'} {currentDay}
             </Button>
-
-            <Button
-              variant="secondary"
-              icon={<RefreshCw className="w-4 h-4" />}
-              loading={isSyncing}
-              disabled={!hasGenerated}
-              onClick={handleSyncAbsences}
-              title="Re-check allocations against current teacher attendance"
-            >
-              Sync Absences
-            </Button>
-
-            {/* Export Dropdown Actions */}
-            <Button
-              variant="secondary"
-              icon={<ImageIcon className="w-4 h-4" />}
-              loading={isExporting}
-              onClick={exportAsImage}
-              title="Download high-resolution image"
-            >
-              PNG
-            </Button>
-            <Button
-              variant="secondary"
-              icon={<FileText className="w-4 h-4" />}
-              loading={isExporting}
-              onClick={exportAsPdf}
-              title="Download printable PDF"
-            >
-              PDF
-            </Button>
-            <Button
-              variant="secondary"
-              icon={<FileSpreadsheet className="w-4 h-4" />}
-              onClick={exportAsExcel}
-              title="Export timetable to Excel spreadsheet"
-            >
-              Excel
-            </Button>
           </div>
         }
       />
 
+      {/* Weekday Switcher Tabs */}
       <DayTabs
         currentDay={currentDay}
         onSelect={handleSelectDay}
         hasData={day => !!storage.getDayTimetable(day)}
       />
 
+      {/* High-Density Academic Quota Inspector */}
       <BalanceBar quota={quota} gapCount={gapCount} day={currentDay} />
 
-      {/* Filter & Search Bar for Batches */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex items-center gap-2">
+      {/* Batch Filtering & Search Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-            <Filter className="w-3.5 h-3.5 text-slate-400" /> Building:
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <span>Building:</span>
           </div>
-          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold">
+          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold select-none">
             <button
+              type="button"
               onClick={() => setActiveSectionFilter('ALL')}
               className={`px-3 py-1 rounded-md transition-colors ${
-                activeSectionFilter === 'ALL' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600'
+                activeSectionFilter === 'ALL'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               All Sections
             </button>
             <button
+              type="button"
               onClick={() => setActiveSectionFilter('Building 1')}
               className={`px-3 py-1 rounded-md transition-colors ${
-                activeSectionFilter === 'Building 1' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600'
+                activeSectionFilter === 'Building 1'
+                  ? 'bg-white text-indigo-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Building 1
             </button>
             <button
+              type="button"
               onClick={() => setActiveSectionFilter('Building 2')}
               className={`px-3 py-1 rounded-md transition-colors ${
-                activeSectionFilter === 'Building 2' ? 'bg-white text-indigo-700 shadow-2xs' : 'text-slate-600'
+                activeSectionFilter === 'Building 2'
+                  ? 'bg-white text-indigo-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Building 2
@@ -546,58 +595,58 @@ export default function Timetable() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Find batch name or room..."
-              value={filterQuery}
-              onChange={e => setFilterQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs outline-none bg-slate-50 focus:bg-white"
-            />
-          </div>
-          {filterQuery && (
-            <button
-              onClick={() => setFilterQuery('')}
-              className="text-xs text-indigo-600 font-semibold hover:underline"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+        <SearchInput
+          value={filterQuery}
+          onChange={setFilterQuery}
+          placeholder="Filter batches or room..."
+          className="w-full sm:w-64"
+        />
       </div>
 
+      {/* Timetable Matrix Grid by Academic Sections */}
       {!hasGenerated ? (
         <EmptyState
-          icon={<Calendar className="w-10 h-10 text-indigo-300" />}
+          icon={<Calendar className="w-8 h-8 text-slate-400" />}
           title={`No timetable generated for ${currentDay} yet`}
-          description={`Click "Generate ${currentDay}" above to calculate clash-free period allocations.`}
+          description={`Click "Generate ${currentDay}" to create clash-free slot assignments based on batch periods and teacher workload constraints.`}
+          action={
+            <Button
+              variant="primary"
+              icon={<Play className="w-4 h-4" />}
+              loading={isGenerating}
+              onClick={handleGenerate}
+            >
+              Generate {currentDay} Schedule
+            </Button>
+          }
         />
       ) : (
-        SECTIONS.map(section => {
-          const sectionBatches = sectionedBatches[section.id];
-          if (!sectionBatches || sectionBatches.length === 0) return null;
-          return (
-            <SectionTable
-              key={section.id}
-              label={section.label}
-              batches={sectionBatches}
-              allocations={allocations}
-              getFacultyName={getFacultyName}
-              onToggleFreeze={toggleFreeze}
-              onCellClick={handleCellClick}
-            />
-          );
-        })
+        <div className="space-y-6">
+          {SECTIONS.map(section => {
+            const sectionBatches = sectionedBatches[section.id];
+            if (!sectionBatches || sectionBatches.length === 0) return null;
+            return (
+              <SectionTable
+                key={section.id}
+                label={section.label}
+                batches={sectionBatches}
+                allocations={allocations}
+                getFacultyName={getFacultyName}
+                onToggleFreeze={toggleFreeze}
+                onCellClick={handleCellClick}
+              />
+            );
+          })}
+        </div>
       )}
 
-      {/* Manual Slot Override Modal */}
+      {/* Manual Slot Override Dialog */}
       {editingSlot && (
         <Modal
           isOpen={true}
           onClose={() => setEditingSlot(null)}
           title={`Edit Period ${editingSlot.periodIndex + 1} &middot; ${editingSlot.batch.name}`}
+          subtitle={`${editingSlot.batch.building} &middot; Room ${editingSlot.batch.roomNumber}`}
           footer={
             <>
               {editingSlot.currentAllocation?.facultyId && (
@@ -615,14 +664,19 @@ export default function Timetable() {
               <Button type="button" variant="secondary" onClick={() => setEditingSlot(null)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" icon={<Save className="w-4 h-4" />} form="slot-override-form">
+              <Button
+                type="submit"
+                variant="primary"
+                icon={<Save className="w-4 h-4" />}
+                form="slot-override-form"
+              >
                 Save Allocation
               </Button>
             </>
           }
         >
           <form id="slot-override-form" onSubmit={handleSaveSlotOverride} className="space-y-4">
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1 text-xs">
+            <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-1.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500 font-medium">Classroom &amp; Campus:</span>
                 <span className="font-semibold text-slate-800">
@@ -630,7 +684,7 @@ export default function Timetable() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Period Timing:</span>
+                <span className="text-slate-500 font-medium">Period Scheduled Time:</span>
                 <span className="font-semibold text-slate-800">
                   {editingSlot.batch.periods[editingSlot.periodIndex]?.startTime} –{' '}
                   {editingSlot.batch.periods[editingSlot.periodIndex]?.endTime}
@@ -638,12 +692,12 @@ export default function Timetable() {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase text-slate-500">Subject</label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Subject</label>
               <select
                 value={editingSlot.subject}
                 onChange={e => setEditingSlot({ ...editingSlot, subject: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
               >
                 {editingSlot.batch.subjects.map(s => (
                   <option key={s.subject} value={s.subject}>
@@ -656,14 +710,14 @@ export default function Timetable() {
               </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold uppercase text-slate-500">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">
                 Assigned Faculty Member
               </label>
               <select
                 value={editingSlot.facultyId}
                 onChange={e => setEditingSlot({ ...editingSlot, facultyId: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
               >
                 <option value="">-- No Faculty (Free Period) --</option>
                 {faculties
@@ -677,33 +731,37 @@ export default function Timetable() {
                     );
                   })}
               </select>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 Filtered by teachers qualified in &ldquo;{editingSlot.subject}&rdquo;.
               </p>
             </div>
 
             {/* Real-time Conflict Alert Box */}
             {conflictEvaluation?.hasConflict && (
-              <div className="p-3 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-xs flex items-start gap-2">
+              <div className="p-3 bg-amber-50 text-amber-900 border border-amber-200 rounded-lg text-xs flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <strong>Potential Schedule Conflict:</strong>
-                  <p className="mt-0.5">{conflictEvaluation.message}</p>
+                  <strong className="font-semibold text-amber-950">
+                    Potential Schedule Conflict:
+                  </strong>
+                  <p className="mt-0.5 text-amber-800 leading-relaxed">
+                    {conflictEvaluation.message}
+                  </p>
                 </div>
               </div>
             )}
 
             <div className="pt-2 border-t border-slate-100">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
                 <input
                   type="checkbox"
                   checked={editingSlot.isFrozen}
                   onChange={e => setEditingSlot({ ...editingSlot, isFrozen: e.target.checked })}
-                  className="w-4 h-4 text-amber-500 rounded"
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300"
                 />
                 <span className="flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-amber-600" />
-                  Freeze this slot (protect from automatic regeneration)
+                  Lock this slot (protect from automatic regeneration)
                 </span>
               </label>
             </div>

@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react';
 import { cn } from './cn';
 
-type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'terracotta' | 'forest';
 
-const TONE_STYLES: Record<Tone, string> = {
-  neutral: 'bg-slate-100 text-slate-600 border-slate-200',
-  success: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  warning: 'bg-amber-50 text-amber-700 border-amber-100',
-  danger: 'bg-red-50 text-red-700 border-red-100',
-  info: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+const TONE_STYLES: Record<BadgeTone, string> = {
+  neutral: 'bg-[#F0EFE9] text-[#252522] border-[#E5E2DA]',
+  success: 'bg-[#EBF2ED] text-[#2D4834] border-[#D1E0D5]',
+  forest: 'bg-[#EBF2ED] text-[#2D4834] border-[#D1E0D5]',
+  warning: 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]',
+  terracotta: 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]',
+  danger: 'bg-[#FDF2F0] text-[#9E4334] border-[#F5D5CF]',
 };
 
 export default function Badge({
@@ -17,21 +18,25 @@ export default function Badge({
   children,
   className,
 }: {
-  tone?: Tone;
+  tone?: BadgeTone | 'info' | 'purple';
   icon?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
+  // Normalize legacy 'info' to neutral and 'purple' to terracotta
+  const normalizedTone: BadgeTone =
+    tone === 'info' ? 'neutral' : tone === 'purple' ? 'terracotta' : tone;
+
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold border w-max',
-        TONE_STYLES[tone],
+        'inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border select-none w-max leading-tight',
+        TONE_STYLES[normalizedTone],
         className
       )}
     >
-      {icon}
-      {children}
+      {icon && <span className="shrink-0">{icon}</span>}
+      <span>{children}</span>
     </span>
   );
 }

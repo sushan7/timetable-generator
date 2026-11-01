@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { Settings as SettingsIcon, Save, RotateCcw, History, AlertTriangle, CheckCircle2, Database } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Save,
+  RotateCcw,
+  History,
+  AlertTriangle,
+  CheckCircle2,
+  Database,
+  Sliders,
+} from 'lucide-react';
 import type { SchedulerSettings } from '../types';
 import { storage, defaultSettings } from '../utils/storage';
 import AuditLogView from '../components/AuditLogView';
@@ -59,39 +68,44 @@ export default function SettingsView() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <PageHeader
-        icon={<SettingsIcon className="w-6 h-6" />}
-        title="Settings & Audit Trail"
-        subtitle="Manage heuristic scheduler weights, fairness limits, and view change logs"
+        icon={<SettingsIcon className="w-5 h-5" />}
+        title="Settings &amp; Audit Trail"
+        subtitle="Configure heuristic weights, fairness rules, and inspect the automated change history"
         actions={
           statusMessage ? (
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-2xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              {statusMessage}
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-2xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>{statusMessage}</span>
             </span>
           ) : undefined
         }
       />
 
-      <div className="flex gap-2 border-b border-slate-200">
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200 select-none">
         <button
+          type="button"
           onClick={() => setTab('config')}
-          className={`px-4 py-2.5 font-semibold text-sm flex items-center gap-2 transition-all ${
+          className={`px-4 py-2.5 font-semibold text-sm flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             tab === 'config'
-              ? 'border-b-2 border-indigo-600 text-indigo-700'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <SettingsIcon className="w-4 h-4" /> Engine Configuration
+          <Sliders className="w-4 h-4" />
+          <span>Scheduler Configuration</span>
         </button>
         <button
+          type="button"
           onClick={() => setTab('audit')}
-          className={`px-4 py-2.5 font-semibold text-sm flex items-center gap-2 transition-all ${
+          className={`px-4 py-2.5 font-semibold text-sm flex items-center gap-2 transition-colors border-b-2 -mb-px ${
             tab === 'audit'
-              ? 'border-b-2 border-indigo-600 text-indigo-700'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <History className="w-4 h-4" /> Audit & Activity Trail
+          <History className="w-4 h-4" />
+          <span>Audit &amp; Activity Log</span>
         </button>
       </div>
 
@@ -100,112 +114,134 @@ export default function SettingsView() {
           <Card>
             <form onSubmit={handleSave} className="space-y-6">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Academic Subject Weighting</h3>
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
+                  Academic Subject Distribution
+                </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Controls the automatic rotation ratio between core PCMB science lectures and language/elective classes.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase text-slate-700">PCMB Science Weight (%)</label>
+                  <label className="text-xs font-semibold text-slate-700">
+                    Core Science (PCMB) Weight (%)
+                  </label>
                   <input
                     type="number"
                     min={0}
                     max={100}
                     value={settings.pcmbWeight}
                     onChange={e => handleChange('pcmbWeight', Number(e.target.value))}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
                   />
-                  <p className="text-xs text-slate-400">Target allocation quota for Physics, Chemistry, Math &amp; Biology.</p>
+                  <p className="text-xs text-slate-400">
+                    Target allocation share for Physics, Chemistry, Math &amp; Biology.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase text-slate-700">Language &amp; Elective Weight (%)</label>
+                  <label className="text-xs font-semibold text-slate-700">
+                    Language &amp; Elective Weight (%)
+                  </label>
                   <input
                     type="number"
                     min={0}
                     max={100}
                     value={settings.languageWeight}
                     onChange={e => handleChange('languageWeight', Number(e.target.value))}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
                   />
-                  <p className="text-xs text-slate-400">Target allocation quota for English and Second Languages.</p>
+                  <p className="text-xs text-slate-400">
+                    Target allocation share for English and Second Languages.
+                  </p>
                 </div>
               </div>
 
               <hr className="border-slate-100" />
 
               <div>
-                <h3 className="text-base font-bold text-slate-900">Workload &amp; Academic Scheduling Rules</h3>
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
+                  Workload &amp; Academic Scheduling Rules
+                </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Configure constraints on daily teaching hours and weekly rotation cycles.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase text-slate-700">Max Daily Periods per Faculty</label>
+                  <label className="text-xs font-semibold text-slate-700">
+                    Maximum Daily Periods per Faculty
+                  </label>
                   <input
                     type="number"
                     min={1}
                     max={8}
                     value={settings.maxDailyPeriods}
                     onChange={e => handleChange('maxDailyPeriods', Number(e.target.value))}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
                   />
-                  <p className="text-xs text-slate-400">Global ceiling for teaching slots per teacher each day.</p>
+                  <p className="text-xs text-slate-400">
+                    Default global daily teaching ceiling per instructor.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase text-slate-700">Academic Week Start Day</label>
+                  <label className="text-xs font-semibold text-slate-700">
+                    Academic Week Start Day
+                  </label>
                   <select
                     value={settings.weekStartDay}
                     onChange={e => handleChange('weekStartDay', e.target.value as 'Monday' | 'Sunday')}
-                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
                   >
                     <option value="Monday">Monday</option>
                     <option value="Sunday">Sunday</option>
                   </select>
-                  <p className="text-xs text-slate-400">Defines when weekly workload quota counters reset.</p>
+                  <p className="text-xs text-slate-400">
+                    Defines the anchor point when weekly workload quota resets.
+                  </p>
                 </div>
               </div>
 
               <hr className="border-slate-100" />
 
               <div className="space-y-3">
-                <h3 className="text-base font-bold text-slate-900">Heuristic Optimization Toggles</h3>
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
+                  Heuristic Optimization Preferences
+                </h3>
                 <div className="space-y-2.5">
-                  <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+                  <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       checked={settings.enableGapOptimization}
                       onChange={e => handleChange('enableGapOptimization', e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded mt-0.5"
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-semibold text-slate-800 block">
-                        Enable Gap Optimization (Cluster periods)
+                      <span className="text-sm font-semibold text-slate-900 block">
+                        Enable Gap Optimization (Period clustering)
                       </span>
-                      <span className="text-xs text-slate-400 block mt-0.5">
+                      <span className="text-xs text-slate-500 block mt-0.5">
                         Prefers assigning slots to minimize idle gaps between teaching periods for faculty.
                       </span>
                     </div>
                   </label>
 
-                  <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+                  <label className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       checked={settings.enableConsecutivePeriodAvoidance}
                       onChange={e => handleChange('enableConsecutivePeriodAvoidance', e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 rounded mt-0.5"
+                      className="w-4 h-4 text-indigo-600 rounded border-slate-300 mt-0.5"
                     />
                     <div>
-                      <span className="text-sm font-semibold text-slate-800 block">
+                      <span className="text-sm font-semibold text-slate-900 block">
                         Enable Consecutive Period Avoidance
                       </span>
-                      <span className="text-xs text-slate-400 block mt-0.5">
-                        Penalizes scheduling the same faculty back-to-back in consecutive slots for the same batch.
+                      <span className="text-xs text-slate-500 block mt-0.5">
+                        Penalizes scheduling the same teacher back-to-back in consecutive slots for the same batch.
                       </span>
                     </div>
                   </label>
@@ -219,28 +255,29 @@ export default function SettingsView() {
                   icon={<RotateCcw className="w-4 h-4" />}
                   onClick={handleResetSettings}
                 >
-                  Reset Parameters
+                  Reset Defaults
                 </Button>
                 <Button
                   type="submit"
                   variant="primary"
                   icon={<Save className="w-4 h-4" />}
                 >
-                  {saved ? 'Saved' : 'Save Configuration'}
+                  {saved ? 'Saved' : 'Save Parameters'}
                 </Button>
               </div>
             </form>
           </Card>
 
-          {/* Danger Zone: Restore Demo Data */}
+          {/* Danger Zone */}
           <Card className="border-rose-200 bg-rose-50/20">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h4 className="text-sm font-bold text-rose-950 flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-rose-600" /> Demo &amp; Factory Reset
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Demo &amp; Seed Data Reset</span>
                 </h4>
-                <p className="text-xs text-slate-500 mt-1">
-                  Restore all initial batches, classrooms, and 100+ faculty members to seed defaults.
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Completely restore all default classrooms, seed batches, and 100+ faculty members back to clean demonstration defaults.
                 </p>
               </div>
               <Button

@@ -1,34 +1,66 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", "DM Sans", system-ui, -apple-system, sans-serif;
+
+  --color-paper: #F8F7F3;
+  --color-paper-muted: #F0EFE9;
+  --color-ink: #252522;
+  --color-ink-muted: #77766F;
+  --color-forest: #476B52;
+  --color-forest-hover: #3b5a44;
+  --color-terracotta: #C47B59;
+  --color-terracotta-hover: #b06d4d;
+  --color-stone-border: #E5E2DA;
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
+    background-color: #F8F7F3;
   }
   body {
-    @apply antialiased text-slate-800 bg-slate-50 min-h-screen;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    @apply antialiased min-h-screen text-[#252522] bg-[#F8F7F3];
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   }
-  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
-    @apply outline-none ring-2 ring-indigo-500 ring-offset-1;
+
+  /* Interactive element semantics (R-39) */
+  a[href],
+  button:not(:disabled),
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  label[for] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #F8F7F3, 0 0 0 4px #476B52;
   }
 }
 
-/* Custom subtle scrollbar */
+/* Subtle architectural scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 9999px;
+  background: #E5E2DA;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #C4C0B5;
 }

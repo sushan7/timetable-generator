@@ -1,54 +1,90 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { cn } from './cn';
+
+export interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  children: ReactNode;
+  footer?: ReactNode;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+}
+
+const MAX_WIDTH_STYLES = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-lg',
+  xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+};
 
 export default function Modal({
   isOpen,
   onClose,
   title,
+  subtitle,
   children,
   footer,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  footer?: ReactNode;
-}) {
+  maxWidth = 'lg',
+}: ModalProps) {
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-[#252522]/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-120"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+        className={cn(
+          'bg-white rounded-lg shadow-lg w-full max-h-[92vh] flex flex-col overflow-hidden border border-[#E5E2DA] animate-in zoom-in-95 duration-120',
+          MAX_WIDTH_STYLES[maxWidth]
+        )}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
       >
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/60 sticky top-0">
-          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        {/* Modal Header */}
+        <div className="flex justify-between items-start p-5 sm:p-6 border-b border-[#E5E2DA] bg-[#F0EFE9]">
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-[#252522] tracking-tight leading-snug">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="text-xs text-[#77766F] mt-0.5">{subtitle}</p>
+            )}
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 rounded-lg p-1 hover:bg-slate-100 transition-colors"
-            aria-label="Close"
+            className="text-[#77766F] hover:text-[#252522] rounded-md p-1.5 hover:bg-[#E5E2DA]/60 transition-colors shrink-0 ml-3"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+
+        {/* Modal Body */}
+        <div className="p-5 sm:p-6 overflow-y-auto flex-1">{children}</div>
+
+        {/* Modal Footer */}
         {footer && (
-          <div className="flex justify-end gap-3 p-6 pt-4 border-t border-slate-100">
+          <div className="flex flex-wrap justify-end items-center gap-2.5 p-4 sm:p-6 sm:py-4 border-t border-[#E5E2DA] bg-[#F8F7F3]">
             {footer}
           </div>
         )}
