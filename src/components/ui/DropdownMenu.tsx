@@ -56,7 +56,7 @@ export default function DropdownMenu({
   }, [isOpen]);
 
   const buttonVariantStyles = {
-    primary: 'bg-[#476B52] text-white hover:bg-[#3D5C46] border border-[#3D5C46]/40 shadow-xs',
+    primary: 'bg-[#C47B59] text-white hover:bg-[#B06D4D] border border-[#B06D4D]/40 shadow-xs',
     secondary: 'bg-white text-[#252522] border border-[#E5E2DA] hover:bg-[#F0EFE9] hover:border-[#D9D5CC] shadow-2xs',
     outline: 'bg-transparent text-[#252522] border border-[#E5E2DA] hover:bg-[#F0EFE9]',
     ghost: 'bg-transparent text-[#77766F] hover:text-[#252522] hover:bg-[#F0EFE9]',

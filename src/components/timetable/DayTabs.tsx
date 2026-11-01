@@ -13,7 +13,7 @@ export default function DayTabs({
     <div
       role="tablist"
       aria-label="Academic Weekdays"
-      className="flex flex-wrap gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs select-none"
+      className="flex flex-wrap gap-1 bg-[#F0EFE9] p-1 rounded-md border border-[#E5E2DA] select-none"
     >
       {WEEKDAYS.map(day => {
         const active = currentDay === day;
@@ -25,19 +25,19 @@ export default function DayTabs({
             role="tab"
             aria-selected={active}
             onClick={() => onSelect(day)}
-            className={`flex-1 min-w-[100px] px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors duration-150 flex items-center justify-center gap-2 ${
+            className={`flex-1 min-w-[90px] px-3 py-1.5 rounded text-sm font-medium transition-colors duration-150 flex items-center justify-center gap-2 ${
               active
-                ? 'bg-indigo-600 text-white shadow-2xs'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-[#C47B59] text-white shadow-2xs font-semibold'
+                : 'text-[#77766F] hover:bg-white hover:text-[#252522]'
             }`}
           >
             <span>{day}</span>
             {exists && (
               <span
                 className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
-                  active ? 'bg-indigo-200' : 'bg-emerald-500'
+                  active ? 'bg-[#F2D7CC]' : 'bg-[#C47B59]'
                 }`}
-                title="Schedule generated"
+                title="Schedule exists"
               />
             )}
           </button>

@@ -34,11 +34,11 @@ Strictly adhering to the Warm Minimalism palette:
 | **Dividers & Borders** | `#E5E2DA` | Hairline boundaries | Subtle 1px structural dividing lines |
 | **Primary Ink** | `#252522` | Primary typography | High-contrast editorial headings, values, key labels |
 | **Secondary Ink** | `#77766F` | Metadata & labels | Body copy, timestamps, secondary instructions |
-| **Primary Accent** | `#476B52` | Forest Green | Primary buttons, active nav indicators, confirmed states |
-| **Secondary Accent** | `#C47B59` | Muted Terracotta | Secondary highlights, locked/frozen alerts, warnings |
+| **Primary Accent** | `#C47B59` | Terracotta | Primary buttons, active nav indicators, confirmed states |
+| **Secondary Accent** | `#A58A68` | Warm Ochre | Secondary highlights, subject category metrics, filters |
 
 ### Banned Colors
-- No purple, violet, indigo, blue, cyan, or neon.
+- No purple, violet, indigo, blue, cyan, green, or neon.
 - No purple-to-blue gradients or generic AI dashboard treatments.
 
 ---
@@ -61,5 +61,5 @@ Strictly adhering to the Warm Minimalism palette:
 
 - **Clean Matrix Geometry**: Fixed cell proportions, clean hairline borders (`#E5E2DA`), white slot backgrounds.
 - **Sticky Batch Column**: Stays anchored on horizontal scroll with a subtle border divider.
-- **Subject Representation**: Muted, editorial typography with subtle left-edge or indicator tags in Forest Green (`#476B52`) or Muted Terracotta (`#C47B59`).
+- **Subject Representation**: Muted, editorial typography with subtle indicator tags in Terracotta (`#C47B59`) or Warm Ochre (`#A58A68`).
 - **Print / PDF Precision**: Contrast tested to render cleanly in both digital displays and monochrome/color PDF exports.

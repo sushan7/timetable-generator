@@ -15,7 +15,7 @@ export default function SearchInput({
   return (
     <div
       className={cn(
-        'relative flex items-center bg-white rounded-md border border-[#E5E2DA] transition-colors focus-within:border-[#476B52] shadow-2xs',
+        'relative flex items-center bg-white rounded-md border border-[#E5E2DA] transition-colors focus-within:border-[#C47B59] shadow-2xs',
         className
       )}
     >

@@ -21,14 +21,71 @@ export const defaultSettings: SchedulerSettings = {
 
 type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
 
+// Helper to normalize legacy "Second Language" to "K/H/S"
+const normalizeSubjectName = (subj: string): string =>
+  subj === 'Second Language' ? 'K/H/S' : subj;
+
+const normalizeFaculty = (list: Faculty[]): Faculty[] =>
+  list.map(f => ({
+    ...f,
+    subjects: f.subjects.map(normalizeSubjectName),
+  }));
+
+const normalizeBatches = (list: Batch[]): Batch[] =>
+  list.map(b => ({
+    ...b,
+    subjects: b.subjects.map(s => ({
+      ...s,
+      subject: normalizeSubjectName(s.subject),
+    })),
+  }));
+
+const normalizeTimetable = (tt: Timetable): Timetable => ({
+  ...tt,
+  allocations: tt.allocations.map(a => ({
+    ...a,
+    subject: normalizeSubjectName(a.subject),
+  })),
+});
+
+const memoryStore = new Map<string, string>();
+const safeStorage = {
+  getItem: (key: string): string | null => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.safeStorage.getItem(key);
+    }
+    return memoryStore.get(key) ?? null;
+  },
+  setItem: (key: string, value: string): void => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.safeStorage.setItem(key, value);
+    }
+    memoryStore.set(key, value);
+  },
+  removeItem: (key: string): void => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.safeStorage.removeItem(key);
+    }
+    memoryStore.delete(key);
+  },
+};
+
 export const storage = {
   initialize: () => {
     try {
-      if (!localStorage.getItem(KEYS.FACULTY)) {
-        localStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
+      if (!safeStorage.getItem(KEYS.FACULTY)) {
+        safeStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
+      } else {
+        // Auto-migrate existing faculty in storage
+        const current = storage.getFaculty();
+        storage.setFaculty(current);
       }
-      if (!localStorage.getItem(KEYS.BATCHES)) {
-        localStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
+      if (!safeStorage.getItem(KEYS.BATCHES)) {
+        safeStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
+      } else {
+        // Auto-migrate existing batches in storage
+        const current = storage.getBatches();
+        storage.setBatches(current);
       }
     } catch (e) {
       console.error('Failed to initialize storage', e);
@@ -37,15 +94,16 @@ export const storage = {
 
   getFaculty: (): Faculty[] => {
     try {
-      const raw = localStorage.getItem(KEYS.FACULTY);
-      return raw ? JSON.parse(raw) : initialFaculty;
+      const raw = safeStorage.getItem(KEYS.FACULTY);
+      const parsed = raw ? JSON.parse(raw) : initialFaculty;
+      return normalizeFaculty(parsed);
     } catch {
-      return initialFaculty;
+      return normalizeFaculty(initialFaculty);
     }
   },
   setFaculty: (data: Faculty[]) => {
     try {
-      localStorage.setItem(KEYS.FACULTY, JSON.stringify(data));
+      safeStorage.setItem(KEYS.FACULTY, JSON.stringify(normalizeFaculty(data)));
     } catch (e) {
       console.error('Failed to save faculty', e);
     }
@@ -53,15 +111,16 @@ export const storage = {
 
   getBatches: (): Batch[] => {
     try {
-      const raw = localStorage.getItem(KEYS.BATCHES);
-      return raw ? JSON.parse(raw) : initialBatches;
+      const raw = safeStorage.getItem(KEYS.BATCHES);
+      const parsed = raw ? JSON.parse(raw) : initialBatches;
+      return normalizeBatches(parsed);
     } catch {
-      return initialBatches;
+      return normalizeBatches(initialBatches);
     }
   },
   setBatches: (data: Batch[]) => {
     try {
-      localStorage.setItem(KEYS.BATCHES, JSON.stringify(data));
+      safeStorage.setItem(KEYS.BATCHES, JSON.stringify(normalizeBatches(data)));
     } catch (e) {
       console.error('Failed to save batches', e);
     }
@@ -69,7 +128,7 @@ export const storage = {
 
   getSettings: (): SchedulerSettings => {
     try {
-      const stored = localStorage.getItem(KEYS.SETTINGS);
+      const stored = safeStorage.getItem(KEYS.SETTINGS);
       return stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
     } catch {
       return defaultSettings;
@@ -77,7 +136,7 @@ export const storage = {
   },
   setSettings: (settings: SchedulerSettings) => {
     try {
-      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+      safeStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
     } catch (e) {
       console.error('Failed to save settings', e);
     }
@@ -85,7 +144,7 @@ export const storage = {
 
   getAuditLogs: (): AuditLog[] => {
     try {
-      const stored = localStorage.getItem(KEYS.AUDIT);
+      const stored = safeStorage.getItem(KEYS.AUDIT);
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
@@ -102,14 +161,14 @@ export const storage = {
       };
       // Keep up to 200 most recent logs
       const updated = [newLog, ...logs].slice(0, 200);
-      localStorage.setItem(KEYS.AUDIT, JSON.stringify(updated));
+      safeStorage.setItem(KEYS.AUDIT, JSON.stringify(updated));
     } catch (e) {
       console.error('Failed to log audit action', e);
     }
   },
   clearAuditLogs: () => {
     try {
-      localStorage.removeItem(KEYS.AUDIT);
+      safeStorage.removeItem(KEYS.AUDIT);
     } catch (e) {
       console.error('Failed to clear audit logs', e);
     }
@@ -118,15 +177,29 @@ export const storage = {
   // --- Weekly timetables ---
   getWeekTimetables: (): WeekTimetables => {
     try {
-      const stored = localStorage.getItem(KEYS.WEEK);
-      return stored ? JSON.parse(stored) : {};
+      const stored = safeStorage.getItem(KEYS.WEEK);
+      if (!stored) return {};
+      const parsed: WeekTimetables = JSON.parse(stored);
+      const normalized: WeekTimetables = {};
+      WEEKDAYS.forEach(day => {
+        if (parsed[day]) {
+          normalized[day] = normalizeTimetable(parsed[day]!);
+        }
+      });
+      return normalized;
     } catch {
       return {};
     }
   },
   setWeekTimetables: (data: WeekTimetables) => {
     try {
-      localStorage.setItem(KEYS.WEEK, JSON.stringify(data));
+      const normalized: WeekTimetables = {};
+      WEEKDAYS.forEach(day => {
+        if (data[day]) {
+          normalized[day] = normalizeTimetable(data[day]!);
+        }
+      });
+      safeStorage.setItem(KEYS.WEEK, JSON.stringify(normalized));
     } catch (e) {
       console.error('Failed to save week timetables', e);
     }
@@ -139,7 +212,7 @@ export const storage = {
 
   setDayTimetable: (day: DayOfWeek, timetable: Timetable) => {
     const week = storage.getWeekTimetables();
-    week[day] = timetable;
+    week[day] = normalizeTimetable(timetable);
     storage.setWeekTimetables(week);
   },
 
@@ -160,7 +233,7 @@ export const storage = {
     storage.setWeekTimetables(week);
   },
 
-  // Allocations from every OTHER day this week — feeds the weekly quota bias
+  // Allocations from every OTHER day this week - feeds the weekly quota bias
   getWeekAllocationsExcluding: (day: DayOfWeek): Allocation[] => {
     const week = storage.getWeekTimetables();
     return WEEKDAYS
@@ -168,7 +241,7 @@ export const storage = {
       .flatMap(d => week[d]?.allocations || []);
   },
 
-  // Every day's allocations (including current), keyed by day — feeds the quota summary UI
+  // Every day's allocations (including current), keyed by day - feeds the quota summary UI
   getAllWeekAllocations: (): Record<DayOfWeek, Allocation[]> => {
     const week = storage.getWeekTimetables();
     const result = {} as Record<DayOfWeek, Allocation[]>;
@@ -179,10 +252,10 @@ export const storage = {
   // Complete reset to demo/seed data
   resetToSeedData: () => {
     try {
-      localStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
-      localStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
-      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(defaultSettings));
-      localStorage.removeItem(KEYS.WEEK);
+      safeStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
+      safeStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
+      safeStorage.setItem(KEYS.SETTINGS, JSON.stringify(defaultSettings));
+      safeStorage.removeItem(KEYS.WEEK);
       storage.clearAuditLogs();
       storage.logAuditAction('STATUS_CHANGE', {
         reason: 'Restored system to initial demo/seed data defaults.',

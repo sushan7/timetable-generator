@@ -31,49 +31,47 @@ export default function SectionTable({
   ).size;
   const fillPct = totalSlots === 0 ? 0 : Math.round((filled / totalSlots) * 100);
 
-  // Derive common period timing label across batches for header display if available
   const getPeriodHeaderLabel = (index: number) => {
-    // Find the first batch that has timing for this period
     const sampleTiming = batches.find(b => b.periods[index]?.startTime)?.periods[index];
-    return sampleTiming?.startTime ? `${sampleTiming.startTime} – ${sampleTiming.endTime}` : null;
+    return sampleTiming?.startTime ? `${sampleTiming.startTime} - ${sampleTiming.endTime}` : null;
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+    <div className="bg-white rounded-lg border border-[#E5E2DA] shadow-2xs overflow-hidden">
       {/* Section Header */}
-      <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-3">
+      <div className="p-4 sm:p-5 bg-[#F8F7F3] border-b border-[#E5E2DA] flex flex-col md:flex-row justify-between md:items-center gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-white text-slate-700 rounded-lg shrink-0 border border-slate-200/80 shadow-2xs">
+          <div className="p-2 bg-white text-[#252522] rounded-md shrink-0 border border-[#E5E2DA] shadow-2xs">
             <Building2 className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">
+            <h3 className="font-bold text-[#252522] text-sm sm:text-base leading-tight">
               {label}
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-[#77766F] mt-0.5">
               {batches.length} batch{batches.length !== 1 ? 'es' : ''} assigned to this section
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-white px-2.5 py-1 rounded-md border border-slate-200">
-            <Users className="w-3.5 h-3.5 text-slate-400" />
+          <span className="flex items-center gap-1.5 text-xs font-medium text-[#77766F] bg-white px-2.5 py-1 rounded-md border border-[#E5E2DA]">
+            <Users className="w-3.5 h-3.5 text-[#77766F]" />
             <span>{uniqueFaculty} faculty active</span>
           </span>
-          <Badge tone={fillPct >= 90 ? 'success' : fillPct > 50 ? 'info' : 'warning'}>
+          <Badge tone={fillPct >= 90 ? 'terracotta' : fillPct > 50 ? 'neutral' : 'warning'}>
             {filled}/{totalSlots} slots ({fillPct}%)
           </Badge>
           {gaps > 0 && <Badge tone="danger">{gaps} gap{gaps > 1 ? 's' : ''}</Badge>}
         </div>
       </div>
 
-      {/* Responsive Matrix Grid with Sticky Left Column */}
+      {/* Responsive Swiss Matrix with Sticky Left Column */}
       <div className="overflow-x-auto relative">
         <table className="w-full text-left border-collapse min-w-[1000px]">
           <thead>
-            <tr className="bg-slate-50/90 border-b border-slate-200 text-xs font-semibold text-slate-600">
-              <th className="p-3.5 w-56 sticky left-0 z-20 bg-slate-50/95 backdrop-blur-xs border-r border-slate-200 shadow-[1px_0_0_0_#e2e8f0]">
+            <tr className="bg-[#F0EFE9] border-b border-[#E5E2DA] text-xs font-semibold text-[#77766F]">
+              <th className="p-3 w-56 sticky left-0 z-20 bg-[#F0EFE9] border-r border-[#E5E2DA] shadow-[1px_0_0_0_#E5E2DA]">
                 Batch &amp; Classroom
               </th>
               {Array.from({ length: 6 }).map((_, i) => {
@@ -81,11 +79,11 @@ export default function SectionTable({
                 return (
                   <th
                     key={i}
-                    className="p-3.5 text-center border-l border-slate-200 w-44 font-semibold text-slate-700"
+                    className="p-3 text-center border-l border-[#E5E2DA] w-44 font-semibold text-[#252522]"
                   >
                     <div>Period {i + 1}</div>
                     {timing && (
-                      <div className="text-[11px] font-normal text-slate-400 mt-0.5">
+                      <div className="text-[11px] font-normal text-[#77766F] mt-0.5">
                         {timing}
                       </div>
                     )}
@@ -94,19 +92,19 @@ export default function SectionTable({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
+          <tbody className="divide-y divide-[#E5E2DA] text-sm">
             {batches.map(batch => (
-              <tr key={batch.id} className="group hover:bg-slate-50/70 transition-colors">
+              <tr key={batch.id} className="group hover:bg-[#F0EFE9]/40 transition-colors">
                 {/* Sticky Batch Details Column */}
-                <td className="p-3.5 align-middle sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200 shadow-[1px_0_0_0_#e2e8f0]">
-                  <div className="font-bold text-slate-900 text-sm leading-snug">
+                <td className="p-3 align-middle sticky left-0 z-10 bg-white group-hover:bg-[#FBFBFA] transition-colors border-r border-[#E5E2DA] shadow-[1px_0_0_0_#E5E2DA]">
+                  <div className="font-bold text-[#252522] text-sm leading-snug">
                     {batch.name || 'Unnamed Batch'}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                    <Badge tone="neutral" className="text-[11px] py-0 px-1.5 font-medium">
+                    <Badge tone="neutral" className="text-[11px] py-0 px-1.5 font-normal">
                       {batch.yearCategory}
                     </Badge>
-                    <span className="text-xs text-slate-500 font-medium">
+                    <span className="text-xs text-[#77766F] font-medium">
                       Room {batch.roomNumber || '-'}
                     </span>
                   </div>
@@ -119,7 +117,7 @@ export default function SectionTable({
                     a => a.batchId === batch.id && a.periodIndex === i
                   );
                   return (
-                    <td key={i} className="p-2 border-l border-slate-100 align-top">
+                    <td key={i} className="p-2 border-l border-[#E5E2DA] align-top bg-white group-hover:bg-[#FBFBFA]/70 transition-colors">
                       <AllocationCell
                         period={period}
                         allocation={allocation}

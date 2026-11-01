@@ -165,7 +165,6 @@ export default function Timetable() {
     return faculties.find(f => f.id === id)?.name || 'Unknown';
   };
 
-  // Cell click handler to open the Manual Override dialog
   const handleCellClick = (batch: Batch, periodIndex: number) => {
     const existing = allocations.find(a => a.batchId === batch.id && a.periodIndex === periodIndex);
     const initialSubject = existing?.subject || (batch.subjects[0]?.subject || 'Physics');
@@ -192,7 +191,6 @@ export default function Timetable() {
     );
 
     if (!facultyId) {
-      // Slot cleared to free period
       if (existingIdx >= 0) {
         updatedAllocations.splice(existingIdx, 1);
       }
@@ -238,7 +236,6 @@ export default function Timetable() {
     setEditingSlot(null);
   };
 
-  // Helper to normalize any modern Tailwind v4 oklch colors for html2canvas
   const sanitizeClonedDocColors = (clonedDoc: Document) => {
     try {
       const canvas = document.createElement('canvas');
@@ -273,7 +270,6 @@ export default function Timetable() {
     }
   };
 
-  // Export as PNG
   const exportAsImage = async () => {
     if (!pageRef.current) return;
     setIsExporting(true);
@@ -282,7 +278,7 @@ export default function Timetable() {
       const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(pageRef.current, {
         scale: 2,
-        backgroundColor: '#f8fafc',
+        backgroundColor: '#F8F7F3',
         useCORS: true,
         logging: false,
         onclone: clonedDoc => sanitizeClonedDocColors(clonedDoc),
@@ -300,7 +296,6 @@ export default function Timetable() {
     }
   };
 
-  // Export as PDF
   const exportAsPdf = async () => {
     if (!pageRef.current) return;
     setIsExporting(true);
@@ -311,7 +306,7 @@ export default function Timetable() {
 
       const canvas = await html2canvas(pageRef.current, {
         scale: 1.5,
-        backgroundColor: '#ffffff',
+        backgroundColor: '#F8F7F3',
         useCORS: true,
         logging: false,
         onclone: clonedDoc => sanitizeClonedDocColors(clonedDoc),
@@ -334,7 +329,6 @@ export default function Timetable() {
     }
   };
 
-  // Export as Excel (XLSX)
   const exportAsExcel = async () => {
     setIsExporting(true);
     setExportType('Excel');
@@ -373,7 +367,6 @@ export default function Timetable() {
     }
   };
 
-  // Filter batches by search query and building section
   const filteredBatches = useMemo(() => {
     return batches.filter(b => {
       if (activeSectionFilter !== 'ALL' && !b.building.includes(activeSectionFilter)) return false;
@@ -418,7 +411,6 @@ export default function Timetable() {
   const gapCount = allocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
   const absentFacultyCount = faculties.filter(f => f.isAbsent).length;
 
-  // Selected faculty conflict evaluation for the edit modal
   const conflictEvaluation = useMemo(() => {
     if (!editingSlot || !editingSlot.facultyId) return null;
     const selectedFac = faculties.find(f => f.id === editingSlot.facultyId);
@@ -435,7 +427,6 @@ export default function Timetable() {
     );
   }, [editingSlot, faculties, batches, allocations]);
 
-  // Consolidated export dropdown items
   const exportItems: DropdownItem[] = [
     {
       id: 'png',
@@ -448,7 +439,7 @@ export default function Timetable() {
     {
       id: 'pdf',
       label: 'Download Document (PDF)',
-      description: 'Printable landscape format with full grid',
+      description: 'Printable landscape format with full matrix',
       icon: <FileText className="w-4 h-4" />,
       onClick: exportAsPdf,
       disabled: isExporting || !hasGenerated,
@@ -466,25 +457,25 @@ export default function Timetable() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[95rem] mx-auto space-y-5" ref={pageRef}>
       <PageHeader
-        icon={<Calendar className="w-5 h-5" />}
+        icon={<Calendar className="w-5 h-5 text-[#252522]" />}
         title="Academic Timetable Matrix"
         subtitle={
           <span>
-            {currentDay} &middot; Status: <strong className="text-slate-700">{currentStatus}</strong> &middot;{' '}
+            {currentDay} &middot; Status: <strong className="text-[#252522]">{currentStatus}</strong> &middot;{' '}
             {allocations.filter(a => a.facultyId).length} periods active
           </span>
         }
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             {/* Status Segmented Control */}
-            <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-xs font-semibold shadow-2xs select-none">
+            <div className="flex items-center bg-[#F0EFE9] border border-[#E5E2DA] rounded-md p-0.5 text-xs font-medium select-none">
               <button
                 type="button"
                 onClick={() => handleStatusChange('Draft')}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
+                className={`px-3 py-1 rounded transition-colors ${
                   currentStatus === 'Draft'
-                    ? 'bg-amber-100 text-amber-900 font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#252522] font-semibold shadow-2xs'
+                    : 'text-[#77766F] hover:text-[#252522]'
                 }`}
               >
                 Draft
@@ -492,10 +483,10 @@ export default function Timetable() {
               <button
                 type="button"
                 onClick={() => handleStatusChange('Finalized')}
-                className={`px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-1 rounded transition-colors flex items-center gap-1.5 ${
                   currentStatus === 'Finalized'
-                    ? 'bg-emerald-600 text-white font-bold shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-[#C47B59] text-white font-semibold shadow-2xs'
+                    : 'text-[#77766F] hover:text-[#252522]'
                 }`}
               >
                 <CheckCircle className="w-3.5 h-3.5" />
@@ -514,8 +505,8 @@ export default function Timetable() {
             >
               Sync Absences
               {absentFacultyCount > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.2 bg-rose-100 text-rose-800 rounded text-[11px] font-bold">
-                  {absentFacultyCount} absent
+                <span className="ml-1 px-1.5 py-0.2 bg-[#FDF2F0] text-[#9E4334] rounded text-[11px] font-semibold">
+                  {absentFacultyCount}
                 </span>
               )}
             </Button>
@@ -548,24 +539,24 @@ export default function Timetable() {
         hasData={day => !!storage.getDayTimetable(day)}
       />
 
-      {/* High-Density Academic Quota Inspector */}
+      {/* Academic Balance Inspector */}
       <BalanceBar quota={quota} gapCount={gapCount} day={currentDay} />
 
       {/* Batch Filtering & Search Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-2.5 rounded-lg border border-[#E5E2DA] shadow-2xs">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <div className="flex items-center gap-1.5 text-xs font-medium text-[#77766F]">
+            <Filter className="w-3.5 h-3.5 text-[#77766F]" />
             <span>Building:</span>
           </div>
-          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold select-none">
+          <div className="inline-flex rounded-md bg-[#F0EFE9] p-0.5 text-xs font-medium select-none">
             <button
               type="button"
               onClick={() => setActiveSectionFilter('ALL')}
-              className={`px-3 py-1 rounded-md transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 activeSectionFilter === 'ALL'
-                  ? 'bg-white text-slate-900 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-[#252522] font-semibold shadow-2xs'
+                  : 'text-[#77766F] hover:text-[#252522]'
               }`}
             >
               All Sections
@@ -573,10 +564,10 @@ export default function Timetable() {
             <button
               type="button"
               onClick={() => setActiveSectionFilter('Building 1')}
-              className={`px-3 py-1 rounded-md transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 activeSectionFilter === 'Building 1'
-                  ? 'bg-white text-indigo-700 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-[#C47B59] font-semibold shadow-2xs'
+                  : 'text-[#77766F] hover:text-[#252522]'
               }`}
             >
               Building 1
@@ -584,10 +575,10 @@ export default function Timetable() {
             <button
               type="button"
               onClick={() => setActiveSectionFilter('Building 2')}
-              className={`px-3 py-1 rounded-md transition-colors ${
+              className={`px-3 py-1 rounded transition-colors ${
                 activeSectionFilter === 'Building 2'
-                  ? 'bg-white text-indigo-700 shadow-2xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-[#C47B59] font-semibold shadow-2xs'
+                  : 'text-[#77766F] hover:text-[#252522]'
               }`}
             >
               Building 2
@@ -606,7 +597,7 @@ export default function Timetable() {
       {/* Timetable Matrix Grid by Academic Sections */}
       {!hasGenerated ? (
         <EmptyState
-          icon={<Calendar className="w-8 h-8 text-slate-400" />}
+          icon={<Calendar className="w-8 h-8 text-[#77766F]" />}
           title={`No timetable generated for ${currentDay} yet`}
           description={`Click "Generate ${currentDay}" to create clash-free slot assignments based on batch periods and teacher workload constraints.`}
           action={
@@ -676,28 +667,28 @@ export default function Timetable() {
           }
         >
           <form id="slot-override-form" onSubmit={handleSaveSlotOverride} className="space-y-4">
-            <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-1.5 text-xs">
+            <div className="bg-[#F0EFE9] p-3 rounded-md border border-[#E5E2DA] space-y-1 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Classroom &amp; Campus:</span>
-                <span className="font-semibold text-slate-800">
+                <span className="text-[#77766F] font-medium">Classroom &amp; Campus:</span>
+                <span className="font-semibold text-[#252522]">
                   Room {editingSlot.batch.roomNumber} &middot; {editingSlot.batch.building}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Period Scheduled Time:</span>
-                <span className="font-semibold text-slate-800">
-                  {editingSlot.batch.periods[editingSlot.periodIndex]?.startTime} –{' '}
+                <span className="text-[#77766F] font-medium">Period Scheduled Time:</span>
+                <span className="font-semibold text-[#252522]">
+                  {editingSlot.batch.periods[editingSlot.periodIndex]?.startTime} -{' '}
                   {editingSlot.batch.periods[editingSlot.periodIndex]?.endTime}
                 </span>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Subject</label>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#252522]">Subject</label>
               <select
                 value={editingSlot.subject}
                 onChange={e => setEditingSlot({ ...editingSlot, subject: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
+                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
               >
                 {editingSlot.batch.subjects.map(s => (
                   <option key={s.subject} value={s.subject}>
@@ -710,14 +701,14 @@ export default function Timetable() {
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[#252522]">
                 Assigned Faculty Member
               </label>
               <select
                 value={editingSlot.facultyId}
                 onChange={e => setEditingSlot({ ...editingSlot, facultyId: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
+                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
               >
                 <option value="">-- No Faculty (Free Period) --</option>
                 {faculties
@@ -731,36 +722,35 @@ export default function Timetable() {
                     );
                   })}
               </select>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-[#77766F]">
                 Filtered by teachers qualified in &ldquo;{editingSlot.subject}&rdquo;.
               </p>
             </div>
 
-            {/* Real-time Conflict Alert Box */}
             {conflictEvaluation?.hasConflict && (
-              <div className="p-3 bg-amber-50 text-amber-900 border border-amber-200 rounded-lg text-xs flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="p-3 bg-[#FBF3EE] text-[#8A4C2E] border border-[#F3DFD3] rounded-md text-xs flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-[#C47B59] shrink-0 mt-0.5" />
                 <div>
-                  <strong className="font-semibold text-amber-950">
+                  <strong className="font-semibold text-[#8A4C2E]">
                     Potential Schedule Conflict:
                   </strong>
-                  <p className="mt-0.5 text-amber-800 leading-relaxed">
+                  <p className="mt-0.5 text-[#8A4C2E]/90 leading-relaxed">
                     {conflictEvaluation.message}
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="pt-2 border-t border-slate-100">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+            <div className="pt-2 border-t border-[#E5E2DA]">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252522] select-none">
                 <input
                   type="checkbox"
                   checked={editingSlot.isFrozen}
                   onChange={e => setEditingSlot({ ...editingSlot, isFrozen: e.target.checked })}
-                  className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                  className="w-4 h-4 text-[#C47B59] rounded border-[#E5E2DA]"
                 />
                 <span className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-amber-600" />
+                  <Lock className="w-3.5 h-3.5 text-[#C47B59]" />
                   Lock this slot (protect from automatic regeneration)
                 </span>
               </label>

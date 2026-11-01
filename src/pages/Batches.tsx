@@ -130,7 +130,7 @@ export default function Batches() {
         { subject: 'Mathematics', count: 1 },
         { subject: 'Biology', count: 1 },
         { subject: 'English', count: 2 },
-        { subject: 'Second Language', count: 2 },
+        { subject: 'K/H/S', count: 2 },
       ],
     };
 
@@ -223,7 +223,7 @@ export default function Batches() {
             { subject: 'Mathematics', count: 1 },
             { subject: 'Biology', count: 1 },
             { subject: 'English', count: 2 },
-            { subject: 'Second Language', count: 2 },
+            { subject: 'K/H/S', count: 2 },
           ],
         });
       });
@@ -259,7 +259,7 @@ export default function Batches() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <PageHeader
-        icon={<Building2 className="w-5 h-5" />}
+        icon={<Building2 className="w-5 h-5 text-[#252522]" />}
         title="Batches &amp; Timing Schedules"
         subtitle={`${batches.length} total academic batches and classroom timings registered`}
         actions={
@@ -291,15 +291,15 @@ export default function Batches() {
       />
 
       {error && (
-        <div className="p-3.5 bg-rose-50 text-rose-800 border border-rose-200 rounded-lg flex items-start gap-2.5 text-sm font-medium">
-          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+        <div className="p-3.5 bg-[#FDF2F0] text-[#9E4334] border border-[#F5D5CF] rounded-md flex items-start gap-2.5 text-sm font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0 text-[#C47B59] mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+        <div className="p-3.5 bg-[#FBF3EE] text-[#8A4C2E] border border-[#F3DFD3] rounded-md flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-[#C47B59]" />
           <span>{successMsg}</span>
         </div>
       )}
@@ -307,14 +307,14 @@ export default function Batches() {
       {/* Building Filter Pills & Search */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold select-none">
+          <div className="inline-flex rounded-md bg-[#F0EFE9] p-0.5 text-xs font-medium select-none">
             <button
               type="button"
               onClick={() => setSelectedBuilding('ALL')}
-              className={`px-3 py-1.5 rounded-md transition-colors ${
+              className={`px-3 py-1.5 rounded transition-colors ${
                 selectedBuilding === 'ALL'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-[#252522] shadow-2xs font-semibold'
+                  : 'text-[#77766F] hover:text-[#252522]'
               }`}
             >
               All Buildings ({batches.length})
@@ -324,10 +324,10 @@ export default function Batches() {
                 key={b}
                 type="button"
                 onClick={() => setSelectedBuilding(b)}
-                className={`px-3 py-1.5 rounded-md transition-colors ${
+                className={`px-3 py-1.5 rounded transition-colors ${
                   selectedBuilding === b
-                    ? 'bg-white text-indigo-700 shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#C47B59] shadow-2xs font-semibold'
+                    : 'text-[#77766F] hover:text-[#252522]'
                 }`}
               >
                 {b} ({batches.filter(item => item.building === b).length})
@@ -348,7 +348,7 @@ export default function Batches() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-600 font-semibold">
+              <tr className="bg-[#F0EFE9] border-b border-[#E5E2DA] text-xs text-[#77766F] font-semibold">
                 <th className="p-3.5 w-12 text-center"></th>
                 <th className="p-3.5">Batch Name</th>
                 <th className="p-3.5">Campus Building</th>
@@ -358,13 +358,13 @@ export default function Batches() {
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
+            <tbody className="divide-y divide-[#E5E2DA] text-sm">
               {filteredBatches.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-10 text-center">
-                    <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="font-semibold text-slate-700 text-sm">No batches found</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <Layers className="w-8 h-8 text-[#77766F] mx-auto mb-2" />
+                    <p className="font-semibold text-[#252522] text-sm">No batches found</p>
+                    <p className="text-xs text-[#77766F] mt-0.5">
                       Try selecting another building filter or clearing your search.
                     </p>
                   </td>
@@ -378,15 +378,15 @@ export default function Batches() {
                   return (
                     <Fragment key={batch.id}>
                       <tr
-                        className={`hover:bg-slate-50/70 transition-colors ${
-                          isExpanded ? 'bg-slate-50/90' : ''
+                        className={`hover:bg-[#F0EFE9]/40 transition-colors ${
+                          isExpanded ? 'bg-[#F0EFE9]/60' : ''
                         }`}
                       >
                         <td className="p-3.5 text-center">
                           <button
                             type="button"
                             onClick={() => setExpandedId(isExpanded ? null : batch.id)}
-                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+                            className="p-1.5 rounded text-[#77766F] hover:text-[#252522] hover:bg-[#E5E2DA]/60 transition-colors"
                             aria-label={isExpanded ? 'Collapse timings' : 'Expand timings'}
                           >
                             {isExpanded ? (
@@ -396,16 +396,16 @@ export default function Batches() {
                             )}
                           </button>
                         </td>
-                        <td className="p-3.5 font-bold text-slate-900">{batch.name}</td>
-                        <td className="p-3.5 text-slate-600">{batch.building}</td>
+                        <td className="p-3.5 font-bold text-[#252522]">{batch.name}</td>
+                        <td className="p-3.5 text-[#77766F]">{batch.building}</td>
                         <td className="p-3.5">
-                          <Badge tone="info">{batch.yearCategory}</Badge>
+                          <Badge tone="neutral">{batch.yearCategory}</Badge>
                         </td>
-                        <td className="p-3.5 font-medium text-slate-700">
+                        <td className="p-3.5 font-medium text-[#252522]">
                           Room {batch.roomNumber || '-'}
                         </td>
                         <td className="p-3.5">
-                          <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md border border-slate-200/80">
+                          <span className="text-xs font-medium px-2 py-0.5 bg-[#F0EFE9] text-[#252522] rounded border border-[#E5E2DA]">
                             {activePeriodCount} period{activePeriodCount !== 1 ? 's' : ''}/day
                           </span>
                         </td>
@@ -414,7 +414,7 @@ export default function Batches() {
                             size="sm"
                             variant="ghost"
                             onClick={() => handleDelete(batch.id, batch.name)}
-                            className="hover:text-rose-600 hover:bg-rose-50"
+                            className="hover:text-[#9E4334] hover:bg-[#FDF2F0]"
                             title="Delete Batch"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -423,28 +423,28 @@ export default function Batches() {
                       </tr>
 
                       {isExpanded && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={7} className="p-4 sm:p-5 border-l border-slate-200 bg-slate-50/50">
-                            <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold text-slate-700">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <tr className="bg-[#F8F7F3]">
+                          <td colSpan={7} className="p-4 sm:p-5 border-l-2 border-l-[#C47B59] border-t border-b border-[#E5E2DA] bg-[#F8F7F3]">
+                            <div className="flex items-center gap-1.5 mb-3 text-xs font-semibold text-[#252522]">
+                              <Clock className="w-3.5 h-3.5 text-[#77766F]" />
                               <span>Daily Period Timings for {batch.name}</span>
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
                               {batch.periods.map((p, i) => (
                                 <div
                                   key={i}
-                                  className={`p-2.5 rounded-lg border text-center transition-all ${
+                                  className={`p-2.5 rounded border text-center transition-all ${
                                     p.startTime && p.endTime
-                                      ? 'bg-white border-slate-200 shadow-2xs'
-                                      : 'bg-slate-100/50 border-dashed border-slate-200 text-slate-400'
+                                      ? 'bg-white border-[#E5E2DA] shadow-2xs'
+                                      : 'bg-[#F0EFE9]/40 border-dashed border-[#E5E2DA] text-[#77766F]'
                                   }`}
                                 >
-                                  <div className="text-[11px] font-bold text-slate-400 mb-0.5">
+                                  <div className="text-[11px] font-medium text-[#77766F] mb-0.5">
                                     Period {i + 1}
                                   </div>
-                                  <div className="text-xs font-semibold text-slate-800">
+                                  <div className="text-xs font-semibold text-[#252522]">
                                     {p.startTime && p.endTime
-                                      ? `${p.startTime} – ${p.endTime}`
+                                      ? `${p.startTime} - ${p.endTime}`
                                       : 'No timing'}
                                   </div>
                                 </div>
@@ -488,11 +488,11 @@ export default function Batches() {
         <form id="add-batch-form" onSubmit={handleAddBatch} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Campus Building</label>
+              <label className="text-xs font-semibold text-[#252522]">Campus Building</label>
               <select
                 value={building}
                 onChange={e => setBuilding(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:border-indigo-600 outline-none"
+                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
                 required
               >
                 {BUILDINGS.map(b => (
@@ -504,12 +504,12 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Year / Section Category</label>
+              <label className="text-xs font-semibold text-[#252522]">Year / Section Category</label>
               <input
                 list="years-list"
                 value={yearCategory}
                 onChange={e => setYearCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
+                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
                 required
                 placeholder="e.g. First PU"
               />
@@ -522,40 +522,40 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Batch Name</label>
+              <label className="text-xs font-semibold text-[#252522]">Batch Name</label>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
+                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
                 required
                 placeholder="e.g. Lakshya 10"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Room Number</label>
+              <label className="text-xs font-semibold text-[#252522]">Room Number</label>
               <input
                 value={roomNumber}
                 onChange={e => setRoomNumber(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
+                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
                 required
                 placeholder="e.g. 204(A)"
               />
             </div>
           </div>
 
-          <div className="border-t border-slate-100 pt-4 space-y-2.5">
+          <div className="border-t border-[#E5E2DA] pt-4 space-y-2.5">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-800">
+              <label className="text-xs font-bold text-[#252522]">
                 Period Timings (Chronological 24-Hour Format)
               </label>
-              <span className="text-[11px] text-slate-400">Leave unused trailing periods empty</span>
+              <span className="text-[11px] text-[#77766F]">Leave unused trailing periods empty</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {periods.map((period, i) => (
-                <div key={i} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                  <div className="text-[11px] font-bold text-slate-500 text-center">
+                <div key={i} className="p-2.5 bg-[#F0EFE9] rounded border border-[#E5E2DA] space-y-1">
+                  <div className="text-[11px] font-medium text-[#77766F] text-center">
                     Period {i + 1}
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -567,7 +567,7 @@ export default function Batches() {
                         newP[i] = { ...newP[i], startTime: e.target.value };
                         setPeriods(newP);
                       }}
-                      className="w-full text-xs p-1.5 border border-slate-200 rounded bg-white text-center focus:border-indigo-600 outline-none"
+                      className="w-full text-xs p-1.5 border border-[#E5E2DA] rounded bg-white text-center focus:border-[#C47B59] outline-none text-[#252522]"
                       title="Start Time"
                     />
                     <input
@@ -578,7 +578,7 @@ export default function Batches() {
                         newP[i] = { ...newP[i], endTime: e.target.value };
                         setPeriods(newP);
                       }}
-                      className="w-full text-xs p-1.5 border border-slate-200 rounded bg-white text-center focus:border-indigo-600 outline-none"
+                      className="w-full text-xs p-1.5 border border-[#E5E2DA] rounded bg-white text-center focus:border-[#C47B59] outline-none text-[#252522]"
                       title="End Time"
                     />
                   </div>

@@ -22,7 +22,7 @@ const DEFAULT_SUBJECTS = [
   { subject: 'Mathematics', count: 1 },
   { subject: 'Biology', count: 1 },
   { subject: 'English', count: 2 },
-  { subject: 'Second Language', count: 2 }
+  { subject: 'K/H/S', count: 2 }
 ];
 
 const makeBatches = (
@@ -185,10 +185,10 @@ export const initialFaculty: Faculty[] = [
     "Y GOWRI LAKSHMI", "SHREEKANTH K", "ROHITH", "SRINIVAS SHASTRI", "ASHIK K B", "SAJESH BABU", "AMALRAJ PANAYAN", "SHILPA K"
   ], "Physics"),
 
-  // --- SECOND LANGUAGE (19) ---
+  // --- K/H/S (SECOND LANGUAGE) (19) ---
   ...createFaculty([
     "HEMALATHA", "SANJEEV K P", "LEKHAN H K", "JAYARAM", "DR NAVEEN", "MUNNER", "DISHA G C", "ROHITH M", "SAHANA BHANDARI", 
     "HAREESHA K R", "VIDHYASHREE K R", "CHAITRA A S", "PRATHIK", "CHARAN KUMAR", "ARUN KUMAR KAN", "HARISHA DEVADIGA", 
     "USHA B K", "ROHITH HV", "THIPPE SWAMI"
-  ], "Second Language")
+  ], "K/H/S")
 ];

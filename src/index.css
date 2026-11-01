@@ -7,10 +7,10 @@
   --color-paper-muted: #F0EFE9;
   --color-ink: #252522;
   --color-ink-muted: #77766F;
-  --color-forest: #476B52;
-  --color-forest-hover: #3b5a44;
   --color-terracotta: #C47B59;
   --color-terracotta-hover: #b06d4d;
+  --color-ochre: #A58A68;
+  --color-ochre-hover: #937958;
   --color-stone-border: #E5E2DA;
 }
 
@@ -45,7 +45,7 @@
   textarea:focus-visible,
   button:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px #F8F7F3, 0 0 0 4px #476B52;
+    box-shadow: 0 0 0 2px #F8F7F3, 0 0 0 4px #C47B59;
   }
 }
 

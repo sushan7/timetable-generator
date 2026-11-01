@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react';
 import { cn } from './cn';
 
-export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'terracotta' | 'forest';
+export type BadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'terracotta' | 'ochre' | 'forest';
 
 const TONE_STYLES: Record<BadgeTone, string> = {
   neutral: 'bg-[#F0EFE9] text-[#252522] border-[#E5E2DA]',
-  success: 'bg-[#EBF2ED] text-[#2D4834] border-[#D1E0D5]',
-  forest: 'bg-[#EBF2ED] text-[#2D4834] border-[#D1E0D5]',
+  success: 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]',
+  forest: 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]',
   warning: 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]',
   terracotta: 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]',
+  ochre: 'bg-[#F7F4EF] text-[#7A6245] border-[#E6DECF]',
   danger: 'bg-[#FDF2F0] text-[#9E4334] border-[#F5D5CF]',
 };
 

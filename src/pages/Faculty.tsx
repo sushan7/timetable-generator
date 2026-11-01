@@ -185,7 +185,7 @@ export default function FacultyManager() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <PageHeader
-        icon={<Users className="w-5 h-5" />}
+        icon={<Users className="w-5 h-5 text-[#252522]" />}
         title="Faculty Directory &amp; Attendance"
         subtitle={`${faculties.length} professors and lecturers registered across departments`}
         actions={
@@ -193,7 +193,7 @@ export default function FacultyManager() {
             {absentCount > 0 && (
               <Button
                 variant="secondary"
-                icon={<CheckCheck className="w-4 h-4 text-emerald-600" />}
+                icon={<CheckCheck className="w-4 h-4 text-[#C47B59]" />}
                 onClick={handleMarkAllPresent}
                 title="Clear all absence marks"
               >
@@ -229,52 +229,52 @@ export default function FacultyManager() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card padding={false} className="p-4">
-          <div className="text-xs font-semibold text-slate-500">Total Directory</div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">{faculties.length}</div>
+          <div className="text-xs font-medium text-[#77766F]">Total Directory</div>
+          <div className="text-2xl font-bold text-[#252522] mt-1">{faculties.length}</div>
         </Card>
         <Card
           padding={false}
           className={`p-4 cursor-pointer transition-colors ${
-            statusFilter === 'PRESENT' ? 'ring-2 ring-emerald-600 bg-emerald-50/40' : ''
+            statusFilter === 'PRESENT' ? 'border-[#C47B59] bg-[#FBF3EE]/60' : ''
           }`}
           onClick={() => setStatusFilter(prev => (prev === 'PRESENT' ? 'ALL' : 'PRESENT'))}
         >
-          <div className="text-xs font-semibold text-emerald-700 flex items-center justify-between">
+          <div className="text-xs font-medium text-[#C47B59] flex items-center justify-between">
             <span>Present Today</span>
-            <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <UserCheck className="w-3.5 h-3.5 text-[#C47B59]" />
           </div>
-          <div className="text-2xl font-bold text-emerald-800 mt-1">{presentCount}</div>
+          <div className="text-2xl font-bold text-[#252522] mt-1">{presentCount}</div>
         </Card>
         <Card
           padding={false}
           className={`p-4 cursor-pointer transition-colors ${
-            statusFilter === 'ABSENT' ? 'ring-2 ring-rose-600 bg-rose-50/40' : ''
+            statusFilter === 'ABSENT' ? 'border-[#F5D5CF] bg-[#FDF2F0]' : ''
           }`}
           onClick={() => setStatusFilter(prev => (prev === 'ABSENT' ? 'ALL' : 'ABSENT'))}
         >
-          <div className="text-xs font-semibold text-rose-700 flex items-center justify-between">
+          <div className="text-xs font-medium text-[#9E4334] flex items-center justify-between">
             <span>Absent Today</span>
-            <UserMinus className="w-3.5 h-3.5 text-rose-600" />
+            <UserMinus className="w-3.5 h-3.5 text-[#C47B59]" />
           </div>
-          <div className="text-2xl font-bold text-rose-800 mt-1">{absentCount}</div>
+          <div className="text-2xl font-bold text-[#9E4334] mt-1">{absentCount}</div>
         </Card>
         <Card padding={false} className="p-4">
-          <div className="text-xs font-semibold text-amber-700 flex items-center justify-between">
+          <div className="text-xs font-medium text-[#C47B59] flex items-center justify-between">
             <span>Batch Restricted</span>
-            <Link2 className="w-3.5 h-3.5 text-amber-600" />
+            <Link2 className="w-3.5 h-3.5 text-[#C47B59]" />
           </div>
-          <div className="text-2xl font-bold text-amber-800 mt-1">{lockedCount}</div>
+          <div className="text-2xl font-bold text-[#252522] mt-1">{lockedCount}</div>
         </Card>
       </div>
 
       {importMessage && (
         <div
-          className={`text-sm font-medium px-4 py-2.5 rounded-lg border ${
+          className={`text-sm font-medium px-4 py-2.5 rounded border ${
             importMessage.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : 'bg-rose-50 text-rose-800 border-rose-200'
+              ? 'bg-[#FBF3EE] text-[#8A4C2E] border-[#F3DFD3]'
+              : 'bg-[#FDF2F0] text-[#9E4334] border-[#F5D5CF]'
           }`}
         >
           {importMessage.text}
@@ -292,13 +292,13 @@ export default function FacultyManager() {
           />
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">Status:</span>
-            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs font-semibold select-none">
+            <span className="text-xs font-medium text-[#77766F]">Status:</span>
+            <div className="inline-flex rounded-md bg-[#F0EFE9] p-0.5 text-xs font-medium select-none">
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
-                className={`px-3 py-1 rounded-md transition-colors ${
-                  statusFilter === 'ALL' ? 'bg-white shadow-2xs text-slate-900' : 'text-slate-600 hover:text-slate-900'
+                className={`px-3 py-1 rounded transition-colors ${
+                  statusFilter === 'ALL' ? 'bg-white shadow-2xs text-[#252522] font-semibold' : 'text-[#77766F] hover:text-[#252522]'
                 }`}
               >
                 All
@@ -306,10 +306,10 @@ export default function FacultyManager() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('PRESENT')}
-                className={`px-3 py-1 rounded-md transition-colors ${
+                className={`px-3 py-1 rounded transition-colors ${
                   statusFilter === 'PRESENT'
-                    ? 'bg-white shadow-2xs text-emerald-800 font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white shadow-2xs text-[#C47B59] font-semibold'
+                    : 'text-[#77766F] hover:text-[#252522]'
                 }`}
               >
                 Present ({presentCount})
@@ -317,10 +317,10 @@ export default function FacultyManager() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('ABSENT')}
-                className={`px-3 py-1 rounded-md transition-colors ${
+                className={`px-3 py-1 rounded transition-colors ${
                   statusFilter === 'ABSENT'
-                    ? 'bg-white shadow-2xs text-rose-800 font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white shadow-2xs text-[#9E4334] font-semibold'
+                    : 'text-[#77766F] hover:text-[#252522]'
                 }`}
               >
                 Absent ({absentCount})
@@ -334,10 +334,10 @@ export default function FacultyManager() {
           <button
             type="button"
             onClick={() => setSelectedSubject('ALL')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors shrink-0 ${
+            className={`px-3 py-1.5 rounded font-medium transition-colors shrink-0 ${
               selectedSubject === 'ALL'
-                ? 'bg-indigo-600 text-white shadow-2xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                ? 'bg-[#C47B59] text-white shadow-2xs'
+                : 'bg-white border border-[#E5E2DA] text-[#77766F] hover:bg-[#F0EFE9] hover:text-[#252522]'
             }`}
           >
             All Subjects ({faculties.length})
@@ -350,10 +350,10 @@ export default function FacultyManager() {
                 key={sub}
                 type="button"
                 onClick={() => setSelectedSubject(sub)}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors shrink-0 ${
+                className={`px-3 py-1.5 rounded font-medium transition-colors shrink-0 ${
                   active
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    ? 'bg-[#C47B59] text-white shadow-2xs'
+                    : 'bg-white border border-[#E5E2DA] text-[#77766F] hover:bg-[#F0EFE9] hover:text-[#252522]'
                 }`}
               >
                 {sub} ({count})
@@ -368,7 +368,7 @@ export default function FacultyManager() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-600 font-semibold">
+              <tr className="bg-[#F0EFE9] border-b border-[#E5E2DA] text-xs text-[#77766F] font-semibold">
                 <th className="p-3.5 w-32">Status</th>
                 <th className="p-3.5">Faculty Member</th>
                 <th className="p-3.5">Qualified Subjects</th>
@@ -376,12 +376,12 @@ export default function FacultyManager() {
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
+            <tbody className="divide-y divide-[#E5E2DA] text-sm">
               {filteredFaculties.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-10">
                     <EmptyState
-                      icon={<BookOpen className="w-8 h-8 text-slate-300" />}
+                      icon={<BookOpen className="w-8 h-8 text-[#77766F]" />}
                       title="No faculty members match your criteria"
                       description="Try clearing your search query or switching the subject filter."
                     />
@@ -391,8 +391,8 @@ export default function FacultyManager() {
                 filteredFaculties.map(faculty => (
                   <tr
                     key={faculty.id}
-                    className={`hover:bg-slate-50/70 transition-colors ${
-                      faculty.isAbsent ? 'bg-rose-50/30' : ''
+                    className={`hover:bg-[#F0EFE9]/40 transition-colors ${
+                      faculty.isAbsent ? 'bg-[#FDF2F0]/50' : ''
                     }`}
                   >
                     <td className="p-3.5 whitespace-nowrap">
@@ -401,7 +401,7 @@ export default function FacultyManager() {
                           Absent
                         </Badge>
                       ) : (
-                        <Badge tone="success" icon={<UserCheck className="w-3 h-3" />}>
+                        <Badge tone="terracotta" icon={<UserCheck className="w-3 h-3" />}>
                           Present
                         </Badge>
                       )}
@@ -409,19 +409,19 @@ export default function FacultyManager() {
                     <td className="p-3.5">
                       <div
                         className={`font-semibold ${
-                          faculty.isAbsent ? 'text-slate-400 line-through' : 'text-slate-900'
+                          faculty.isAbsent ? 'text-[#77766F] line-through' : 'text-[#252522]'
                         }`}
                       >
                         {faculty.name}
                       </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
+                      <div className="text-xs text-[#77766F] mt-0.5">
                         Teaching Cap: {faculty.maxPeriodsPerDay ?? 4} periods/day
                       </div>
                     </td>
                     <td className="p-3.5">
                       <div className="flex flex-wrap gap-1">
                         {faculty.subjects.map((subj, idx) => (
-                          <Badge key={idx} tone="info">
+                          <Badge key={idx} tone="neutral">
                             {subj}
                           </Badge>
                         ))}
@@ -429,11 +429,11 @@ export default function FacultyManager() {
                     </td>
                     <td className="p-3.5">
                       {faculty.assignedBatches && faculty.assignedBatches.length > 0 ? (
-                        <Badge tone="warning" icon={<Link2 className="w-3 h-3" />}>
+                        <Badge tone="terracotta" icon={<Link2 className="w-3 h-3" />}>
                           {faculty.assignedBatches.length} batch{faculty.assignedBatches.length > 1 ? 'es' : ''}
                         </Badge>
                       ) : (
-                        <span className="text-xs text-slate-400 font-medium">Unrestricted</span>
+                        <span className="text-xs text-[#77766F] font-medium">Unrestricted</span>
                       )}
                     </td>
                     <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
@@ -457,7 +457,7 @@ export default function FacultyManager() {
                         variant="ghost"
                         onClick={() => handleDelete(faculty.id, faculty.name)}
                         title="Delete Faculty"
-                        className="hover:text-rose-600 hover:bg-rose-50"
+                        className="hover:text-[#9E4334] hover:bg-[#FDF2F0]"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -493,20 +493,20 @@ export default function FacultyManager() {
         }
       >
         <form id="faculty-form" onSubmit={handleSaveFaculty} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700">Faculty Full Name</label>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#252522]">Faculty Full Name</label>
             <input
               type="text"
               required
               placeholder="e.g. Dr. Jane Smith"
               value={currentFaculty.name || ''}
               onChange={e => setCurrentFaculty({ ...currentFaculty, name: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
+              className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#252522]">
               Maximum Daily Teaching Limit (Periods/Day)
             </label>
             <input
@@ -518,12 +518,12 @@ export default function FacultyManager() {
               onChange={e =>
                 setCurrentFaculty({ ...currentFaculty, maxPeriodsPerDay: Number(e.target.value) })
               }
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
+              className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700">Qualified Subjects</label>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[#252522]">Qualified Subjects</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -536,20 +536,20 @@ export default function FacultyManager() {
                     handleAddSubject();
                   }
                 }}
-                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:border-indigo-600 outline-none"
+                className="flex-1 px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
               />
               <Button type="button" variant="secondary" size="md" onClick={handleAddSubject}>
                 Add
               </Button>
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-1 mt-2">
               {(currentFaculty.subjects || []).map((subj, idx) => (
-                <Badge key={idx} tone="info">
+                <Badge key={idx} tone="neutral">
                   {subj}
                   <button
                     type="button"
                     onClick={() => handleRemoveSubject(subj)}
-                    className="hover:text-rose-700 ml-1"
+                    className="hover:text-[#9E4334] ml-1"
                     aria-label={`Remove ${subj}`}
                   >
                     <X className="w-3 h-3" />
@@ -559,12 +559,12 @@ export default function FacultyManager() {
             </div>
           </div>
 
-          <div className="space-y-1.5 border-t border-slate-100 pt-4">
-            <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-              <Link2 className="w-3.5 h-3.5 text-slate-500" />
+          <div className="space-y-1 border-t border-[#E5E2DA] pt-4">
+            <label className="text-xs font-semibold text-[#252522] flex items-center gap-1.5">
+              <Link2 className="w-3.5 h-3.5 text-[#77766F]" />
               <span>Assigned Batches (Optional Lock)</span>
             </label>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#77766F]">
               Leave unrestricted to let the heuristic scheduler place this teacher anywhere, or select specific batches to lock them exclusively.
             </p>
             <input
@@ -572,27 +572,27 @@ export default function FacultyManager() {
               placeholder="Filter batches..."
               value={batchSearch}
               onChange={e => setBatchSearch(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mt-1 focus:border-indigo-600 outline-none"
+              className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm mt-1 bg-white focus:border-[#C47B59] outline-none text-[#252522]"
             />
-            <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 mt-2">
+            <div className="max-h-44 overflow-y-auto border border-[#E5E2DA] rounded-md divide-y divide-[#E5E2DA] mt-2">
               {filteredBatchOptions.length === 0 ? (
-                <div className="p-3 text-xs text-slate-400 text-center">No batches found.</div>
+                <div className="p-3 text-xs text-[#77766F] text-center">No batches found.</div>
               ) : (
                 filteredBatchOptions.map(batch => {
                   const isSelected = (currentFaculty.assignedBatches || []).includes(batch.id);
                   return (
                     <label
                       key={batch.id}
-                      className="flex items-center gap-2 p-2 hover:bg-slate-50 cursor-pointer text-sm"
+                      className="flex items-center gap-2 p-2 hover:bg-[#F0EFE9] cursor-pointer text-sm"
                     >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleAssignedBatch(batch.id)}
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                        className="w-4 h-4 text-[#C47B59] rounded border-[#E5E2DA]"
                       />
-                      <span className="font-medium text-slate-800">{batch.name}</span>
-                      <span className="text-slate-400 text-xs">
+                      <span className="font-medium text-[#252522]">{batch.name}</span>
+                      <span className="text-[#77766F] text-xs">
                         Room {batch.roomNumber} &middot; {batch.building}
                       </span>
                     </label>
@@ -601,14 +601,14 @@ export default function FacultyManager() {
               )}
             </div>
             {(currentFaculty.assignedBatches || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="flex flex-wrap gap-1 mt-2">
                 {(currentFaculty.assignedBatches || []).map(id => (
-                  <Badge key={id} tone="warning">
+                  <Badge key={id} tone="terracotta">
                     {getBatchName(id)}
                     <button
                       type="button"
                       onClick={() => toggleAssignedBatch(id)}
-                      className="hover:text-rose-700 ml-1"
+                      className="hover:text-[#9E4334] ml-1"
                       aria-label="Remove batch restriction"
                     >
                       <X className="w-3 h-3" />
