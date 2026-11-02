@@ -10,9 +10,9 @@ const Settings = lazy(() => import('./pages/Settings'));
 
 function PageLoader() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-[#77766F]">
-      <Loader2 className="w-6 h-6 text-[#C47B59] animate-spin" />
-      <span className="text-xs font-medium text-[#77766F]">
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-[#5E5B61]">
+      <Loader2 className="w-6 h-6 text-[#6B2638] animate-spin" />
+      <span className="text-xs font-medium text-[#5E5B61]">
         Loading view...
       </span>
     </div>

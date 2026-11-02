@@ -1,13 +1,27 @@
-import type { Faculty, Batch, SchedulerSettings, AuditLog, Timetable, DayOfWeek, Allocation, TimetableStatus } from '../types';
-import { WEEKDAYS } from '../types';
-import { initialFaculty, initialBatches } from './seedData';
+import type {
+  Faculty,
+  Batch,
+  SchedulerSettings,
+  AuditLog,
+  AuditLogAction,
+  Timetable,
+  DayOfWeek,
+  Allocation,
+  TimetableStatus,
+  BackupData,
+} from '../types';
+import { initialFaculty, initialBatches, inferSubjectCategory } from './seedData';
 
-const KEYS = {
+export const SCHEMA_VERSION = 2;
+
+export const KEYS = {
+  VERSION: 'sdtg_schema_version',
   FACULTY: 'sdtg_faculty',
   BATCHES: 'sdtg_batches',
   SETTINGS: 'sdtg_settings',
   AUDIT: 'sdtg_audit_logs',
   WEEK: 'sdtg_week_timetables',
+  DATE_ABSENCES: 'sdtg_date_absences',
 };
 
 export const defaultSettings: SchedulerSettings = {
@@ -17,131 +31,404 @@ export const defaultSettings: SchedulerSettings = {
   weekStartDay: 'Monday',
   enableGapOptimization: true,
   enableConsecutivePeriodAvoidance: true,
+  enableStrictPeriod1NoLanguage: true,
+  enableKHSGrouping: true,
+  respectDailyLimits: true,
+  allowSameSubjectConsecutive: false,
 };
 
-type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
+export type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
 
 // Helper to normalize legacy "Second Language" to "K/H/S"
-const normalizeSubjectName = (subj: string): string =>
+export const normalizeSubjectName = (subj: string): string =>
   subj === 'Second Language' ? 'K/H/S' : subj;
 
-const normalizeFaculty = (list: Faculty[]): Faculty[] =>
-  list.map(f => ({
+export const normalizeFaculty = (list: Faculty[]): Faculty[] =>
+  (list || []).map(f => ({
     ...f,
-    subjects: f.subjects.map(normalizeSubjectName),
+    subjects: (f.subjects || []).map(normalizeSubjectName),
+    assignedBatches: f.assignedBatches || [],
+    unavailableDates: f.unavailableDates || [],
+    unavailablePeriods: f.unavailablePeriods || [],
   }));
 
-const normalizeBatches = (list: Batch[]): Batch[] =>
-  list.map(b => ({
+export const normalizeBatches = (list: Batch[]): Batch[] =>
+  (list || []).map(b => ({
     ...b,
-    subjects: b.subjects.map(s => ({
+    subjects: (b.subjects || []).map(s => ({
       ...s,
       subject: normalizeSubjectName(s.subject),
+      category: s.category || inferSubjectCategory(s.subject),
     })),
   }));
 
-const normalizeTimetable = (tt: Timetable): Timetable => ({
+export const normalizeTimetable = (tt: Timetable): Timetable => ({
   ...tt,
-  allocations: tt.allocations.map(a => ({
+  allocations: (tt.allocations || []).map(a => ({
     ...a,
     subject: normalizeSubjectName(a.subject),
   })),
+  unfilledSlots: tt.unfilledSlots || [],
+  warnings: tt.warnings || [],
 });
 
+// Centralized faculty daily limit helper (M5)
+export const getDailyLimit = (
+  faculty: Faculty | undefined | null,
+  settings: SchedulerSettings
+): number => {
+  if (!faculty) return settings.maxDailyPeriods || 4;
+  const val = faculty.maxPeriodsPerDay;
+  if (typeof val === 'number' && val > 0) {
+    return val;
+  }
+  return settings.maxDailyPeriods || 4;
+};
+
+// -------------------------------------------------------------
+// RELIABLE STORAGE ABSTRACTION (C1)
+// -------------------------------------------------------------
+// In-memory fallback Map guaranteed to work in all environments:
+// - SSR / Node tests
+// - localStorage disabled / private browsing quota exceeded
+// - corrupted / throwing localStorage implementations
 const memoryStore = new Map<string, string>();
-const safeStorage = {
+
+let isLocalStorageAvailable: boolean | null = null;
+
+const testLocalStorage = (): boolean => {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return false;
+  }
+  try {
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    const result = window.localStorage.getItem(testKey) === testKey;
+    window.localStorage.removeItem(testKey);
+    return result;
+  } catch (e) {
+    console.warn('localStorage is unavailable or blocked, falling back to memory store:', e);
+    return false;
+  }
+};
+
+export const safeStorage = {
   getItem: (key: string): string | null => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return window.safeStorage.getItem(key);
+    if (isLocalStorageAvailable === null) {
+      isLocalStorageAvailable = testLocalStorage();
+    }
+    if (isLocalStorageAvailable) {
+      try {
+        const item = window.localStorage.getItem(key);
+        if (item !== null) return item;
+      } catch (e) {
+        console.warn(`safeStorage: read failed for key "${key}", falling back to memory store:`, e);
+      }
     }
     return memoryStore.get(key) ?? null;
   },
+
   setItem: (key: string, value: string): void => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.safeStorage.setItem(key, value);
-    }
+    // Always update memory store to guarantee subsequent reads succeed
     memoryStore.set(key, value);
-  },
-  removeItem: (key: string): void => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.safeStorage.removeItem(key);
+
+    if (isLocalStorageAvailable === null) {
+      isLocalStorageAvailable = testLocalStorage();
     }
+    if (isLocalStorageAvailable) {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch (e) {
+        console.warn(`safeStorage: write failed for key "${key}", retained in memory store:`, e);
+      }
+    }
+  },
+
+  removeItem: (key: string): void => {
     memoryStore.delete(key);
+
+    if (isLocalStorageAvailable === null) {
+      isLocalStorageAvailable = testLocalStorage();
+    }
+    if (isLocalStorageAvailable) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch (e) {
+        console.warn(`safeStorage: remove failed for key "${key}":`, e);
+      }
+    }
+  },
+
+  clearMemoryFallback: (): void => {
+    memoryStore.clear();
   },
 };
 
+// In-memory caches to prevent redundant JSON parsing on rapid repeated reads
+let facultyCache: Faculty[] | null = null;
+let batchesCache: Batch[] | null = null;
+let settingsCache: SchedulerSettings | null = null;
+let weekTimetablesCache: WeekTimetables | null = null;
+
+export const invalidateStorageCaches = () => {
+  facultyCache = null;
+  batchesCache = null;
+  settingsCache = null;
+  weekTimetablesCache = null;
+};
+
+// -------------------------------------------------------------
+// MAIN STORAGE API
+// -------------------------------------------------------------
 export const storage = {
   initialize: () => {
     try {
+      const storedVersion = safeStorage.getItem(KEYS.VERSION);
+      const currentVersion = storedVersion ? parseInt(storedVersion, 10) : 1;
+
+      // Seed initial data if absent
       if (!safeStorage.getItem(KEYS.FACULTY)) {
         safeStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
-      } else {
-        // Auto-migrate existing faculty in storage
-        const current = storage.getFaculty();
-        storage.setFaculty(current);
       }
       if (!safeStorage.getItem(KEYS.BATCHES)) {
         safeStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
+      }
+      if (!safeStorage.getItem(KEYS.SETTINGS)) {
+        safeStorage.setItem(KEYS.SETTINGS, JSON.stringify(defaultSettings));
+      }
+
+      // Auto-migration to v2 (subject categories, K/H/S naming, safe defaults)
+      if (currentVersion < SCHEMA_VERSION) {
+        storage.migrateSchema(currentVersion);
       } else {
-        // Auto-migrate existing batches in storage
-        const current = storage.getBatches();
-        storage.setBatches(current);
+        // Normal validation pass on existing storage
+        const currentFaculty = storage.getFaculty();
+        storage.setFaculty(currentFaculty);
+        const currentBatches = storage.getBatches();
+        storage.setBatches(currentBatches);
       }
     } catch (e) {
       console.error('Failed to initialize storage', e);
     }
   },
 
+  migrateSchema: (fromVersion: number) => {
+    try {
+      console.info(`Migrating storage schema from v${fromVersion} to v${SCHEMA_VERSION}...`);
+      const faculty = storage.getFaculty();
+      storage.setFaculty(normalizeFaculty(faculty));
+
+      const batches = storage.getBatches();
+      storage.setBatches(normalizeBatches(batches));
+
+      const week = storage.getWeekTimetables();
+      const updatedWeek: WeekTimetables = {};
+      (Object.keys(week) as DayOfWeek[]).forEach(day => {
+        const tt = week[day];
+        if (tt) {
+          updatedWeek[day] = normalizeTimetable(tt);
+        }
+      });
+      storage.setWeekTimetables(updatedWeek);
+
+      safeStorage.setItem(KEYS.VERSION, String(SCHEMA_VERSION));
+      console.info(`Storage schema successfully migrated to v${SCHEMA_VERSION}.`);
+    } catch (e) {
+      console.error('Error migrating storage schema:', e);
+    }
+  },
+
+  // --- Faculty Management ---
   getFaculty: (): Faculty[] => {
+    if (facultyCache) return facultyCache;
     try {
       const raw = safeStorage.getItem(KEYS.FACULTY);
       const parsed = raw ? JSON.parse(raw) : initialFaculty;
-      return normalizeFaculty(parsed);
-    } catch {
-      return normalizeFaculty(initialFaculty);
+      facultyCache = normalizeFaculty(Array.isArray(parsed) ? parsed : initialFaculty);
+      return facultyCache;
+    } catch (e) {
+      console.error('getFaculty: Error parsing stored faculty, falling back to seed data', e);
+      facultyCache = normalizeFaculty(initialFaculty);
+      return facultyCache;
     }
   },
-  setFaculty: (data: Faculty[]) => {
+
+  setFaculty: (faculty: Faculty[]) => {
     try {
-      safeStorage.setItem(KEYS.FACULTY, JSON.stringify(normalizeFaculty(data)));
+      facultyCache = normalizeFaculty(faculty);
+      safeStorage.setItem(KEYS.FACULTY, JSON.stringify(facultyCache));
     } catch (e) {
       console.error('Failed to save faculty', e);
     }
   },
 
+  saveFaculty: (f: Faculty) => {
+    const list = storage.getFaculty();
+    const idx = list.findIndex(item => item.id === f.id);
+    const updated = [...list];
+    if (idx >= 0) {
+      updated[idx] = f;
+    } else {
+      updated.push(f);
+    }
+    storage.setFaculty(updated);
+  },
+
+  deleteFaculty: (facultyId: string): { success: boolean; allocationsAffected: number } => {
+    try {
+      const facultyList = storage.getFaculty();
+      const remaining = facultyList.filter(f => f.id !== facultyId);
+      storage.setFaculty(remaining);
+
+      // Clean up references in week timetables
+      let allocationsAffected = 0;
+      const week = storage.getWeekTimetables();
+      const updatedWeek: WeekTimetables = {};
+      (Object.keys(week) as DayOfWeek[]).forEach(day => {
+        const tt = week[day];
+        if (tt) {
+          const updatedAllocations = tt.allocations.map(a => {
+            if (a.facultyId === facultyId) {
+              allocationsAffected++;
+              const oldFac = facultyList.find(f => f.id === facultyId);
+              return {
+                ...a,
+                facultyId: '',
+                vacatedFacultyId: facultyId,
+                vacatedFacultyName: oldFac?.name || 'Deleted Teacher',
+                explanation: [...(a.explanation || []), 'Assigned teacher was removed from directory.'],
+              };
+            }
+            return a;
+          });
+          updatedWeek[day] = { ...tt, allocations: updatedAllocations };
+        }
+      });
+      storage.setWeekTimetables(updatedWeek);
+
+      storage.logAuditAction('FACULTY_DELETE', {
+        reason: `Removed faculty member (${facultyId}). Affected ${allocationsAffected} timetable slots.`,
+      });
+
+      return { success: true, allocationsAffected };
+    } catch (e) {
+      console.error('deleteFaculty failed:', e);
+      return { success: false, allocationsAffected: 0 };
+    }
+  },
+
+  // --- Batches Management ---
   getBatches: (): Batch[] => {
+    if (batchesCache) return batchesCache;
     try {
       const raw = safeStorage.getItem(KEYS.BATCHES);
       const parsed = raw ? JSON.parse(raw) : initialBatches;
-      return normalizeBatches(parsed);
-    } catch {
-      return normalizeBatches(initialBatches);
+      batchesCache = normalizeBatches(Array.isArray(parsed) ? parsed : initialBatches);
+      return batchesCache;
+    } catch (e) {
+      console.error('getBatches: Error parsing stored batches, falling back to seed data', e);
+      batchesCache = normalizeBatches(initialBatches);
+      return batchesCache;
     }
   },
-  setBatches: (data: Batch[]) => {
+
+  setBatches: (batches: Batch[]) => {
     try {
-      safeStorage.setItem(KEYS.BATCHES, JSON.stringify(normalizeBatches(data)));
+      batchesCache = normalizeBatches(batches);
+      safeStorage.setItem(KEYS.BATCHES, JSON.stringify(batchesCache));
     } catch (e) {
       console.error('Failed to save batches', e);
     }
   },
 
-  getSettings: (): SchedulerSettings => {
+  saveBatch: (b: Batch) => {
+    const list = storage.getBatches();
+    const idx = list.findIndex(item => item.id === b.id);
+    const updated = [...list];
+    if (idx >= 0) {
+      updated[idx] = b;
+    } else {
+      updated.push(b);
+    }
+    storage.setBatches(updated);
+  },
+
+  deleteBatch: (batchId: string): { success: boolean; facultyUnassigned: number } => {
     try {
-      const stored = safeStorage.getItem(KEYS.SETTINGS);
-      return stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
-    } catch {
-      return defaultSettings;
+      const batches = storage.getBatches();
+      const remainingBatches = batches.filter(b => b.id !== batchId);
+      storage.setBatches(remainingBatches);
+
+      // Clean up assignedBatches in faculty
+      let facultyUnassigned = 0;
+      const faculties = storage.getFaculty();
+      const updatedFaculties = faculties.map(f => {
+        if (f.assignedBatches && f.assignedBatches.includes(batchId)) {
+          facultyUnassigned++;
+          return {
+            ...f,
+            assignedBatches: f.assignedBatches.filter(id => id !== batchId),
+          };
+        }
+        return f;
+      });
+      storage.setFaculty(updatedFaculties);
+
+      // Clean up week timetables allocations
+      const week = storage.getWeekTimetables();
+      const updatedWeek: WeekTimetables = {};
+      (Object.keys(week) as DayOfWeek[]).forEach(day => {
+        const tt = week[day];
+        if (tt) {
+          updatedWeek[day] = {
+            ...tt,
+            allocations: tt.allocations.filter(a => a.batchId !== batchId),
+            unfilledSlots: (tt.unfilledSlots || []).filter(u => u.batchId !== batchId),
+          };
+        }
+      });
+      storage.setWeekTimetables(updatedWeek);
+
+      storage.logAuditAction('BATCH_DELETE', {
+        batchId,
+        reason: `Deleted batch ${batchId}. Unlocked ${facultyUnassigned} faculty restrictions.`,
+      });
+
+      return { success: true, facultyUnassigned };
+    } catch (e) {
+      console.error('deleteBatch failed:', e);
+      return { success: false, facultyUnassigned: 0 };
     }
   },
+
+  // --- Settings ---
+  getSettings: (): SchedulerSettings => {
+    if (settingsCache) return settingsCache;
+    try {
+      const stored = safeStorage.getItem(KEYS.SETTINGS);
+      if (!stored) {
+        settingsCache = { ...defaultSettings };
+        return settingsCache;
+      }
+      const parsed = JSON.parse(stored);
+      settingsCache = { ...defaultSettings, ...parsed };
+      return settingsCache!;
+    } catch {
+      settingsCache = { ...defaultSettings };
+      return settingsCache;
+    }
+  },
+
   setSettings: (settings: SchedulerSettings) => {
     try {
+      settingsCache = { ...settings };
       safeStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
     } catch (e) {
       console.error('Failed to save settings', e);
     }
   },
 
+  // --- Audit Logs ---
   getAuditLogs: (): AuditLog[] => {
     try {
       const stored = safeStorage.getItem(KEYS.AUDIT);
@@ -150,11 +437,12 @@ export const storage = {
       return [];
     }
   },
-  logAuditAction: (action: AuditLog['action'], details: Omit<AuditLog, 'id' | 'timestamp'>) => {
+
+  logAuditAction: (action: AuditLogAction, details: Omit<AuditLog, 'id' | 'timestamp' | 'action'>) => {
     try {
       const logs = storage.getAuditLogs();
       const newLog: AuditLog = {
-        id: `audit_${crypto.randomUUID()}`,
+        id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         timestamp: Date.now(),
         action,
         ...details,
@@ -166,6 +454,7 @@ export const storage = {
       console.error('Failed to log audit action', e);
     }
   },
+
   clearAuditLogs: () => {
     try {
       safeStorage.removeItem(KEYS.AUDIT);
@@ -174,94 +463,334 @@ export const storage = {
     }
   },
 
-  // --- Weekly timetables ---
-  getWeekTimetables: (): WeekTimetables => {
+  // --- Date-Specific Absences (M3) ---
+  getDateAbsences: (): Record<string, string[]> => {
     try {
-      const stored = safeStorage.getItem(KEYS.WEEK);
-      if (!stored) return {};
-      const parsed: WeekTimetables = JSON.parse(stored);
-      const normalized: WeekTimetables = {};
-      WEEKDAYS.forEach(day => {
-        if (parsed[day]) {
-          normalized[day] = normalizeTimetable(parsed[day]!);
-        }
-      });
-      return normalized;
+      const stored = safeStorage.getItem(KEYS.DATE_ABSENCES);
+      return stored ? JSON.parse(stored) : {};
     } catch {
       return {};
     }
   },
-  setWeekTimetables: (data: WeekTimetables) => {
+
+  getAbsencesForDate: (dateKey: string): string[] => {
+    const all = storage.getDateAbsences();
+    return all[dateKey] || [];
+  },
+
+  setFacultyAbsentForDate: (dateKey: string, facultyId: string, isAbsent: boolean) => {
     try {
+      const all = storage.getDateAbsences();
+      const current = new Set(all[dateKey] || []);
+      if (isAbsent) {
+        current.add(facultyId);
+      } else {
+        current.delete(facultyId);
+      }
+      all[dateKey] = Array.from(current);
+      safeStorage.setItem(KEYS.DATE_ABSENCES, JSON.stringify(all));
+
+      // Also sync the legacy isAbsent flag if viewing current day
+      const facultyList = storage.getFaculty();
+      const target = facultyList.find(f => f.id === facultyId);
+      if (target) {
+        target.isAbsent = isAbsent;
+        storage.setFaculty(facultyList);
+      }
+    } catch (e) {
+      console.error('Failed to set date absence', e);
+    }
+  },
+
+  isFacultyAbsentOnDate: (dateKey: string, facultyOrId: Faculty | string): boolean => {
+    const facultyId = typeof facultyOrId === 'string' ? facultyOrId : facultyOrId.id;
+    const dateAbsences = storage.getAbsencesForDate(dateKey);
+    if (dateAbsences.includes(facultyId)) return true;
+
+    const faculty =
+      typeof facultyOrId === 'object'
+        ? facultyOrId
+        : storage.getFaculty().find(f => f.id === facultyId);
+    if (faculty?.unavailableDates && faculty.unavailableDates.includes(dateKey)) return true;
+    return Boolean(faculty?.isAbsent);
+  },
+
+  // --- Weekly Timetables ---
+  getWeekTimetables: (): WeekTimetables => {
+    if (weekTimetablesCache) return weekTimetablesCache;
+    try {
+      const stored = safeStorage.getItem(KEYS.WEEK);
+      if (!stored) {
+        weekTimetablesCache = {};
+        return weekTimetablesCache;
+      }
+      const parsed: WeekTimetables = JSON.parse(stored);
       const normalized: WeekTimetables = {};
-      WEEKDAYS.forEach(day => {
-        if (data[day]) {
-          normalized[day] = normalizeTimetable(data[day]!);
+      (Object.keys(parsed) as DayOfWeek[]).forEach(day => {
+        const item = parsed[day];
+        if (item) {
+          normalized[day] = normalizeTimetable(item);
         }
       });
-      safeStorage.setItem(KEYS.WEEK, JSON.stringify(normalized));
+      weekTimetablesCache = normalized;
+      return weekTimetablesCache;
+    } catch {
+      weekTimetablesCache = {};
+      return weekTimetablesCache;
+    }
+  },
+
+  setWeekTimetables: (week: WeekTimetables) => {
+    try {
+      weekTimetablesCache = { ...week };
+      safeStorage.setItem(KEYS.WEEK, JSON.stringify(week));
     } catch (e) {
       console.error('Failed to save week timetables', e);
     }
   },
 
-  getDayTimetable: (day: DayOfWeek): Timetable | null => {
+  getTimetableForDay: (day: DayOfWeek): Timetable | null => {
     const week = storage.getWeekTimetables();
     return week[day] || null;
   },
 
-  setDayTimetable: (day: DayOfWeek, timetable: Timetable) => {
-    const week = storage.getWeekTimetables();
-    week[day] = normalizeTimetable(timetable);
-    storage.setWeekTimetables(week);
+  getDayTimetable: (day: DayOfWeek): Timetable | null => {
+    return storage.getTimetableForDay(day);
   },
 
-  setTimetableStatus: (day: DayOfWeek, status: TimetableStatus) => {
-    const current = storage.getDayTimetable(day);
-    if (!current) return;
-    const updated: Timetable = { ...current, status };
-    storage.setDayTimetable(day, updated);
-    storage.logAuditAction('STATUS_CHANGE', {
-      day,
-      reason: `Changed timetable status to ${status} for ${day}`,
+  setDayTimetable: (
+    day: DayOfWeek,
+    data: {
+      id?: string;
+      date?: DayOfWeek;
+      status?: TimetableStatus;
+      allocations: Allocation[];
+      lastGeneratedAt?: number;
+      unfilledSlots?: Timetable['unfilledSlots'];
+      warnings?: Timetable['warnings'];
+    }
+  ) => {
+    return storage.saveTimetableForDay(day, data.allocations, data.status || 'Draft', {
+      unfilledSlots: data.unfilledSlots,
+      warnings: data.warnings,
+      markGenerated: true,
     });
   },
 
-  deleteDayTimetable: (day: DayOfWeek) => {
-    const week = storage.getWeekTimetables();
-    delete week[day];
-    storage.setWeekTimetables(week);
+  setTimetableStatus: (day: DayOfWeek, status: TimetableStatus, reason?: string): boolean => {
+    return storage.setDayStatus(day, status, reason);
   },
 
-  // Allocations from every OTHER day this week - feeds the weekly quota bias
-  getWeekAllocationsExcluding: (day: DayOfWeek): Allocation[] => {
+  getWeekAllocationsExcluding: (excludingDay?: DayOfWeek): Allocation[] => {
     const week = storage.getWeekTimetables();
-    return WEEKDAYS
-      .filter(d => d !== day)
-      .flatMap(d => week[d]?.allocations || []);
-  },
-
-  // Every day's allocations (including current), keyed by day - feeds the quota summary UI
-  getAllWeekAllocations: (): Record<DayOfWeek, Allocation[]> => {
-    const week = storage.getWeekTimetables();
-    const result = {} as Record<DayOfWeek, Allocation[]>;
-    WEEKDAYS.forEach(d => { result[d] = week[d]?.allocations || []; });
-    return result;
-  },
-
-  // Complete reset to demo/seed data
-  resetToSeedData: () => {
-    try {
-      safeStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
-      safeStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
-      safeStorage.setItem(KEYS.SETTINGS, JSON.stringify(defaultSettings));
-      safeStorage.removeItem(KEYS.WEEK);
-      storage.clearAuditLogs();
-      storage.logAuditAction('STATUS_CHANGE', {
-        reason: 'Restored system to initial demo/seed data defaults.',
-      });
-    } catch (e) {
-      console.error('Failed to reset to seed data', e);
+    const res: Allocation[] = [];
+    for (const [d, tt] of Object.entries(week)) {
+      if (excludingDay && d === (excludingDay as string)) continue;
+      if (tt?.allocations) {
+        res.push(...tt.allocations);
+      }
     }
+    return res;
+  },
+
+  saveTimetableForDay: (
+    day: DayOfWeek,
+    allocations: Allocation[],
+    status: TimetableStatus = 'Draft',
+    options?: {
+      unfilledSlots?: Timetable['unfilledSlots'];
+      warnings?: Timetable['warnings'];
+      markGenerated?: boolean;
+    }
+  ) => {
+    try {
+      const week = storage.getWeekTimetables();
+      const existing = week[day];
+      const now = Date.now();
+
+      const updatedTimetable: Timetable = {
+        id: existing?.id || `tt_${day.toLowerCase()}_${Date.now()}`,
+        date: day,
+        status: existing?.status === 'Finalized' && status === 'Draft' ? 'Finalized' : status,
+        allocations: allocations.map(a => ({
+          ...a,
+          subject: normalizeSubjectName(a.subject),
+          updatedAt: a.updatedAt || now,
+        })),
+        lastGeneratedAt: options?.markGenerated ? now : existing?.lastGeneratedAt,
+        unfilledSlots: options?.unfilledSlots ?? existing?.unfilledSlots ?? [],
+        warnings: options?.warnings ?? existing?.warnings ?? [],
+      };
+
+      week[day] = updatedTimetable;
+      storage.setWeekTimetables(week);
+      return updatedTimetable;
+    } catch (e) {
+      console.error('Failed to save day timetable', e);
+      return null;
+    }
+  },
+
+  // Finalized protection (M2)
+  setDayStatus: (day: DayOfWeek, status: TimetableStatus, reason?: string): boolean => {
+    try {
+      const week = storage.getWeekTimetables();
+      const existing = week[day];
+      if (!existing) return false;
+
+      const previousStatus = existing.status;
+      existing.status = status;
+      week[day] = existing;
+      storage.setWeekTimetables(week);
+
+      storage.logAuditAction('STATUS_CHANGE', {
+        day,
+        reason: reason || `Changed status of ${day} timetable from ${previousStatus} to ${status}.`,
+      });
+      return true;
+    } catch (e) {
+      console.error('Failed to set day status:', e);
+      return false;
+    }
+  },
+
+  // --- BACKUP & RESTORATION (Phase 5A) ---
+  createFullBackup: (): BackupData => {
+    return {
+      version: SCHEMA_VERSION,
+      exportedAt: Date.now(),
+      faculty: storage.getFaculty(),
+      batches: storage.getBatches(),
+      settings: storage.getSettings(),
+      weekTimetables: storage.getWeekTimetables(),
+      dateAbsences: storage.getDateAbsences(),
+      auditLogs: storage.getAuditLogs(),
+    };
+  },
+
+  validateBackup: (data: unknown): { valid: boolean; errors: string[]; data?: BackupData } => {
+    const errors: string[] = [];
+    if (!data || typeof data !== 'object') {
+      return { valid: false, errors: ['Backup content is not a valid JSON object.'] };
+    }
+    const b = data as Partial<BackupData>;
+    if (!b.version || typeof b.version !== 'number') {
+      errors.push('Missing or invalid schema version.');
+    }
+    if (!Array.isArray(b.faculty)) {
+      errors.push('Backup missing faculty list.');
+    }
+    if (!Array.isArray(b.batches)) {
+      errors.push('Backup missing batches list.');
+    }
+    if (!b.settings || typeof b.settings !== 'object') {
+      errors.push('Backup missing scheduler settings.');
+    }
+    if (!b.weekTimetables || typeof b.weekTimetables !== 'object') {
+      errors.push('Backup missing week timetables.');
+    }
+    return {
+      valid: errors.length === 0,
+      errors,
+      data: errors.length === 0 ? (b as BackupData) : undefined,
+    };
+  },
+
+  restoreFromBackup: (
+    data: BackupData,
+    mode: 'replace' | 'merge' = 'replace'
+  ): { success: boolean; error?: string; stats: { faculty: number; batches: number; timetables: number } } => {
+    const validation = storage.validateBackup(data);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.errors.join('; '),
+        stats: { faculty: 0, batches: 0, timetables: 0 },
+      };
+    }
+
+    let snapshot: BackupData | null = null;
+    try {
+      // Create rollback snapshot
+      snapshot = storage.createFullBackup();
+
+      let targetFaculty: Faculty[] = [];
+      let targetBatches: Batch[] = [];
+
+      if (mode === 'replace') {
+        targetFaculty = normalizeFaculty(data.faculty);
+        targetBatches = normalizeBatches(data.batches);
+        storage.setFaculty(targetFaculty);
+        storage.setBatches(targetBatches);
+        storage.setSettings(data.settings || defaultSettings);
+        storage.setWeekTimetables(data.weekTimetables || {});
+        if (data.dateAbsences) {
+          safeStorage.setItem(KEYS.DATE_ABSENCES, JSON.stringify(data.dateAbsences));
+        }
+      } else {
+        // Merge mode: preserve existing and add unique incoming records
+        const existingFac = storage.getFaculty();
+        const facMap = new Map(existingFac.map(f => [f.id, f]));
+        data.faculty.forEach(f => facMap.set(f.id, f));
+        targetFaculty = Array.from(facMap.values());
+        storage.setFaculty(targetFaculty);
+
+        const existingBatches = storage.getBatches();
+        const batchMap = new Map(existingBatches.map(b => [b.id, b]));
+        data.batches.forEach(b => batchMap.set(b.id, b));
+        targetBatches = Array.from(batchMap.values());
+        storage.setBatches(targetBatches);
+
+        // Merge week timetables
+        const currentWeek = storage.getWeekTimetables();
+        const mergedWeek = { ...currentWeek, ...data.weekTimetables };
+        storage.setWeekTimetables(mergedWeek);
+      }
+
+      const timetableCount = Object.keys(data.weekTimetables || {}).length;
+
+      storage.logAuditAction('BACKUP_RESTORE', {
+        reason: `Restored backup (${mode} mode): ${targetFaculty.length} faculty, ${targetBatches.length} batches, ${timetableCount} timetables.`,
+      });
+
+      return {
+        success: true,
+        stats: {
+          faculty: targetFaculty.length,
+          batches: targetBatches.length,
+          timetables: timetableCount,
+        },
+      };
+    } catch (e) {
+      console.error('restoreFromBackup encountered fatal error:', e);
+      if (snapshot) {
+        try {
+          storage.restoreFromBackup(snapshot, 'replace');
+        } catch {
+          // ignore rollback failure
+        }
+      }
+      return {
+        success: false,
+        error: String(e),
+        stats: { faculty: 0, batches: 0, timetables: 0 },
+      };
+    }
+  },
+
+  // Reset to factory seed state
+  resetAll: () => {
+    safeStorage.setItem(KEYS.FACULTY, JSON.stringify(initialFaculty));
+    safeStorage.setItem(KEYS.BATCHES, JSON.stringify(initialBatches));
+    safeStorage.setItem(KEYS.SETTINGS, JSON.stringify(defaultSettings));
+    safeStorage.removeItem(KEYS.WEEK);
+    safeStorage.removeItem(KEYS.AUDIT);
+    safeStorage.removeItem(KEYS.DATE_ABSENCES);
+    safeStorage.setItem(KEYS.VERSION, String(SCHEMA_VERSION));
+    invalidateStorageCaches();
+  },
+
+  resetToSeedData: () => {
+    storage.resetAll();
   },
 };

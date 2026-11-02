@@ -3,13 +3,23 @@ export interface PeriodTiming {
   endTime: string;
 }
 
+export type SubjectCategory = 'Core' | 'Language' | 'Other';
+
+export interface BatchSubject {
+  subject: string;
+  count: number;
+  category?: SubjectCategory;
+}
+
 export interface Faculty {
   id: string;
   name: string;
   subjects: string[];
   maxPeriodsPerDay?: number;
-  isAbsent?: boolean;
-  assignedBatches?: string[]; // batch IDs this faculty is exclusively locked to; empty/undefined = unrestricted
+  isAbsent?: boolean; // Legacy global flag for backward compatibility
+  assignedBatches?: string[]; // Exclusive batch IDs; empty/undefined = unrestricted
+  unavailableDates?: string[]; // Date-specific unavailability (YYYY-MM-DD or DayOfWeek)
+  unavailablePeriods?: { day?: DayOfWeek; date?: string; periodIndex: number }[];
 }
 
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
@@ -22,10 +32,7 @@ export interface Batch {
   name: string;
   roomNumber: string;
   periods: PeriodTiming[];
-  subjects: {
-    subject: string;
-    count: number;
-  }[];
+  subjects: BatchSubject[];
 }
 
 export type TimetableStatus = 'Draft' | 'Finalized' | 'Archived';
@@ -40,8 +47,10 @@ export interface Allocation {
   frozen?: boolean;
   explanation?: string[];
   vacatedFacultyId?: string;   // set when the original faculty went absent after generation
-  vacatedFacultyName?: string; // cached name, so the UI can show it even if faculty is later deleted
+  vacatedFacultyName?: string; // cached name, preserved if faculty is deleted
   updatedAt?: number;
+  hasConflictOverride?: boolean; // true if saved despite a non-blocking or confirmed conflict
+  conflictNote?: string;
 }
 
 export interface Timetable {
@@ -50,6 +59,8 @@ export interface Timetable {
   status: TimetableStatus;
   allocations: Allocation[];
   lastGeneratedAt?: number;
+  unfilledSlots?: UnfilledSlot[];
+  warnings?: ScheduleWarning[];
 }
 
 export interface SchedulerSettings {
@@ -59,16 +70,113 @@ export interface SchedulerSettings {
   weekStartDay: 'Monday' | 'Sunday';
   enableGapOptimization: boolean;
   enableConsecutivePeriodAvoidance: boolean;
+  enableStrictPeriod1NoLanguage?: boolean;
+  enableKHSGrouping?: boolean;
+  respectDailyLimits?: boolean;
+  allowSameSubjectConsecutive?: boolean;
+  randomSeed?: number;
 }
+
+export type AuditLogAction =
+  | 'MANUAL_OVERRIDE'
+  | 'FREEZE_TOGGLE'
+  | 'STATUS_CHANGE'
+  | 'TIMETABLE_GENERATE'
+  | 'ABSENCE_SYNC'
+  | 'SLOT_REGENERATE'
+  | 'BATCH_REGENERATE'
+  | 'FACULTY_CREATE'
+  | 'FACULTY_UPDATE'
+  | 'FACULTY_DELETE'
+  | 'FACULTY_MERGE'
+  | 'BATCH_CREATE'
+  | 'BATCH_UPDATE'
+  | 'BATCH_DELETE'
+  | 'BACKUP_EXPORT'
+  | 'BACKUP_RESTORE'
+  | 'SETTINGS_UPDATE';
 
 export interface AuditLog {
   id: string;
   timestamp: number;
-  action: 'MANUAL_OVERRIDE' | 'FREEZE_TOGGLE' | 'STATUS_CHANGE' | 'TIMETABLE_GENERATE' | 'ABSENCE_SYNC';
+  action: AuditLogAction;
   batchId?: string;
   periodIndex?: number;
   previousFacultyId?: string;
   newFacultyId?: string;
   reason?: string;
   day?: DayOfWeek;
+}
+
+export interface UnfilledSlot {
+  batchId: string;
+  batchName: string;
+  periodIndex: number;
+  requiredSubject?: string;
+  reason: string;
+  candidateIssue?: string;
+}
+
+export interface ScheduleWarning {
+  type:
+    | 'PERIOD_1_LANGUAGE'
+    | 'WORKLOAD_CAP'
+    | 'CONSECUTIVE_OVERUSE'
+    | 'ABSENCE_GAP'
+    | 'ROOM_CONFLICT'
+    | 'UNFILLED_SLOT'
+    | 'QUOTA_DEFICIT';
+  message: string;
+  batchId?: string;
+  periodIndex?: number;
+  facultyId?: string;
+  severity: 'warning' | 'error' | 'info';
+}
+
+export interface GenerationResult {
+  allocations: Allocation[];
+  unfilled: UnfilledSlot[];
+  warnings: ScheduleWarning[];
+  score?: number;
+  seed?: number;
+}
+
+export interface SubstituteCandidate {
+  faculty: Faculty;
+  score: number;
+  eligible: boolean;
+  reasons: string[];
+  currentDayLoad: number;
+  maxDayLoad: number;
+}
+
+export interface SubjectCapacityReport {
+  subject: string;
+  category: SubjectCategory;
+  requiredWeeklyPeriods: number;
+  availableWeeklyPeriods: number;
+  deficit: number;
+  facultyCount: number;
+  qualifiedFacultyNames: string[];
+  status: 'surplus' | 'balanced' | 'deficit';
+}
+
+export interface ConflictCheckResult {
+  hasConflict: boolean;
+  type?: 'TIME_OVERLAP' | 'MAX_LOAD' | 'ABSENT' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'DATE_UNAVAILABLE';
+  message: string | null;
+  severity?: 'hard_error' | 'soft_warning';
+  conflictingBatchName?: string;
+  conflictingPeriod?: number;
+}
+
+export interface BackupData {
+  version: number;
+  exportedAt: number;
+  faculty: Faculty[];
+  batches: Batch[];
+  settings: SchedulerSettings;
+  weekTimetables: Partial<Record<DayOfWeek, Timetable>>;
+  dateAbsences?: Record<string, string[]>;
+  auditLogs: AuditLog[];
 }

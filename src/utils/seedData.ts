@@ -1,8 +1,15 @@
-import type { Faculty, Batch, PeriodTiming } from '../types';
+import type { Faculty, Batch, PeriodTiming, BatchSubject, SubjectCategory } from '../types';
 
 // ==========================================
 // DATA BUILDER UTILITIES
 // ==========================================
+
+export const inferSubjectCategory = (subject: string): SubjectCategory => {
+  const norm = (subject || '').trim().toLowerCase();
+  if (['physics', 'chemistry', 'mathematics', 'biology'].includes(norm)) return 'Core';
+  if (['english', 'k/h/s', 'second language', 'kannada', 'hindi', 'sanskrit'].includes(norm)) return 'Language';
+  return 'Other';
+};
 
 // Helper to safely pad missing periods to exactly 6 slots
 const createPeriods = (times: [string, string][]): PeriodTiming[] => {
@@ -16,13 +23,13 @@ const createPeriods = (times: [string, string][]): PeriodTiming[] => {
 let batchIdCounter = 1;
 
 // Helper to quickly generate multiple batches with the same timings
-const DEFAULT_SUBJECTS = [
-  { subject: 'Physics', count: 2 },
-  { subject: 'Chemistry', count: 2 },
-  { subject: 'Mathematics', count: 1 },
-  { subject: 'Biology', count: 1 },
-  { subject: 'English', count: 2 },
-  { subject: 'K/H/S', count: 2 }
+const DEFAULT_SUBJECTS: BatchSubject[] = [
+  { subject: 'Physics', count: 2, category: 'Core' },
+  { subject: 'Chemistry', count: 2, category: 'Core' },
+  { subject: 'Mathematics', count: 1, category: 'Core' },
+  { subject: 'Biology', count: 1, category: 'Core' },
+  { subject: 'English', count: 2, category: 'Language' },
+  { subject: 'K/H/S', count: 2, category: 'Language' }
 ];
 
 const makeBatches = (
@@ -30,7 +37,7 @@ const makeBatches = (
   yearCategory: string,
   rooms: [string, string][],
   times: [string, string][],
-  subjectOverride?: { subject: string; count: number }[]
+  subjectOverride?: BatchSubject[]
 ): Batch[] => {
   return rooms.map(([name, roomNumber]) => ({
     id: `seeded_batch_${batchIdCounter++}`,
@@ -40,14 +47,17 @@ const makeBatches = (
     roomNumber,
     periods: createPeriods(times),
     // count = relative weight in the day's rotation, not a literal daily total.
-    subjects: subjectOverride || DEFAULT_SUBJECTS
+    subjects: (subjectOverride || DEFAULT_SUBJECTS).map(s => ({
+      ...s,
+      category: s.category || inferSubjectCategory(s.subject)
+    }))
   }));
 };
 
 // ==========================================
 // MASTER TIMING PATTERNS (24-Hour Format)
 // ==========================================
-const TIMINGS = {
+const TIMINGS: Record<string, [string, string][]> = {
   // Building 1 Patterns
   PU1_CHARAKA: [["08:40", "10:00"], ["10:10", "11:40"], ["11:50", "13:20"], ["14:00", "15:30"], ["15:40", "17:10"]],
   PU2_AGASTYA: [["08:40", "10:10"], ["10:10", "11:40"], ["11:50", "13:20"], ["14:00", "15:30"], ["15:45", "17:15"]],

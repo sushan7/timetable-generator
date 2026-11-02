@@ -1,35 +1,61 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import {
   Calendar,
   Image as ImageIcon,
   Play,
   RefreshCw,
-  FileText,
   FileSpreadsheet,
-  CheckCircle,
+  FileText,
   Lock,
-  Filter,
+  Unlock,
   AlertTriangle,
   Save,
   Trash2,
   Download,
+  Undo2,
+  Redo2,
+  ShieldCheck,
+  User,
+  Building,
+  CheckCircle2,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
-import type { Faculty, Batch, Allocation, DayOfWeek, TimetableStatus } from '../types';
-import { generateTimetableV2, patchAbsences } from '../utils/scheduler';
+import { Link } from 'react-router-dom';
+import type {
+  Faculty,
+  Batch,
+  Allocation,
+  DayOfWeek,
+  TimetableStatus,
+  UnfilledSlot,
+  ScheduleWarning,
+  SubstituteCandidate,
+} from '../types';
+import {
+  generateTimetableV2,
+  patchAbsences,
+  regenerateSingleSlot,
+  getRankedSubstitutes,
+  PCMB_SUBJECTS,
+} from '../utils/scheduler';
 import { storage } from '../utils/storage';
 import { SECTIONS, groupBatchesBySection } from '../utils/sections';
 import { checkFacultyConflict } from '../utils/validation';
+import {
+  exportTimetableToExcel,
+  exportTimetableToPng,
+  exportTimetableToPdf,
+} from '../utils/exportUtils';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
-import EmptyState from '../components/ui/EmptyState';
+import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import SearchInput from '../components/ui/SearchInput';
 import DropdownMenu, { type DropdownItem } from '../components/ui/DropdownMenu';
 import DayTabs from '../components/timetable/DayTabs';
 import BalanceBar from '../components/timetable/BalanceBar';
 import SectionTable from '../components/timetable/SectionTable';
-
-const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
 
 interface SlotEditState {
   batch: Batch;
@@ -38,77 +64,149 @@ interface SlotEditState {
   subject: string;
   facultyId: string;
   isFrozen: boolean;
+  allowConflictOverride: boolean;
 }
+
+type ViewMode = 'batches' | 'faculty' | 'rooms';
 
 export default function Timetable() {
   const [currentDay, setCurrentDay] = useState<DayOfWeek>('Monday');
+  const [viewMode, setViewMode] = useState<ViewMode>('batches');
+
   const [faculties, setFaculties] = useState<Faculty[]>(() => {
     storage.initialize();
     return storage.getFaculty();
   });
   const [batches, setBatches] = useState<Batch[]>(() => storage.getBatches());
+
   const [allocations, setAllocations] = useState<Allocation[]>(() => {
-    const existing = storage.getDayTimetable('Monday');
+    const existing = storage.getTimetableForDay('Monday');
     return existing?.allocations || [];
   });
+
   const [currentStatus, setCurrentStatus] = useState<TimetableStatus>(() => {
-    const existing = storage.getDayTimetable('Monday');
+    const existing = storage.getTimetableForDay('Monday');
     return existing?.status || 'Draft';
   });
 
-  const [hasGenerated, setHasGenerated] = useState<boolean>(() => {
-    return !!storage.getDayTimetable('Monday');
+  const [unfilledSlots, setUnfilledSlots] = useState<UnfilledSlot[]>(() => {
+    const existing = storage.getTimetableForDay('Monday');
+    return existing?.unfilledSlots || [];
   });
 
+  const [warnings, setWarnings] = useState<ScheduleWarning[]>(() => {
+    const existing = storage.getTimetableForDay('Monday');
+    return existing?.warnings || [];
+  });
+
+  const [hasGenerated, setHasGenerated] = useState<boolean>(() => {
+    return !!storage.getTimetableForDay('Monday');
+  });
+
+  // Undo / Redo History Stack (Phase 5G)
+  const [history, setHistory] = useState<Allocation[][]>([]);
+  const [future, setFuture] = useState<Allocation[][]>([]);
+
+  // Export & generation states
   const [isExporting, setIsExporting] = useState(false);
-  const [exportType, setExportType] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [activeSectionFilter, setActiveSectionFilter] = useState<string>('ALL');
 
-  // Manual slot override state
+  // Modals
   const [editingSlot, setEditingSlot] = useState<SlotEditState | null>(null);
+  const [substituteCandidates, setSubstituteCandidates] = useState<SubstituteCandidate[]>([]);
+  const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
+  const [isUnfilledModalOpen, setIsUnfilledModalOpen] = useState(false);
+  const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
+
+  // Selected faculty or room for dedicated view modes
+  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string>('');
 
   const pageRef = useRef<HTMLDivElement>(null);
 
-  // Load day timetable when switching tabs
+  // Helper to push history
+  const pushState = useCallback(
+    (newAllocations: Allocation[]) => {
+      setHistory(prev => [...prev.slice(-20), allocations]);
+      setFuture([]);
+      setAllocations(newAllocations);
+    },
+    [allocations]
+  );
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const previous = history[history.length - 1];
+    setFuture(prev => [allocations, ...prev]);
+    setHistory(prev => prev.slice(0, prev.length - 1));
+    setAllocations(previous);
+    persistDay(currentDay, previous);
+  };
+
+  const handleRedo = () => {
+    if (future.length === 0) return;
+    const next = future[0];
+    setHistory(prev => [...prev, allocations]);
+    setFuture(prev => prev.slice(1));
+    setAllocations(next);
+    persistDay(currentDay, next);
+  };
+
+  // Switch Day Tab
   const handleSelectDay = (day: DayOfWeek) => {
     setCurrentDay(day);
     setBatches(storage.getBatches());
     setFaculties(storage.getFaculty());
-    const existing = storage.getDayTimetable(day);
-    setAllocations(existing?.allocations || []);
+    const existing = storage.getTimetableForDay(day);
+    const dayAllocations = existing?.allocations || [];
+    setAllocations(dayAllocations);
     setCurrentStatus(existing?.status || 'Draft');
+    setUnfilledSlots(existing?.unfilledSlots || []);
+    setWarnings(existing?.warnings || []);
     setHasGenerated(!!existing);
+    setHistory([]);
+    setFuture([]);
   };
 
   const persistDay = (
     day: DayOfWeek,
     newAllocations: Allocation[],
-    status: TimetableStatus = currentStatus
+    status: TimetableStatus = currentStatus,
+    unfilled: UnfilledSlot[] = unfilledSlots,
+    warns: ScheduleWarning[] = warnings
   ) => {
-    storage.setDayTimetable(day, {
-      id: `tt_${day}`,
-      date: day,
-      status,
-      allocations: newAllocations,
-      lastGeneratedAt: Date.now(),
+    storage.saveTimetableForDay(day, newAllocations, status, {
+      unfilledSlots: unfilled,
+      warnings: warns,
+      markGenerated: true,
     });
   };
 
   const handleStatusChange = (newStatus: TimetableStatus) => {
-    setCurrentStatus(newStatus);
-    persistDay(currentDay, allocations, newStatus);
-    storage.setTimetableStatus(currentDay, newStatus);
+    if (newStatus === 'Finalized') {
+      setCurrentStatus('Finalized');
+      persistDay(currentDay, allocations, 'Finalized');
+      storage.setTimetableStatus(currentDay, 'Finalized');
+    } else {
+      setIsReopenConfirmOpen(true);
+    }
   };
 
+  const confirmReopenDay = () => {
+    setCurrentStatus('Draft');
+    persistDay(currentDay, allocations, 'Draft');
+    storage.setTimetableStatus(currentDay, 'Draft', 'Reopened finalized timetable for editing');
+    setIsReopenConfirmOpen(false);
+  };
+
+  // Generate timetable with multi-pass evaluation (Phase 2)
   const handleGenerate = () => {
     if (currentStatus === 'Finalized') {
-      const confirmRegen = confirm(
-        `This timetable for ${currentDay} is marked as Finalized. Regenerating will replace unfrozen allocations. Do you want to proceed?`
-      );
-      if (!confirmRegen) return;
+      setIsReopenConfirmOpen(true);
+      return;
     }
 
     setIsGenerating(true);
@@ -119,78 +217,156 @@ export default function Timetable() {
       setBatches(freshBatches);
 
       const weekContext = storage.getWeekAllocationsExcluding(currentDay);
-      const generated = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext);
+      const result = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext);
 
-      setAllocations(generated);
+      pushState(result.allocations);
+      setUnfilledSlots(result.unfilled);
+      setWarnings(result.warnings);
       setHasGenerated(true);
       setCurrentStatus('Draft');
-      persistDay(currentDay, generated, 'Draft');
+      persistDay(currentDay, result.allocations, 'Draft', result.unfilled, result.warnings);
       setIsGenerating(false);
     }, 250);
   };
 
+  // Sync Absences (Phase 3)
   const handleSyncAbsences = () => {
+    if (currentStatus === 'Finalized') return;
     setIsSyncing(true);
     setTimeout(() => {
       const freshFaculties = storage.getFaculty();
       setFaculties(freshFaculties);
 
-      const patched = patchAbsences(batches, freshFaculties, allocations);
-      setAllocations(patched);
-      persistDay(currentDay, patched);
+      const result = patchAbsences(allocations, batches, freshFaculties);
+      pushState(result.updatedAllocations);
+      persistDay(currentDay, result.updatedAllocations);
       setIsSyncing(false);
     }, 200);
   };
 
+  // Slot freeze
   const toggleFreeze = (batchId: string, periodIndex: number) => {
-    const target = allocations.find(a => a.batchId === batchId && a.periodIndex === periodIndex);
-    if (target) {
-      storage.logAuditAction('FREEZE_TOGGLE', {
-        batchId,
-        periodIndex,
-        newFacultyId: target.facultyId,
-        day: currentDay,
-        reason: target.frozen ? `Unfroze slot on ${currentDay}` : `Froze slot on ${currentDay}`,
-      });
-    }
+    if (currentStatus === 'Finalized') return;
+    const existing = allocations.find(a => a.batchId === batchId && a.periodIndex === periodIndex);
+    if (!existing) return;
+
+    const newFrozen = !existing.frozen;
     const updated = allocations.map(a =>
-      a.batchId === batchId && a.periodIndex === periodIndex ? { ...a, frozen: !a.frozen } : a
+      a.batchId === batchId && a.periodIndex === periodIndex ? { ...a, frozen: newFrozen } : a
     );
-    setAllocations(updated);
+    pushState(updated);
     persistDay(currentDay, updated);
-  };
 
-  const getFacultyName = (id: string) => {
-    if (!id) return 'Unassigned';
-    return faculties.find(f => f.id === id)?.name || 'Unknown';
-  };
-
-  const handleCellClick = (batch: Batch, periodIndex: number) => {
-    const existing = allocations.find(a => a.batchId === batch.id && a.periodIndex === periodIndex);
-    const initialSubject = existing?.subject || (batch.subjects[0]?.subject || 'Physics');
-    setEditingSlot({
-      batch,
+    storage.logAuditAction('FREEZE_TOGGLE', {
+      batchId,
       periodIndex,
-      currentAllocation: existing,
-      subject: initialSubject,
-      facultyId: existing?.facultyId || '',
-      isFrozen: existing?.frozen || false,
+      day: currentDay,
+      reason: `${newFrozen ? 'Locked' : 'Unlocked'} slot (batch: ${batchId}, period: ${periodIndex + 1})`,
     });
   };
 
+  // Open manual slot editor
+  const handleCellClick = (batch: Batch, periodIndex: number) => {
+    if (currentStatus === 'Finalized') return;
+
+    const existingAlloc = allocations.find(
+      a => a.batchId === batch.id && a.periodIndex === periodIndex
+    );
+    const defaultSubject = existingAlloc?.subject || batch.subjects[0]?.subject || 'Physics';
+    const defaultFaculty = existingAlloc?.facultyId || '';
+
+    setEditingSlot({
+      batch,
+      periodIndex,
+      currentAllocation: existingAlloc,
+      subject: defaultSubject,
+      facultyId: defaultFaculty,
+      isFrozen: existingAlloc?.frozen ?? false,
+      allowConflictOverride: false,
+    });
+    setSubstituteCandidates([]);
+  };
+
+  // Check conflicts in manual editing dialog
+  const conflictEvaluation = useMemo(() => {
+    if (!editingSlot || !editingSlot.facultyId) return null;
+    const selectedFac = faculties.find(f => f.id === editingSlot.facultyId);
+    if (!selectedFac) return null;
+
+    const settings = storage.getSettings();
+    return checkFacultyConflict(
+      selectedFac,
+      editingSlot.batch.id,
+      editingSlot.periodIndex,
+      batches,
+      allocations,
+      settings
+    );
+  }, [editingSlot, faculties, batches, allocations]);
+
+  // Load substitute suggestions
+  const handleLoadSubstitutes = () => {
+    if (!editingSlot) return;
+    const settings = storage.getSettings();
+    const ranked = getRankedSubstitutes(
+      editingSlot.batch.id,
+      editingSlot.periodIndex,
+      editingSlot.subject,
+      allocations,
+      batches,
+      faculties,
+      settings
+    );
+    setSubstituteCandidates(ranked);
+  };
+
+  // Regenerate single slot
+  const handleRegenerateSlot = () => {
+    if (!editingSlot) return;
+    const settings = storage.getSettings();
+    const result = regenerateSingleSlot(
+      editingSlot.batch.id,
+      editingSlot.periodIndex,
+      allocations,
+      batches,
+      faculties,
+      settings,
+      editingSlot.subject
+    );
+
+    if (result.success && result.newAllocation) {
+      const updated = allocations.filter(
+        a => !(a.batchId === editingSlot.batch.id && a.periodIndex === editingSlot.periodIndex)
+      );
+      updated.push(result.newAllocation);
+      pushState(updated);
+      persistDay(currentDay, updated);
+      setEditingSlot(null);
+    } else {
+      alert(result.reason || 'Could not find an available eligible teacher for this slot without causing conflicts.');
+    }
+  };
+
+  // Save manual slot override (Phase 1 C2)
   const handleSaveSlotOverride = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSlot) return;
 
-    const { batch, periodIndex, subject, facultyId, isFrozen, currentAllocation } = editingSlot;
-    const oldFacultyId = currentAllocation?.facultyId;
+    // Check if conflict exists and override is unchecked
+    if (conflictEvaluation?.hasConflict && !editingSlot.allowConflictOverride) {
+      alert('A scheduling conflict was detected. Please check "Allow Conflict Override" to confirm this assignment.');
+      return;
+    }
 
+    const { batch, periodIndex, subject, facultyId, isFrozen } = editingSlot;
+    const oldFacultyId = editingSlot.currentAllocation?.facultyId;
     const updatedAllocations = [...allocations];
     const existingIdx = updatedAllocations.findIndex(
       a => a.batchId === batch.id && a.periodIndex === periodIndex
     );
 
     if (!facultyId) {
+      // Clear slot
       if (existingIdx >= 0) {
         updatedAllocations.splice(existingIdx, 1);
       }
@@ -210,7 +386,13 @@ export default function Timetable() {
         autoGenerated: false,
         manualEdited: true,
         frozen: isFrozen,
-        explanation: [`Manual assignment: set by timetable administrator on ${new Date().toLocaleDateString()}`],
+        hasConflictOverride: conflictEvaluation?.hasConflict || false,
+        conflictNote: conflictEvaluation?.hasConflict ? (conflictEvaluation.message || undefined) : undefined,
+        explanation: [
+          `Manual assignment set by administrator on ${new Date().toLocaleDateString()}${
+            conflictEvaluation?.hasConflict ? ` (Conflict override: ${conflictEvaluation.message})` : ''
+          }`,
+        ],
         updatedAt: Date.now(),
       };
 
@@ -231,141 +413,149 @@ export default function Timetable() {
       });
     }
 
-    setAllocations(updatedAllocations);
+    pushState(updatedAllocations);
     persistDay(currentDay, updatedAllocations);
     setEditingSlot(null);
   };
 
-  const sanitizeClonedDocColors = (clonedDoc: Document) => {
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+  // Full day validation audit (Phase 5C)
+  const validationReport = useMemo(() => {
+    const issues: {
+      type: 'CONFLICT' | 'WARNING';
+      batchName: string;
+      period: number;
+      message: string;
+      batchId: string;
+    }[] = [];
 
-      const normalize = (color: string): string => {
-        if (!color || !color.includes('oklch')) return color;
-        ctx.fillStyle = '#000000';
-        ctx.fillStyle = color;
-        return ctx.fillStyle;
-      };
+    const settings = storage.getSettings();
 
-      const elements = clonedDoc.querySelectorAll('*');
-      elements.forEach(node => {
-        const el = node as HTMLElement;
-        if (!el.style) return;
-        const comp = window.getComputedStyle(el);
+    // 1. Time overlaps & daily load
+    allocations.forEach(a => {
+      if (!a.facultyId) return;
+      const fac = faculties.find(f => f.id === a.facultyId);
+      const batch = batches.find(b => b.id === a.batchId);
+      if (!fac || !batch) return;
 
-        if (comp.backgroundColor && comp.backgroundColor.includes('oklch')) {
-          el.style.backgroundColor = normalize(comp.backgroundColor);
-        }
-        if (comp.color && comp.color.includes('oklch')) {
-          el.style.color = normalize(comp.color);
-        }
-        if (comp.borderColor && comp.borderColor.includes('oklch')) {
-          el.style.borderColor = normalize(comp.borderColor);
-        }
+      const conflict = checkFacultyConflict(
+        fac,
+        a.batchId,
+        a.periodIndex,
+        batches,
+        allocations.filter(x => x !== a),
+        settings
+      );
+
+      if (conflict.hasConflict) {
+        issues.push({
+          type: 'CONFLICT',
+          batchName: batch.name,
+          period: a.periodIndex + 1,
+          message: `${fac.name}: ${conflict.message}`,
+          batchId: batch.id,
+        });
+      }
+    });
+
+    // 2. Period 1 languages
+    warnings.forEach(w => {
+      const b = batches.find(batch => batch.id === w.batchId);
+      issues.push({
+        type: 'WARNING',
+        batchName: b?.name || 'Unknown',
+        period: (w.periodIndex || 0) + 1,
+        message: w.message,
+        batchId: w.batchId || '',
       });
+    });
+
+    // 3. Unfilled slots
+    unfilledSlots.forEach(u => {
+      issues.push({
+        type: 'WARNING',
+        batchName: u.batchName,
+        period: u.periodIndex + 1,
+        message: `Unfilled slot for "${u.requiredSubject}": ${u.reason}`,
+        batchId: u.batchId,
+      });
+    });
+
+    return issues;
+  }, [allocations, faculties, batches, warnings, unfilledSlots]);
+
+  const getFacultyName = useCallback(
+    (id: string): string => {
+      const f = faculties.find(fac => fac.id === id);
+      return f ? f.name : id;
+    },
+    [faculties]
+  );
+
+  // Exports
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      await exportTimetableToExcel(currentDay, batches, allocations, faculties);
     } catch (e) {
-      console.warn('Color sanitization notice:', e);
+      console.error(e);
+      alert('Failed to generate Excel export.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const exportAsImage = async () => {
+  const handleExportPng = async () => {
     if (!pageRef.current) return;
     setIsExporting(true);
-    setExportType('PNG');
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(pageRef.current, {
-        scale: 2,
-        backgroundColor: '#F8F7F3',
-        useCORS: true,
-        logging: false,
-        onclone: clonedDoc => sanitizeClonedDocColors(clonedDoc),
-      });
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `Timetable_${currentDay}.png`;
-      link.click();
+      await exportTimetableToPng(pageRef.current, currentDay);
     } catch (e) {
-      console.error('Failed to export image', e);
-      alert('Could not generate image export.');
+      console.error(e);
+      alert('Failed to generate PNG export.');
     } finally {
       setIsExporting(false);
-      setExportType(null);
     }
   };
 
-  const exportAsPdf = async () => {
+  const handleExportPdf = async () => {
     if (!pageRef.current) return;
     setIsExporting(true);
-    setExportType('PDF');
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      const canvas = await html2canvas(pageRef.current, {
-        scale: 1.5,
-        backgroundColor: '#F8F7F3',
-        useCORS: true,
-        logging: false,
-        onclone: clonedDoc => sanitizeClonedDocColors(clonedDoc),
-      });
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height],
-      });
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
-      pdf.save(`Timetable_${currentDay}.pdf`);
+      await exportTimetableToPdf(pageRef.current, currentDay);
     } catch (e) {
-      console.error('Failed to export PDF', e);
-      alert('Could not generate PDF export.');
+      console.error(e);
+      alert('Failed to generate PDF export.');
     } finally {
       setIsExporting(false);
-      setExportType(null);
     }
   };
 
-  const exportAsExcel = async () => {
-    setIsExporting(true);
-    setExportType('Excel');
-    try {
-      const XLSX = await import('xlsx');
-      const rows: Record<string, string>[] = [];
-
-      batches.forEach(b => {
-        const row: Record<string, string> = {
-          Building: b.building,
-          Category: b.yearCategory,
-          'Batch Name': b.name,
-          Room: b.roomNumber,
-        };
-
-        for (let i = 0; i < 6; i++) {
-          const timing = b.periods[i];
-          const timingStr = timing?.startTime ? `${timing.startTime}-${timing.endTime}` : '';
-          const alloc = allocations.find(a => a.batchId === b.id && a.periodIndex === i);
-          const facName = alloc?.facultyId ? getFacultyName(alloc.facultyId) : 'Free';
-          row[`Period ${i + 1} (${timingStr})`] = alloc ? `${alloc.subject} (${facName})` : 'Free Period';
-        }
-        rows.push(row);
-      });
-
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, currentDay);
-      XLSX.writeFile(wb, `Timetable_${currentDay}.xlsx`);
-    } catch (e) {
-      console.error('Failed to export Excel', e);
-      alert('Could not export to Excel.');
-    } finally {
-      setIsExporting(false);
-      setExportType(null);
-    }
-  };
+  const exportItems: DropdownItem[] = [
+    {
+      id: 'excel',
+      label: 'Export to Excel (.xlsx)',
+      description: 'Styled multi-period workbook with room and faculty data',
+      icon: <FileSpreadsheet className="w-4 h-4 text-[#6B2638]" />,
+      onClick: handleExportExcel,
+      disabled: isExporting || !hasGenerated,
+    },
+    {
+      id: 'png',
+      label: 'Download Image (PNG)',
+      description: 'High-resolution snapshot for notices & digital displays',
+      icon: <ImageIcon className="w-4 h-4 text-[#B08D57]" />,
+      onClick: handleExportPng,
+      disabled: isExporting || !hasGenerated,
+    },
+    {
+      id: 'pdf',
+      label: 'Export Document (PDF)',
+      description: 'Printable A4 landscape document with full headers',
+      icon: <FileText className="w-4 h-4 text-[#6B2638]" />,
+      onClick: handleExportPdf,
+      disabled: isExporting || !hasGenerated,
+    },
+  ];
 
   const filteredBatches = useMemo(() => {
     return batches.filter(b => {
@@ -385,12 +575,12 @@ export default function Timetable() {
   const sectionedBatches = useMemo(() => groupBatchesBySection(filteredBatches), [filteredBatches]);
 
   const quota = useMemo(() => {
-    const otherDaysAllocations = storage.getWeekAllocationsExcluding(currentDay);
-    const allWeeklyAllocations = [...otherDaysAllocations, ...allocations];
+    const otherDays = storage.getWeekAllocationsExcluding(currentDay);
+    const allWeekly = [...otherDays, ...allocations];
 
     let pcmb = 0;
     let lang = 0;
-    allWeeklyAllocations.forEach(a => {
+    allWeekly.forEach(a => {
       if (!a.facultyId) return;
       if (PCMB_SUBJECTS.includes(a.subject)) pcmb++;
       else lang++;
@@ -411,71 +601,24 @@ export default function Timetable() {
   const gapCount = allocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
   const absentFacultyCount = faculties.filter(f => f.isAbsent).length;
 
-  const conflictEvaluation = useMemo(() => {
-    if (!editingSlot || !editingSlot.facultyId) return null;
-    const selectedFac = faculties.find(f => f.id === editingSlot.facultyId);
-    if (!selectedFac) return null;
-
-    const settings = storage.getSettings();
-    return checkFacultyConflict(
-      selectedFac,
-      editingSlot.batch.id,
-      editingSlot.periodIndex,
-      batches,
-      allocations,
-      settings.maxDailyPeriods
-    );
-  }, [editingSlot, faculties, batches, allocations]);
-
-  const exportItems: DropdownItem[] = [
-    {
-      id: 'png',
-      label: 'Download Image (PNG)',
-      description: 'High-resolution snapshot for displays & sharing',
-      icon: <ImageIcon className="w-4 h-4" />,
-      onClick: exportAsImage,
-      disabled: isExporting || !hasGenerated,
-    },
-    {
-      id: 'pdf',
-      label: 'Download Document (PDF)',
-      description: 'Printable landscape format with full matrix',
-      icon: <FileText className="w-4 h-4" />,
-      onClick: exportAsPdf,
-      disabled: isExporting || !hasGenerated,
-    },
-    {
-      id: 'excel',
-      label: 'Export Spreadsheet (Excel)',
-      description: 'Structured XLSX workbook for administration',
-      icon: <FileSpreadsheet className="w-4 h-4" />,
-      onClick: exportAsExcel,
-      disabled: isExporting || !hasGenerated,
-    },
-  ];
-
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[95rem] mx-auto space-y-5" ref={pageRef}>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" ref={pageRef}>
+      {/* Top Header */}
       <PageHeader
-        icon={<Calendar className="w-5 h-5 text-[#252522]" />}
-        title="Academic Timetable Matrix"
-        subtitle={
-          <span>
-            {currentDay} &middot; Status: <strong className="text-[#252522]">{currentStatus}</strong> &middot;{' '}
-            {allocations.filter(a => a.facultyId).length} periods active
-          </span>
-        }
+        icon={<Calendar className="w-5 h-5 text-[#6B2638]" />}
+        title="Timetable Studio"
+        subtitle={`Generate, validate, and manage academic period assignments for ${currentDay}`}
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Status Segmented Control */}
-            <div className="flex items-center bg-[#F0EFE9] border border-[#E5E2DA] rounded-md p-0.5 text-xs font-medium select-none">
+          <div className="flex items-center gap-2 flex-wrap no-export">
+            {/* Status Selector */}
+            <div className="inline-flex items-center rounded-md border border-[#A89B8A]/30 bg-white p-0.5 text-xs font-semibold shadow-2xs">
               <button
                 type="button"
                 onClick={() => handleStatusChange('Draft')}
-                className={`px-3 py-1 rounded transition-colors ${
+                className={`px-3 py-1.5 rounded transition-colors ${
                   currentStatus === 'Draft'
-                    ? 'bg-white text-[#252522] font-semibold shadow-2xs'
-                    : 'text-[#77766F] hover:text-[#252522]'
+                    ? 'bg-[#F3EEE6] text-[#6B2638] font-bold shadow-2xs'
+                    : 'text-[#252326]/60 hover:text-[#252326]'
                 }`}
               >
                 Draft
@@ -483,212 +626,615 @@ export default function Timetable() {
               <button
                 type="button"
                 onClick={() => handleStatusChange('Finalized')}
-                className={`px-3 py-1 rounded transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors ${
                   currentStatus === 'Finalized'
-                    ? 'bg-[#C47B59] text-white font-semibold shadow-2xs'
-                    : 'text-[#77766F] hover:text-[#252522]'
+                    ? 'bg-[#6B2638] text-white font-bold shadow-2xs'
+                    : 'text-[#252326]/60 hover:text-[#252326]'
                 }`}
               >
-                <CheckCircle className="w-3.5 h-3.5" />
+                <Lock className="w-3 h-3" />
                 <span>Finalized</span>
               </button>
             </div>
 
-            {/* Sync Absences Action */}
+            {/* Undo / Redo */}
+            <div className="flex items-center rounded border border-[#A89B8A]/30 bg-white">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={history.length === 0 || currentStatus === 'Finalized'}
+                className="p-1.5 text-[#252326]/70 hover:text-[#6B2638] disabled:opacity-30 disabled:pointer-events-none"
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 className="w-4 h-4" />
+              </button>
+              <div className="h-4 w-px bg-[#A89B8A]/30" />
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={future.length === 0 || currentStatus === 'Finalized'}
+                className="p-1.5 text-[#252326]/70 hover:text-[#6B2638] disabled:opacity-30 disabled:pointer-events-none"
+                title="Redo (Ctrl+Y)"
+              >
+                <Redo2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Audit / Validate Button */}
             <Button
               variant="secondary"
-              icon={<RefreshCw className="w-4 h-4" />}
-              loading={isSyncing}
-              disabled={!hasGenerated}
-              onClick={handleSyncAbsences}
-              title="Re-evaluate schedule against teacher attendance"
+              icon={<ShieldCheck className="w-4 h-4 text-[#6B2638]" />}
+              onClick={() => setIsValidationModalOpen(true)}
+              title="Audit active timetable for teacher clashes and quota rules"
             >
-              Sync Absences
-              {absentFacultyCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-[#FDF2F0] text-[#9E4334] rounded text-[11px] font-semibold">
-                  {absentFacultyCount}
-                </span>
-              )}
+              Audit Day ({validationReport.length})
             </Button>
 
-            {/* Consolidated Export Action Dropdown */}
-            <DropdownMenu
-              label={isExporting ? `Exporting ${exportType || ''}...` : 'Export'}
-              icon={<Download className="w-4 h-4" />}
-              items={exportItems}
-              disabled={isExporting || !hasGenerated}
-            />
+            {/* Sync Absences Button */}
+            {absentFacultyCount > 0 && (
+              <Button
+                variant="secondary"
+                icon={<RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />}
+                loading={isSyncing}
+                onClick={handleSyncAbsences}
+                disabled={currentStatus === 'Finalized'}
+              >
+                Patch Absences ({gapCount > 0 ? `${gapCount} Gaps` : `${absentFacultyCount} Absent`})
+              </Button>
+            )}
 
-            {/* Primary Generation CTA */}
+            {/* Generate Button */}
             <Button
               variant="primary"
               icon={<Play className="w-4 h-4" />}
               loading={isGenerating}
               onClick={handleGenerate}
+              disabled={currentStatus === 'Finalized'}
             >
-              {hasGenerated ? 'Regenerate' : 'Generate'} {currentDay}
+              Generate {currentDay}
             </Button>
+
+            {/* Export Menu */}
+            <DropdownMenu
+              label="Export"
+              icon={<Download className="w-4 h-4" />}
+              items={exportItems}
+              align="right"
+              disabled={isExporting}
+            />
           </div>
         }
       />
 
-      {/* Weekday Switcher Tabs */}
-      <DayTabs
-        currentDay={currentDay}
-        onSelect={handleSelectDay}
-        hasData={day => !!storage.getDayTimetable(day)}
-      />
-
-      {/* Academic Balance Inspector */}
-      <BalanceBar quota={quota} gapCount={gapCount} day={currentDay} />
-
-      {/* Batch Filtering & Search Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-2.5 rounded-lg border border-[#E5E2DA] shadow-2xs">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs font-medium text-[#77766F]">
-            <Filter className="w-3.5 h-3.5 text-[#77766F]" />
-            <span>Building:</span>
+      {/* Finalized Warning Banner */}
+      {currentStatus === 'Finalized' && (
+        <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded-md flex items-center justify-between gap-3 text-xs text-[#252326] no-export">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-[#6B2638]" />
+            <span>
+              <strong>Timetable is Finalized:</strong> Editing and automatic regeneration are locked to safeguard this official schedule.
+            </span>
           </div>
-          <div className="inline-flex rounded-md bg-[#F0EFE9] p-0.5 text-xs font-medium select-none">
-            <button
-              type="button"
-              onClick={() => setActiveSectionFilter('ALL')}
-              className={`px-3 py-1 rounded transition-colors ${
-                activeSectionFilter === 'ALL'
-                  ? 'bg-white text-[#252522] font-semibold shadow-2xs'
-                  : 'text-[#77766F] hover:text-[#252522]'
-              }`}
-            >
-              All Sections
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSectionFilter('Building 1')}
-              className={`px-3 py-1 rounded transition-colors ${
-                activeSectionFilter === 'Building 1'
-                  ? 'bg-white text-[#C47B59] font-semibold shadow-2xs'
-                  : 'text-[#77766F] hover:text-[#252522]'
-              }`}
-            >
-              Building 1
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSectionFilter('Building 2')}
-              className={`px-3 py-1 rounded transition-colors ${
-                activeSectionFilter === 'Building 2'
-                  ? 'bg-white text-[#C47B59] font-semibold shadow-2xs'
-                  : 'text-[#77766F] hover:text-[#252522]'
-              }`}
-            >
-              Building 2
-            </button>
-          </div>
-        </div>
-
-        <SearchInput
-          value={filterQuery}
-          onChange={setFilterQuery}
-          placeholder="Filter batches or room..."
-          className="w-full sm:w-64"
-        />
-      </div>
-
-      {/* Timetable Matrix Grid by Academic Sections */}
-      {!hasGenerated ? (
-        <EmptyState
-          icon={<Calendar className="w-8 h-8 text-[#77766F]" />}
-          title={`No timetable generated for ${currentDay} yet`}
-          description={`Click "Generate ${currentDay}" to create clash-free slot assignments based on batch periods and teacher workload constraints.`}
-          action={
-            <Button
-              variant="primary"
-              icon={<Play className="w-4 h-4" />}
-              loading={isGenerating}
-              onClick={handleGenerate}
-            >
-              Generate {currentDay} Schedule
-            </Button>
-          }
-        />
-      ) : (
-        <div className="space-y-6">
-          {SECTIONS.map(section => {
-            const sectionBatches = sectionedBatches[section.id];
-            if (!sectionBatches || sectionBatches.length === 0) return null;
-            return (
-              <SectionTable
-                key={section.id}
-                label={section.label}
-                batches={sectionBatches}
-                allocations={allocations}
-                getFacultyName={getFacultyName}
-                onToggleFreeze={toggleFreeze}
-                onCellClick={handleCellClick}
-              />
-            );
-          })}
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={<Unlock className="w-3.5 h-3.5" />}
+            onClick={() => setIsReopenConfirmOpen(true)}
+          >
+            Reopen Day
+          </Button>
         </div>
       )}
 
-      {/* Manual Slot Override Dialog */}
+      {/* Unfilled Slots Alert Banner (Phase 2 H4) */}
+      {unfilledSlots.length > 0 && (
+        <div className="p-3 bg-[#FAF6EE] border border-[#B08D57]/40 rounded-md flex items-center justify-between gap-3 text-xs text-[#252326] no-export">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-[#B08D57] shrink-0" />
+            <span>
+              <strong>Notice:</strong> {unfilledSlots.length} period slot{unfilledSlots.length !== 1 ? 's' : ''} could not be filled automatically due to faculty capacity or timing conflicts.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setIsUnfilledModalOpen(true)}
+          >
+            Inspect Unfilled Slots
+          </Button>
+        </div>
+      )}
+
+      {/* Day Tabs */}
+      <div className="no-export">
+        <DayTabs
+          currentDay={currentDay}
+          onSelect={handleSelectDay}
+          hasData={d => !!storage.getTimetableForDay(d)}
+        />
+      </div>
+
+      {/* View Mode Switcher + Balance Bar */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-export">
+        {/* View Mode Pills */}
+        <div className="inline-flex rounded-md bg-[#F3EEE6] p-0.5 text-xs font-semibold select-none border border-[#A89B8A]/30">
+          <button
+            type="button"
+            onClick={() => setViewMode('batches')}
+            className={`px-3 py-1.5 rounded transition-colors ${
+              viewMode === 'batches'
+                ? 'bg-white text-[#6B2638] shadow-2xs font-bold'
+                : 'text-[#252326]/70 hover:text-[#252326]'
+            }`}
+          >
+            Batch Matrix View
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('faculty')}
+            className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors ${
+              viewMode === 'faculty'
+                ? 'bg-white text-[#6B2638] shadow-2xs font-bold'
+                : 'text-[#252326]/70 hover:text-[#252326]'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>Faculty Schedule</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('rooms')}
+            className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors ${
+              viewMode === 'rooms'
+                ? 'bg-white text-[#6B2638] shadow-2xs font-bold'
+                : 'text-[#252326]/70 hover:text-[#252326]'
+            }`}
+          >
+            <Building className="w-3.5 h-3.5" />
+            <span>Room Occupancy</span>
+          </button>
+        </div>
+
+        {/* Quota Balance Bar */}
+        <div className="w-full md:w-auto">
+          <BalanceBar quota={quota} gapCount={gapCount} day={currentDay} />
+        </div>
+      </div>
+
+      {/* Filter Toolbar (For Batches View) */}
+      {viewMode === 'batches' && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 no-export">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#252326]/60 font-medium">Campus:</span>
+            <div className="inline-flex rounded-md bg-[#F3EEE6] p-0.5 text-xs font-medium select-none border border-[#A89B8A]/30">
+              <button
+                type="button"
+                onClick={() => setActiveSectionFilter('ALL')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  activeSectionFilter === 'ALL'
+                    ? 'bg-white text-[#6B2638] font-bold shadow-2xs'
+                    : 'text-[#252326]/70 hover:text-[#252326]'
+                }`}
+              >
+                All Sections
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSectionFilter('Building 1')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  activeSectionFilter === 'Building 1'
+                    ? 'bg-white text-[#6B2638] font-bold shadow-2xs'
+                    : 'text-[#252326]/70 hover:text-[#252326]'
+                }`}
+              >
+                Building 1
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSectionFilter('Building 2')}
+                className={`px-3 py-1 rounded transition-colors ${
+                  activeSectionFilter === 'Building 2'
+                    ? 'bg-white text-[#6B2638] font-bold shadow-2xs'
+                    : 'text-[#252326]/70 hover:text-[#252326]'
+                }`}
+              >
+                Building 2
+              </button>
+            </div>
+          </div>
+
+          <SearchInput
+            value={filterQuery}
+            onChange={setFilterQuery}
+            placeholder="Search batches by name or room..."
+            className="w-full sm:w-72"
+          />
+        </div>
+      )}
+
+      {/* View Mode: BATCH MATRIX */}
+      {viewMode === 'batches' && (
+        <div>
+          {!hasGenerated ? (
+            <div className="p-8 bg-[#F3EEE6]/50 rounded-xl border border-[#A89B8A]/30 space-y-6 text-center">
+              <div className="w-12 h-12 bg-[#6B2638]/10 text-[#6B2638] rounded-full flex items-center justify-center mx-auto">
+                <Sparkles className="w-6 h-6" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-lg font-bold text-[#252326]">Welcome to Timetable Pro</h3>
+                <p className="text-xs text-[#252326]/70 leading-relaxed">
+                  No timetable is currently active for {currentDay}. Follow the three quick steps below to generate an optimized, clash-free schedule.
+                </p>
+              </div>
+
+              {/* 3-Step Onboarding Cards (Phase 5J) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
+                <div className="p-4 bg-white rounded-lg border border-[#A89B8A]/30 space-y-2">
+                  <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
+                    1
+                  </div>
+                  <h4 className="text-xs font-bold text-[#252326]">Check Faculty Pool</h4>
+                  <p className="text-[11px] text-[#252326]/60 leading-normal">
+                    Confirm {faculties.length} instructors, qualifications, and mark any known absentees.
+                  </p>
+                  <Link to="/faculty" className="text-xs font-bold text-[#6B2638] flex items-center gap-1 hover:underline">
+                    Manage Faculty <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+
+                <div className="p-4 bg-white rounded-lg border border-[#A89B8A]/30 space-y-2">
+                  <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
+                    2
+                  </div>
+                  <h4 className="text-xs font-bold text-[#252326]">Review Batches &amp; Timings</h4>
+                  <p className="text-[11px] text-[#252326]/60 leading-normal">
+                    Inspect active period timings across {batches.length} classroom sections.
+                  </p>
+                  <Link to="/batches" className="text-xs font-bold text-[#6B2638] flex items-center gap-1 hover:underline">
+                    Inspect Batches <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+
+                <div className="p-4 bg-white rounded-lg border border-[#A89B8A]/30 space-y-2">
+                  <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
+                    3
+                  </div>
+                  <h4 className="text-xs font-bold text-[#252326]">Run Scheduler</h4>
+                  <p className="text-[11px] text-[#252326]/60 leading-normal">
+                    Execute the constraint solver to allocate subjects and resolve all time overlaps.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    icon={<Play className="w-3.5 h-3.5" />}
+                    onClick={handleGenerate}
+                    loading={isGenerating}
+                  >
+                    Generate Schedule
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {SECTIONS.map(section => {
+                const sectionBatches = sectionedBatches[section.id];
+                if (!sectionBatches || sectionBatches.length === 0) return null;
+                return (
+                  <SectionTable
+                    key={section.id}
+                    label={section.label}
+                    batches={sectionBatches}
+                    allocations={allocations}
+                    getFacultyName={getFacultyName}
+                    onToggleFreeze={toggleFreeze}
+                    onCellClick={handleCellClick}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* View Mode: FACULTY SCHEDULE (Phase 5D) */}
+      {viewMode === 'faculty' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-[#F3EEE6]/50 rounded-lg border border-[#A89B8A]/30">
+            <User className="w-5 h-5 text-[#6B2638]" />
+            <div className="flex-1">
+              <label className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
+                Select Instructor to Inspect Weekly Matrix
+              </label>
+              <select
+                value={selectedFacultyId || faculties[0]?.id || ''}
+                onChange={e => setSelectedFacultyId(e.target.value)}
+                className="mt-1 w-full max-w-md px-3 py-2 text-xs border border-[#A89B8A]/40 rounded bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+              >
+                {faculties.map(f => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.subjects.join(', ')}) {f.isAbsent ? '- ABSENT' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Teacher Weekly Matrix */}
+          {(() => {
+            const currentFacId = selectedFacultyId || faculties[0]?.id;
+            const targetFaculty = faculties.find(f => f.id === currentFacId);
+            if (!targetFaculty) return null;
+
+            const week = storage.getWeekTimetables();
+            const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+            return (
+              <div className="bg-white rounded-lg border border-[#A89B8A]/30 overflow-hidden shadow-xs">
+                <div className="p-4 bg-[#F3EEE6] border-b border-[#A89B8A]/30 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#252326]">{targetFaculty.name}</h3>
+                    <p className="text-xs text-[#252326]/60">
+                      Subjects: {targetFaculty.subjects.join(', ')} &middot; Daily Limit: {targetFaculty.maxPeriodsPerDay || 3} periods
+                    </p>
+                  </div>
+                  {targetFaculty.isAbsent && <Badge tone="danger">Currently Absent</Badge>}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#F8F7F3] border-b border-[#A89B8A]/30 text-[#252326]/70 uppercase font-semibold">
+                        <th className="p-3 w-28">Day</th>
+                        {[1, 2, 3, 4, 5, 6].map(p => (
+                          <th key={p} className="p-3 text-center">
+                            Period {p}
+                          </th>
+                        ))}
+                        <th className="p-3 text-right">Day Load</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#A89B8A]/20">
+                      {days.map(day => {
+                        const dayTimetable = day === currentDay ? { allocations } : week[day];
+                        const dayAllocs = dayTimetable?.allocations || [];
+                        const teacherAllocs = dayAllocs.filter(a => a.facultyId === targetFaculty.id);
+
+                        return (
+                          <tr key={day} className={day === currentDay ? 'bg-[#F3EEE6]/30' : ''}>
+                            <td className="p-3 font-bold text-[#252326]">
+                              {day} {day === currentDay && <span className="text-[10px] text-[#6B2638] font-semibold">(Active)</span>}
+                            </td>
+                            {[0, 1, 2, 3, 4, 5].map(pIdx => {
+                              const alloc = teacherAllocs.find(a => a.periodIndex === pIdx);
+                              const batch = alloc ? batches.find(b => b.id === alloc.batchId) : null;
+
+                              return (
+                                <td key={pIdx} className="p-2.5 text-center">
+                                  {alloc && batch ? (
+                                    <div className="p-2 rounded bg-white border border-[#6B2638]/30 shadow-2xs">
+                                      <div className="font-bold text-[#6B2638]">{alloc.subject}</div>
+                                      <div className="text-[11px] text-[#252326]/80">{batch.name}</div>
+                                      <div className="text-[10px] text-[#252326]/60">Rm {batch.roomNumber}</div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[#252326]/30 italic text-[11px]">Free</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td className="p-3 text-right font-bold text-[#252326]">
+                              {teacherAllocs.length} periods
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* View Mode: ROOM OCCUPANCY (Phase 5E) */}
+      {viewMode === 'rooms' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 bg-[#F3EEE6]/50 rounded-lg border border-[#A89B8A]/30">
+            <Building className="w-5 h-5 text-[#6B2638]" />
+            <div className="flex-1">
+              <label className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
+                Filter by Room Number
+              </label>
+              <input
+                type="text"
+                placeholder="Search room (e.g. 204(A), 101, or leave empty for all rooms)"
+                value={selectedRoomNumber}
+                onChange={e => setSelectedRoomNumber(e.target.value)}
+                className="mt-1 w-full max-w-md px-3 py-2 text-xs border border-[#A89B8A]/40 rounded bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-[#A89B8A]/30 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 uppercase text-[#252326]/80 font-semibold">
+                    <th className="p-3 w-32">Room No.</th>
+                    <th className="p-3">Assigned Batch</th>
+                    <th className="p-3">Building</th>
+                    {[1, 2, 3, 4, 5, 6].map(p => (
+                      <th key={p} className="p-3 text-center">
+                        Period {p}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#A89B8A]/20">
+                  {batches
+                    .filter(b => !selectedRoomNumber || b.roomNumber.toLowerCase().includes(selectedRoomNumber.toLowerCase()))
+                    .map(batch => {
+                      return (
+                        <tr key={batch.id} className="hover:bg-[#F3EEE6]/40 transition-colors">
+                          <td className="p-3 font-bold text-[#252326]">
+                            <span className="px-2 py-0.5 bg-[#F3EEE6] rounded border border-[#A89B8A]/30">
+                              Room {batch.roomNumber || '-'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-semibold text-[#252326]">{batch.name}</td>
+                          <td className="p-3 text-[#252326]/70">{batch.building}</td>
+                          {[0, 1, 2, 3, 4, 5].map(pIdx => {
+                            const alloc = allocations.find(
+                              a => a.batchId === batch.id && a.periodIndex === pIdx
+                            );
+                            const facName = alloc?.facultyId ? getFacultyName(alloc.facultyId) : null;
+
+                            return (
+                              <td key={pIdx} className="p-2 text-center">
+                                {alloc && alloc.facultyId ? (
+                                  <div className="p-1.5 rounded bg-white border border-[#A89B8A]/30 text-[11px]">
+                                    <div className="font-semibold text-[#6B2638]">{alloc.subject}</div>
+                                    <div className="text-[10px] text-[#252326]/70 truncate max-w-[100px] mx-auto">
+                                      {facName}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-[#252326]/30 text-[11px]">Vacant</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Slot Override Dialog (Phase 1 C2 & Phase 5H/5I) */}
       {editingSlot && (
         <Modal
           isOpen={true}
           onClose={() => setEditingSlot(null)}
-          title={`Edit Period ${editingSlot.periodIndex + 1} &middot; ${editingSlot.batch.name}`}
-          subtitle={`${editingSlot.batch.building} &middot; Room ${editingSlot.batch.roomNumber}`}
+          title={`Edit Period ${editingSlot.periodIndex + 1} · ${editingSlot.batch.name}`}
+          subtitle={`${editingSlot.batch.building} · Room ${editingSlot.batch.roomNumber}`}
           footer={
-            <>
-              {editingSlot.currentAllocation?.facultyId && (
-                <Button
-                  type="button"
-                  variant="danger"
-                  icon={<Trash2 className="w-4 h-4" />}
-                  onClick={() => {
-                    setEditingSlot({ ...editingSlot, facultyId: '' });
-                  }}
-                >
-                  Clear Assignment
+            <div className="flex items-center justify-between w-full">
+              <div>
+                {editingSlot.currentAllocation?.facultyId && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    icon={<Trash2 className="w-4 h-4" />}
+                    onClick={() => setEditingSlot({ ...editingSlot, facultyId: '' })}
+                  >
+                    Clear Slot
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" onClick={() => setEditingSlot(null)}>
+                  Cancel
                 </Button>
-              )}
-              <Button type="button" variant="secondary" onClick={() => setEditingSlot(null)}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                icon={<Save className="w-4 h-4" />}
-                form="slot-override-form"
-              >
-                Save Allocation
-              </Button>
-            </>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  icon={<Save className="w-4 h-4" />}
+                  form="slot-override-form"
+                >
+                  Save Assignment
+                </Button>
+              </div>
+            </div>
           }
         >
           <form id="slot-override-form" onSubmit={handleSaveSlotOverride} className="space-y-4">
-            <div className="bg-[#F0EFE9] p-3 rounded-md border border-[#E5E2DA] space-y-1 text-xs">
+            <div className="bg-[#F3EEE6] p-3 rounded-md border border-[#A89B8A]/30 space-y-1 text-xs">
               <div className="flex justify-between">
-                <span className="text-[#77766F] font-medium">Classroom &amp; Campus:</span>
-                <span className="font-semibold text-[#252522]">
-                  Room {editingSlot.batch.roomNumber} &middot; {editingSlot.batch.building}
+                <span className="text-[#252326]/70 font-medium">Campus & Room:</span>
+                <span className="font-semibold text-[#252326]">
+                  Room {editingSlot.batch.roomNumber} · {editingSlot.batch.building}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#77766F] font-medium">Period Scheduled Time:</span>
-                <span className="font-semibold text-[#252522]">
+                <span className="text-[#252326]/70 font-medium">Slot Timing:</span>
+                <span className="font-semibold text-[#252326]">
                   {editingSlot.batch.periods[editingSlot.periodIndex]?.startTime} -{' '}
                   {editingSlot.batch.periods[editingSlot.periodIndex]?.endTime}
                 </span>
               </div>
             </div>
 
+            {/* Quick Actions inside Dialog */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                icon={<RefreshCw className="w-3.5 h-3.5" />}
+                onClick={handleRegenerateSlot}
+              >
+                Regenerate Slot Only
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                icon={<User className="w-3.5 h-3.5" />}
+                onClick={handleLoadSubstitutes}
+              >
+                Suggest Substitutes
+              </Button>
+            </div>
+
+            {/* Substitute candidates list */}
+            {substituteCandidates.length > 0 && (
+              <div className="p-3 bg-white rounded border border-[#A89B8A]/30 space-y-2">
+                <span className="text-[11px] font-bold text-[#6B2638] uppercase block">
+                  Top Recommended Substitute Candidates
+                </span>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {substituteCandidates.map(c => (
+                    <div
+                      key={c.faculty.id}
+                      className="flex items-center justify-between p-2 rounded bg-[#F8F7F3] border border-[#A89B8A]/20 text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-[#252326]">{c.faculty.name}</span>
+                        <div className="text-[10px] text-[#252326]/60">
+                          {c.faculty.subjects.join(', ')} · Daily load: {c.currentDayLoad}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          setEditingSlot({
+                            ...editingSlot,
+                            facultyId: c.faculty.id,
+                            allowConflictOverride: false,
+                          })
+                        }
+                      >
+                        Select
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252522]">Subject</label>
+              <label className="text-xs font-semibold text-[#252326]">Subject</label>
               <select
                 value={editingSlot.subject}
                 onChange={e => setEditingSlot({ ...editingSlot, subject: e.target.value })}
-                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
+                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
               >
                 {editingSlot.batch.subjects.map(s => (
                   <option key={s.subject} value={s.subject}>
@@ -702,62 +1248,206 @@ export default function Timetable() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252522]">
-                Assigned Faculty Member
-              </label>
+              <label className="text-xs font-semibold text-[#252326]">Assigned Instructor</label>
               <select
                 value={editingSlot.facultyId}
-                onChange={e => setEditingSlot({ ...editingSlot, facultyId: e.target.value })}
-                className="w-full px-3 py-2 border border-[#E5E2DA] rounded-md text-sm bg-white focus:border-[#C47B59] outline-none text-[#252522]"
+                onChange={e =>
+                  setEditingSlot({
+                    ...editingSlot,
+                    facultyId: e.target.value,
+                    allowConflictOverride: false,
+                  })
+                }
+                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
               >
-                <option value="">-- No Faculty (Free Period) --</option>
+                <option value="">-- Vacant (Free Period) --</option>
                 {faculties
                   .filter(f => f.subjects.includes(editingSlot.subject))
-                  .map(f => {
-                    const isAbsent = f.isAbsent;
-                    return (
-                      <option key={f.id} value={f.id}>
-                        {f.name} {isAbsent ? '(ABSENT)' : ''}
-                      </option>
-                    );
-                  })}
+                  .map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} {f.isAbsent ? '(ABSENT)' : ''}
+                    </option>
+                  ))}
               </select>
-              <p className="text-[11px] text-[#77766F]">
-                Filtered by teachers qualified in &ldquo;{editingSlot.subject}&rdquo;.
-              </p>
             </div>
 
+            {/* Conflict Warning & Confirmation Checkbox */}
             {conflictEvaluation?.hasConflict && (
-              <div className="p-3 bg-[#FBF3EE] text-[#8A4C2E] border border-[#F3DFD3] rounded-md text-xs flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-[#C47B59] shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-semibold text-[#8A4C2E]">
-                    Potential Schedule Conflict:
-                  </strong>
-                  <p className="mt-0.5 text-[#8A4C2E]/90 leading-relaxed">
-                    {conflictEvaluation.message}
-                  </p>
+              <div className="p-3 bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] rounded-md text-xs space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold">Scheduling Conflict Detected:</strong>
+                    <p className="mt-0.5 leading-relaxed">{conflictEvaluation.message}</p>
+                  </div>
                 </div>
+                <label className="flex items-center gap-2 pt-2 border-t border-[#ECD9DE] cursor-pointer font-bold select-none">
+                  <input
+                    type="checkbox"
+                    checked={editingSlot.allowConflictOverride}
+                    onChange={e =>
+                      setEditingSlot({ ...editingSlot, allowConflictOverride: e.target.checked })
+                    }
+                    className="w-4 h-4 text-[#6B2638] focus:ring-[#6B2638] rounded"
+                  />
+                  <span>Allow Conflict Override (Force Assignment)</span>
+                </label>
               </div>
             )}
 
-            <div className="pt-2 border-t border-[#E5E2DA]">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252522] select-none">
+            <div className="pt-2 border-t border-[#A89B8A]/20">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252326] select-none">
                 <input
                   type="checkbox"
                   checked={editingSlot.isFrozen}
                   onChange={e => setEditingSlot({ ...editingSlot, isFrozen: e.target.checked })}
-                  className="w-4 h-4 text-[#C47B59] rounded border-[#E5E2DA]"
+                  className="w-4 h-4 text-[#6B2638] focus:ring-[#6B2638] rounded"
                 />
                 <span className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-[#C47B59]" />
-                  Lock this slot (protect from automatic regeneration)
+                  <Lock className="w-3.5 h-3.5 text-[#6B2638]" />
+                  Freeze this slot (protect from future automatic regeneration)
                 </span>
               </label>
             </div>
           </form>
         </Modal>
       )}
+
+      {/* Full Day Validation Audit Report Modal (Phase 5C) */}
+      <Modal
+        isOpen={isValidationModalOpen}
+        onClose={() => setIsValidationModalOpen(false)}
+        title={`Timetable Audit Report · ${currentDay}`}
+        subtitle="Comprehensive verification of room conflicts, teacher workloads, and curriculum quotas"
+        footer={
+          <Button variant="secondary" onClick={() => setIsValidationModalOpen(false)}>
+            Close Report
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-3 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center">
+              <span className="text-[10px] uppercase font-bold text-[#252326]/60">Total Slots</span>
+              <div className="text-lg font-bold text-[#252326]">
+                {batches.reduce((acc, b) => acc + b.periods.filter(p => p.startTime).length, 0)}
+              </div>
+            </div>
+            <div className="p-3 bg-[#FAF0F2] rounded border border-[#ECD9DE] text-center">
+              <span className="text-[10px] uppercase font-bold text-[#6B2638]">Violations</span>
+              <div className="text-lg font-bold text-[#6B2638]">
+                {validationReport.filter(r => r.type === 'CONFLICT').length}
+              </div>
+            </div>
+            <div className="p-3 bg-[#FAF6EE] rounded border border-[#B08D57]/40 text-center">
+              <span className="text-[10px] uppercase font-bold text-[#B08D57]">Soft Warnings</span>
+              <div className="text-lg font-bold text-[#B08D57]">
+                {validationReport.filter(r => r.type === 'WARNING').length}
+              </div>
+            </div>
+          </div>
+
+          {validationReport.length === 0 ? (
+            <div className="p-6 text-center space-y-2">
+              <CheckCircle2 className="w-10 h-10 text-[#476B52] mx-auto" />
+              <h4 className="text-sm font-bold text-[#252326]">Zero Conflicts Detected</h4>
+              <p className="text-xs text-[#252326]/60">
+                All teacher schedules, room allocations, and daily teaching limits are 100% compliant.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {validationReport.map((issue, idx) => (
+                <div
+                  key={idx}
+                  className={`p-3 rounded border text-xs flex items-start justify-between gap-3 ${
+                    issue.type === 'CONFLICT'
+                      ? 'bg-[#FAF0F2] border-[#ECD9DE] text-[#6B2638]'
+                      : 'bg-[#FAF6EE] border-[#B08D57]/30 text-[#252326]'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <Badge tone={issue.type === 'CONFLICT' ? 'danger' : 'gold'}>
+                        {issue.type}
+                      </Badge>
+                      <span>
+                        {issue.batchName} · Period {issue.period}
+                      </span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed opacity-90">{issue.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Unfilled Slots Drawer / Modal (Phase 2 H4) */}
+      <Modal
+        isOpen={isUnfilledModalOpen}
+        onClose={() => setIsUnfilledModalOpen(false)}
+        title="Unfilled Period Slots"
+        subtitle="Slots that could not be scheduled due to qualified instructor unavailability"
+        footer={
+          <Button variant="secondary" onClick={() => setIsUnfilledModalOpen(false)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-[#252326]/70 leading-relaxed">
+            The scheduler respects strict daily workload caps and avoids teacher double-booking. The following slots remain unassigned:
+          </p>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {unfilledSlots.map((u, i) => (
+              <div
+                key={i}
+                className="p-3 bg-[#FAF6EE] rounded border border-[#B08D57]/30 text-xs text-[#252326] space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#6B2638]">
+                    {u.batchName} · Period {u.periodIndex + 1}
+                  </span>
+                  <Badge tone="gold">{u.requiredSubject}</Badge>
+                </div>
+                <p className="text-[11px] text-[#252326]/80">{u.reason}</p>
+                {u.candidateIssue && (
+                  <p className="text-[10px] text-[#252326]/60 italic">{u.candidateIssue}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reopen Finalized Day Confirmation Modal */}
+      <Modal
+        isOpen={isReopenConfirmOpen}
+        onClose={() => setIsReopenConfirmOpen(false)}
+        title="Reopen Finalized Timetable?"
+        subtitle="This timetable is locked as the official published schedule"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setIsReopenConfirmOpen(false)}>
+              Keep Finalized
+            </Button>
+            <Button variant="primary" icon={<Unlock className="w-4 h-4" />} onClick={confirmReopenDay}>
+              Reopen for Editing
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 text-xs text-[#252326]">
+          <p>
+            Reopening the <strong>{currentDay}</strong> timetable will change its status to <strong>Draft</strong> and allow manual edits or regeneration of unfrozen slots.
+          </p>
+          <p className="text-[#252326]/70">
+            Frozen slots will continue to be preserved. Are you sure you want to unlock this day?
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

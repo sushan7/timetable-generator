@@ -9,13 +9,25 @@ export default function DayTabs({
   onSelect: (day: DayOfWeek) => void;
   hasData: (day: DayOfWeek) => boolean;
 }) {
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const nextIdx = (index + 1) % WEEKDAYS.length;
+      onSelect(WEEKDAYS[nextIdx]);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prevIdx = (index - 1 + WEEKDAYS.length) % WEEKDAYS.length;
+      onSelect(WEEKDAYS[prevIdx]);
+    }
+  };
+
   return (
     <div
       role="tablist"
       aria-label="Academic Weekdays"
-      className="flex flex-wrap gap-1 bg-[#F0EFE9] p-1 rounded-md border border-[#E5E2DA] select-none"
+      className="flex flex-wrap gap-1 bg-[#FAF7F2] p-1 rounded-md border border-[#E5E0D8] select-none"
     >
-      {WEEKDAYS.map(day => {
+      {WEEKDAYS.map((day, idx) => {
         const active = currentDay === day;
         const exists = hasData(day);
         return (
@@ -24,18 +36,20 @@ export default function DayTabs({
             type="button"
             role="tab"
             aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onClick={() => onSelect(day)}
-            className={`flex-1 min-w-[90px] px-3 py-1.5 rounded text-sm font-medium transition-colors duration-150 flex items-center justify-center gap-2 ${
+            onKeyDown={e => handleKeyDown(e, idx)}
+            className={`flex-1 min-w-[90px] px-3 py-1.5 rounded text-sm font-medium transition-colors duration-150 flex items-center justify-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-[#6B2638] ${
               active
-                ? 'bg-[#C47B59] text-white shadow-2xs font-semibold'
-                : 'text-[#77766F] hover:bg-white hover:text-[#252522]'
+                ? 'bg-[#6B2638] text-white shadow-2xs font-semibold'
+                : 'text-[#5E5B61] hover:bg-white hover:text-[#252326]'
             }`}
           >
             <span>{day}</span>
             {exists && (
               <span
                 className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
-                  active ? 'bg-[#F2D7CC]' : 'bg-[#C47B59]'
+                  active ? 'bg-[#B08D57]' : 'bg-[#6B2638]'
                 }`}
                 title="Schedule exists"
               />

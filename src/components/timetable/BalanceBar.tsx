@@ -22,61 +22,61 @@ export default function BalanceBar({
   const total = quota.pcmb + quota.lang;
 
   return (
-    <Card className="space-y-3.5 shadow-2xs border-[#E5E2DA]">
+    <Card className="space-y-3.5 shadow-2xs border-[#E5E0D8]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-[#F0EFE9] text-[#252522] rounded-md shrink-0 border border-[#E5E2DA]">
+          <div className="p-1.5 bg-[#FAF7F2] text-[#6B2638] rounded-md shrink-0 border border-[#E5E0D8]">
             <BookOpen className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-[#252522] leading-tight">
-              Academic Balance &amp; Subject Quotas
+            <h2 className="text-sm font-bold text-[#252326] leading-tight">
+              Academic Balance & Subject Quotas
             </h2>
-            <p className="text-xs text-[#77766F] mt-0.5">
-              Target Ratio: {quota.targetPCMB}% Core Science (PCMB) &middot; {quota.targetLang}% Languages &amp; Electives
+            <p className="text-xs text-[#5E5B61] mt-0.5">
+              Target Ratio: {quota.targetPCMB}% Core Science (PCMB) · {quota.targetLang}% Languages & Electives
             </p>
           </div>
         </div>
 
-        <div className="text-xs font-medium text-[#77766F] bg-[#F0EFE9] px-2.5 py-1 rounded-md border border-[#E5E2DA] w-fit">
-          <span className="text-[#252522] font-semibold">{total}</span> periods scheduled
+        <div className="text-xs font-medium text-[#5E5B61] bg-[#FAF7F2] px-2.5 py-1 rounded-md border border-[#E5E0D8] w-fit">
+          <span className="text-[#252326] font-semibold">{total}</span> periods scheduled
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[#F0EFE9]">
+        <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[#FAF7F2] border border-[#E5E0D8]/60">
           <div
-            className="bg-[#C47B59] h-full transition-all duration-300"
+            className="bg-[#6B2638] h-full transition-all duration-300"
             style={{ width: `${quota.actualPCMBPct}%` }}
             title={`PCMB: ${quota.pcmb} slots (${quota.actualPCMBPct}%)`}
           />
           <div
-            className="bg-[#A58A68] h-full transition-all duration-300"
+            className="bg-[#B08D57] h-full transition-all duration-300"
             style={{ width: `${quota.actualLangPct}%` }}
             title={`Languages: ${quota.lang} slots (${quota.actualLangPct}%)`}
           />
         </div>
 
-        <div className="flex flex-wrap justify-between text-xs font-medium text-[#77766F] gap-2 px-0.5">
+        <div className="flex flex-wrap justify-between text-xs font-medium text-[#5E5B61] gap-2 px-0.5">
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#C47B59] inline-block shrink-0" />
-            Core Science (PCMB): <strong className="text-[#252522] font-semibold">{quota.pcmb}</strong> ({quota.actualPCMBPct}%)
+            <span className="w-2 h-2 rounded-full bg-[#6B2638] inline-block shrink-0" />
+            Core Science (PCMB): <strong className="text-[#252326] font-semibold">{quota.pcmb}</strong> ({quota.actualPCMBPct}%)
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#A58A68] inline-block shrink-0" />
-            Languages &amp; Electives: <strong className="text-[#252522] font-semibold">{quota.lang}</strong> ({quota.actualLangPct}%)
+            <span className="w-2 h-2 rounded-full bg-[#B08D57] inline-block shrink-0" />
+            Languages & Electives: <strong className="text-[#252326] font-semibold">{quota.lang}</strong> ({quota.actualLangPct}%)
           </span>
         </div>
       </div>
 
       {gapCount > 0 && (
-        <div className="flex items-start gap-2.5 text-xs font-medium text-[#9E4334] bg-[#FDF2F0] border border-[#F5D5CF] rounded-md p-3">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-[#C47B59] mt-0.5" />
+        <div className="flex items-start gap-2.5 text-xs font-medium text-[#A63232] bg-[#FDF2F2] border border-[#F6CECE] rounded-md p-3">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-[#A65E3B] mt-0.5" />
           <div className="leading-relaxed">
-            <strong className="font-semibold text-[#8A4C2E]">
+            <strong className="font-semibold text-[#8F2424]">
               {gapCount} unresolved gap{gapCount > 1 ? 's' : ''} on {day}:
             </strong>{' '}
-            Assigned instructor went absent and no substitute was found automatically. Click any gap slot to assign a replacement teacher or run &ldquo;Sync Absences&rdquo;.
+            Assigned instructor is absent and no conflict-free substitute was found automatically. Click any gap slot to assign a replacement teacher or run &ldquo;Sync Absences&rdquo;.
           </div>
         </div>
       )}

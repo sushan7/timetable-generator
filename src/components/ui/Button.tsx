@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from './cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+export type ButtonVariant = 'primary' | 'secondary' | 'gold' | 'danger' | 'ghost' | 'outline';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,11 +14,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
-  primary: 'bg-[#C47B59] text-white hover:bg-[#B06D4D] active:bg-[#9C5F42] border border-[#B06D4D]/40 shadow-xs',
-  secondary: 'bg-white text-[#252522] border border-[#E5E2DA] hover:bg-[#F0EFE9] hover:border-[#D9D5CC] active:bg-[#EAE8E0] shadow-2xs',
-  outline: 'bg-transparent text-[#252522] border border-[#E5E2DA] hover:bg-[#F0EFE9] hover:border-[#D9D5CC] active:bg-[#EAE8E0]',
-  danger: 'bg-[#FDF2F0] text-[#9E4334] border border-[#F5D5CF] hover:bg-[#FAE8E4] active:bg-[#F5DDD8]',
-  ghost: 'bg-transparent text-[#77766F] hover:text-[#252522] hover:bg-[#F0EFE9] active:bg-[#EAE8E0]',
+  primary:
+    'bg-[#6B2638] text-white hover:bg-[#581E2D] active:bg-[#461724] border border-[#581E2D]/50 shadow-xs focus-visible:ring-2 focus-visible:ring-[#6B2638] focus-visible:ring-offset-1',
+  gold:
+    'bg-[#B08D57] text-white hover:bg-[#9A7947] active:bg-[#846638] border border-[#9A7947]/50 shadow-xs focus-visible:ring-2 focus-visible:ring-[#B08D57] focus-visible:ring-offset-1',
+  secondary:
+    'bg-white text-[#252326] border border-[#E5E0D8] hover:bg-[#FAF7F2] hover:border-[#D5CFC5] active:bg-[#F3EEE6] shadow-2xs',
+  outline:
+    'bg-transparent text-[#252326] border border-[#E5E0D8] hover:bg-[#FAF7F2] hover:border-[#D5CFC5] active:bg-[#F3EEE6]',
+  danger:
+    'bg-[#FDF2F2] text-[#A63232] border border-[#F6CECE] hover:bg-[#FAE5E5] active:bg-[#F5D8D8]',
+  ghost:
+    'bg-transparent text-[#5E5B61] hover:text-[#252326] hover:bg-[#FAF7F2] active:bg-[#F3EEE6]',
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
@@ -54,7 +61,7 @@ export default function Button({
       {...rest}
     >
       {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin text-current" />
+        <Loader2 className="w-4 h-4 animate-spin text-current shrink-0" />
       ) : (
         icon && iconPosition === 'left' && <span className="shrink-0">{icon}</span>
       )}

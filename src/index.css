@@ -3,24 +3,28 @@
 @theme {
   --font-sans: "Inter", "DM Sans", system-ui, -apple-system, sans-serif;
 
-  --color-paper: #F8F7F3;
-  --color-paper-muted: #F0EFE9;
-  --color-ink: #252522;
-  --color-ink-muted: #77766F;
-  --color-terracotta: #C47B59;
-  --color-terracotta-hover: #b06d4d;
-  --color-ochre: #A58A68;
-  --color-ochre-hover: #937958;
-  --color-stone-border: #E5E2DA;
+  --color-burgundy: #6B2638;
+  --color-burgundy-hover: #581e2d;
+  --color-charcoal: #252326;
+  --color-charcoal-muted: #5E5B61;
+  --color-beige: #F3EEE6;
+  --color-beige-subtle: #FAF7F2;
+  --color-taupe: #A89B8A;
+  --color-taupe-light: #E3DDD3;
+  --color-gold: #B08D57;
+  --color-gold-hover: #9A7947;
+  --color-cognac: #A65E3B;
+  --color-cognac-hover: #8F4E2F;
+  --color-border-subtle: #E5E0D8;
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
-    background-color: #F8F7F3;
+    background-color: #F3EEE6;
   }
   body {
-    @apply antialiased min-h-screen text-[#252522] bg-[#F8F7F3];
+    @apply antialiased min-h-screen text-[#252326] bg-[#F3EEE6];
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   }
 
@@ -45,7 +49,7 @@
   textarea:focus-visible,
   button:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px #F8F7F3, 0 0 0 4px #C47B59;
+    box-shadow: 0 0 0 2px #F3EEE6, 0 0 0 4px #6B2638;
   }
 }
 
@@ -58,9 +62,9 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #E5E2DA;
+  background: #E5E0D8;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #C4C0B5;
+  background: #A89B8A;
 }
