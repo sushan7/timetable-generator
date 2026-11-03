@@ -176,7 +176,8 @@ export const calculateCapacityReport = (
 export const buildKHSClusterScheduleMap = (
   batches: Batch[],
   existingDraft: Allocation[],
-  rng: () => number
+  rng: () => number,
+  weekAllocations: Allocation[] = []
 ): Map<string, number> => {
   const batchToKHSPeriodMap = new Map<string, number>();
   const sections = groupBatchesBySection(batches);
@@ -188,9 +189,33 @@ export const buildKHSClusterScheduleMap = (
 
     // Clusters of 3 to 4 sections
     const clusterSize = 3 + Math.floor(rng() * 2);
+    const dayIndex = Math.round(weekAllocations.length / 372);
+
     for (let i = 0; i < khsBatches.length; i += clusterSize) {
       const cluster = khsBatches.slice(i, i + clusterSize);
-      const chosenPeriod = eligiblePeriods[(secIdx + Math.floor(i / clusterSize)) % eligiblePeriods.length];
+      const clusterBatchIds = new Set(cluster.map(b => b.id));
+
+      const priorPeriodUsage: Record<number, number> = { 1: 0, 2: 0, 3: 0 };
+      for (const alloc of weekAllocations) {
+        if (clusterBatchIds.has(alloc.batchId) && isKHS(alloc.subject)) {
+          if (priorPeriodUsage[alloc.periodIndex] !== undefined) {
+            priorPeriodUsage[alloc.periodIndex]++;
+          }
+        }
+      }
+      
+      // Select the eligible period with the lowest historical usage for this cluster,
+      // rotated dynamically across days and staggered across sections
+      const clusterOffset = Math.floor(i / clusterSize);
+      const sortedPeriods = [...eligiblePeriods].sort((pA, pB) => {
+        const usageA = priorPeriodUsage[pA] || 0;
+        const usageB = priorPeriodUsage[pB] || 0;
+        if (usageA !== usageB) return usageA - usageB;
+        const rankA = (secIdx + clusterOffset + pA + dayIndex) % eligiblePeriods.length;
+        const rankB = (secIdx + clusterOffset + pB + dayIndex) % eligiblePeriods.length;
+        return rankA - rankB;
+      });
+      const chosenPeriod = sortedPeriods[0];
 
       cluster.forEach(b => {
         const isFrozen = existingDraft.some(
@@ -207,7 +232,143 @@ export const buildKHSClusterScheduleMap = (
 };
 
 // -------------------------------------------------------------
-// SHARED SCORING FUNCTION (H5: scoreAssignment)
+// SHARED SUBJECT SCORING FUNCTION (H1 & H2: scoreSubjectChoice)
+// Evaluates subject choice against weekly quotas, anti-repetition,
+// period 1 rules, K/H/S cluster synchronization, and subject variety.
+// -------------------------------------------------------------
+export interface SubjectChoiceContext {
+  todayAllocations: Allocation[];
+  weekAllocations: Allocation[];
+  targetWeeklyQuotas?: Record<string, number>;
+  targetWeeklyQuota?: number;
+  isKHSGroupSlot?: boolean;
+  settings?: SchedulerSettings;
+}
+
+export const scoreSubjectChoice = (
+  _batch: Batch,
+  periodIndex: number,
+  subject: string,
+  context: SubjectChoiceContext
+): { score: number; reasons: string[] } => {
+  const normSubj = normalizeSubj(subject);
+  const {
+    todayAllocations = [],
+    weekAllocations = [],
+    isKHSGroupSlot,
+  } = context;
+
+  let score = 100;
+  const reasons: string[] = [];
+
+  const targetQuota =
+    context.targetWeeklyQuota ??
+    (context.targetWeeklyQuotas ? context.targetWeeklyQuotas[normSubj] : undefined) ??
+    4;
+
+  // 1. Weekly quota deficit / overshoot / undershoot (large penalty/reward)
+  const weekCount = weekAllocations.filter(
+    a => normalizeSubj(a.subject) === normSubj
+  ).length;
+  const todayCount = todayAllocations.filter(
+    a => normalizeSubj(a.subject) === normSubj
+  ).length;
+  const totalAllocated = weekCount + todayCount;
+  const deficit = targetQuota - totalAllocated;
+
+  if (deficit > 0) {
+    const bonus = deficit * 250;
+    score += bonus;
+    reasons.push(`Weekly deficit priority: +${bonus}`);
+  } else if (deficit === 0) {
+    // Quota reached: large penalty against overshoot
+    score -= 1500;
+    reasons.push('Weekly quota met: -1500');
+  } else {
+    // Overshoot: very large penalty
+    const overshootPenalty = 3000 + Math.abs(deficit) * 1500;
+    score -= overshootPenalty;
+    reasons.push(`Weekly quota overshot: -${overshootPenalty}`);
+  }
+
+  // 2. Same subject in adjacent periods (large penalty)
+  const prevAlloc = todayAllocations.find(a => a.periodIndex === periodIndex - 1);
+  const nextAlloc = todayAllocations.find(a => a.periodIndex === periodIndex + 1);
+  if (
+    (prevAlloc && normalizeSubj(prevAlloc.subject) === normSubj) ||
+    (nextAlloc && normalizeSubj(nextAlloc.subject) === normSubj)
+  ) {
+    score -= 3000;
+    reasons.push('Adjacent period same subject penalty: -3000');
+  }
+
+  // 3. Same subject twice in one day beyond need (medium penalty)
+  if (todayCount >= 1) {
+    const repeatTodayPenalty = targetQuota <= 6 ? 900 : 750;
+    score -= repeatTodayPenalty;
+    reasons.push(`Second period today beyond target need: -${repeatTodayPenalty}`);
+  }
+  if (todayCount >= 2 && targetQuota <= 12) {
+    score -= 3000;
+    reasons.push('Third period today beyond target need: -3000');
+  }
+  if (todayCount >= 3) {
+    score -= 3500;
+    reasons.push('Extreme repeated subject today: -3500');
+  }
+
+  // 4. Same subject at the same period index on other days (anti-repeat penalty)
+  const sameSlotOtherDays = weekAllocations.filter(
+    a => a.periodIndex === periodIndex && normalizeSubj(a.subject) === normSubj
+  ).length;
+  if (sameSlotOtherDays > 0) {
+    const penalty = 1200 * sameSlotOtherDays + (sameSlotOtherDays > 1 ? 1500 : 0);
+    score -= penalty;
+    reasons.push(`Same slot repeat across week (${sameSlotOtherDays} days): -${penalty}`);
+  }
+
+  // 5. Language in Period 1 (very large but not infinite, scales down under high weekly deficit for English)
+  if (periodIndex === 0) {
+    if (isLanguageSubject(subject)) {
+      if (isKHS(subject)) {
+        score -= 2500;
+        reasons.push('Period 1 K/H/S prohibited: -2500');
+      } else {
+        const p1LangPenalty = Math.max(100, 750 - deficit * 200);
+        score -= p1LangPenalty;
+        reasons.push(`Period 1 language penalty: -${p1LangPenalty}`);
+      }
+    } else if (isPCMBSubject(subject)) {
+      score += 200;
+      reasons.push('Period 1 core subject reward: +200');
+    }
+  }
+
+  // 6. K/H/S cluster mismatch (medium)
+  if (isKHSGroupSlot) {
+    if (isKHS(subject)) {
+      score += 400;
+      reasons.push('Synchronized K/H/S cluster match: +400');
+    } else {
+      score -= 300;
+      reasons.push('Non-K/H/S scheduled in synchronized cluster slot: -300');
+    }
+  } else if (isKHS(subject)) {
+    score -= 250;
+    reasons.push('K/H/S outside synchronized cluster slot: -250');
+  }
+
+  // 7. Reward subject variety
+  if (todayCount === 0) {
+    score += 100;
+    reasons.push('Daily subject variety reward: +100');
+  }
+
+  return { score, reasons };
+};
+
+// -------------------------------------------------------------
+// SHARED ASSIGNMENT SCORING (H5: scoreAssignment)
 // Evaluates both subject preference and teacher quality
 // -------------------------------------------------------------
 export interface AssignmentScoreContext {
@@ -238,72 +399,23 @@ export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; r
     isKHSGroupSlot,
   } = ctx;
 
-  let score = 100;
-  const reasons: string[] = [];
-
-  // --- HARD CONSTRAINT PENALTIES (Instant Disqualification) ---
   if (faculty.isAbsent) return { score: -Infinity, reasons: ['Teacher is absent'] };
 
-  // --- SOFT RULE 1: Period 1 No Languages (H3) ---
-  if (periodIndex === 0 && isLanguageSubject(subject)) {
-    score -= 300;
-    reasons.push('Period 1 language penalty: -300');
-  } else if (periodIndex === 0 && isPCMBSubject(subject)) {
-    score += 50;
-    reasons.push('Period 1 core subject preference: +50');
-  }
+  const subjectChoice = scoreSubjectChoice(batch, periodIndex, subject, {
+    todayAllocations,
+    weekAllocations,
+    targetWeeklyQuotas,
+    isKHSGroupSlot,
+    settings,
+  });
 
-  // --- SOFT RULE 2: Anti-Repetition (H2) ---
-  // Back-to-back same subject in this batch
-  const prevPeriodAlloc = todayAllocations.find(a => a.periodIndex === periodIndex - 1);
-  if (prevPeriodAlloc && normalizeSubj(prevPeriodAlloc.subject) === normalizeSubj(subject)) {
-    score -= 120;
-    reasons.push('Consecutive same-subject penalty: -120');
-  }
+  let score = subjectChoice.score;
+  const reasons = [...subjectChoice.reasons];
 
-  // Third or subsequent occurrence today
-  const subjectTodayCount = todayAllocations.filter(
-    a => normalizeSubj(a.subject) === normalizeSubj(subject)
-  ).length;
-  if (subjectTodayCount >= 2) {
-    score -= 80;
-    reasons.push('Subject already scheduled twice today: -80');
-  }
-
-  // Same subject in the same period index across the week
-  const samePeriodOtherDays = weekAllocations.filter(
-    a => a.periodIndex === periodIndex && normalizeSubj(a.subject) === normalizeSubj(subject)
-  ).length;
-  if (samePeriodOtherDays > 0) {
-    score -= 40 * samePeriodOtherDays;
-    reasons.push(`Repeats same period on other days: -${40 * samePeriodOtherDays}`);
-  }
-
-  // --- SOFT RULE 3: Weekly Subject Quota Deficit (H1) ---
-  const targetQuota = targetWeeklyQuotas[normalizeSubj(subject)] || 4;
-  const allocatedWeekCount = weekAllocations.filter(
-    a => normalizeSubj(a.subject) === normalizeSubj(subject)
-  ).length;
-  const remainingDeficit = targetQuota - allocatedWeekCount;
-
-  if (remainingDeficit > 0) {
-    score += remainingDeficit * 25;
-    reasons.push(`Weekly quota deficit priority: +${remainingDeficit * 25}`);
-  } else if (remainingDeficit <= 0) {
-    score -= 50;
-    reasons.push('Weekly quota already achieved: -50');
-  }
-
-  // --- SOFT RULE 4: K/H/S Simultaneous Grouping (Requirement 3) ---
-  if (isKHSGroupSlot && isKHS(subject)) {
-    score += 90;
-    reasons.push('Synchronized K/H/S cross-section cluster bonus: +90');
-  }
-
-  // --- SOFT RULE 5: Teacher Workload Balance & Gaps ---
+  // Teacher Workload Balance & Gaps
   const currentLoad = dailyWorkload[faculty.id] || 0;
   if (currentLoad === 0) {
-    score += 30; // Encourage fair daily utilization
+    score += 30;
     reasons.push('Zero-load teacher fairness bonus: +30');
   }
 
@@ -320,7 +432,6 @@ export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; r
     }
   }
 
-  // Exclusive batch lock preference
   if (faculty.assignedBatches && faculty.assignedBatches.includes(batch.id)) {
     score += 40;
     reasons.push('Assigned batch lock preference: +40');
@@ -338,15 +449,16 @@ export const evaluateTimetableCandidate = (
   _weekAllocations: Allocation[],
   unfilledCount: number
 ): number => {
-  let score = 10000 - unfilledCount * 1000;
+  let score = 20000 - unfilledCount * 10000;
 
-  // Track teacher overlaps (hard constraint: -50000 each) using fast grouped index
   const batchMap = new Map<string, Batch>();
   for (const b of batches) {
     batchMap.set(b.id, b);
   }
 
   const facultyAllocations = new Map<string, Allocation[]>();
+  const batchAllocations = new Map<string, Allocation[]>();
+
   for (const a of allocations) {
     if (a.facultyId) {
       let list = facultyAllocations.get(a.facultyId);
@@ -356,8 +468,15 @@ export const evaluateTimetableCandidate = (
       }
       list.push(a);
     }
+    let bList = batchAllocations.get(a.batchId);
+    if (!bList) {
+      bList = [];
+      batchAllocations.set(a.batchId, bList);
+    }
+    bList.push(a);
   }
 
+  // 1. Hard teacher clashes (-50000 each)
   for (const list of facultyAllocations.values()) {
     if (list.length <= 1) continue;
     for (let i = 0; i < list.length; i++) {
@@ -375,17 +494,43 @@ export const evaluateTimetableCandidate = (
     }
   }
 
-  // Soft penalties: Period 1 language, consecutive repetitions
-  const batchAllocations = new Map<string, Allocation[]>();
-  for (const a of allocations) {
-    let list = batchAllocations.get(a.batchId);
-    if (!list) {
-      list = [];
-      batchAllocations.set(a.batchId, list);
+  // 2. Teacher load balance: penalize extreme skew across active teachers
+  const loads: number[] = [];
+  for (const list of facultyAllocations.values()) {
+    loads.push(list.length);
+  }
+  if (loads.length > 0) {
+    const maxLoad = Math.max(...loads);
+    const minLoad = Math.min(...loads);
+    if (maxLoad - minLoad > 3) {
+      score -= (maxLoad - minLoad) * 50;
     }
-    list.push(a);
   }
 
+  // 3. K/H/S grouping per section / cluster, not globally
+  const sections = groupBatchesBySection(batches);
+  for (const sectionBatches of Object.values(sections)) {
+    const khsPeriodsByBatch = new Map<number, number>();
+    let sectionKHSCount = 0;
+    for (const b of sectionBatches) {
+      const bAllocs = batchAllocations.get(b.id) || [];
+      for (const a of bAllocs) {
+        if (isKHS(a.subject)) {
+          sectionKHSCount++;
+          khsPeriodsByBatch.set(a.periodIndex, (khsPeriodsByBatch.get(a.periodIndex) || 0) + 1);
+        }
+      }
+    }
+    if (sectionKHSCount > 0) {
+      if (khsPeriodsByBatch.size === 1) {
+        score += 300; // Synchronized section cluster
+      } else {
+        score -= (khsPeriodsByBatch.size - 1) * 100;
+      }
+    }
+  }
+
+  // 4. Batch-level soft penalties: back-to-back same-subject, Period 1 language, repeats
   for (const b of batches) {
     const bAllocs = batchAllocations.get(b.id) || [];
     bAllocs.sort((a, b) => a.periodIndex - b.periodIndex);
@@ -393,16 +538,26 @@ export const evaluateTimetableCandidate = (
     // Period 1 language penalty
     const p1 = bAllocs.find(a => a.periodIndex === 0);
     if (p1 && isLanguageSubject(p1.subject)) {
-      score -= 500;
+      score -= 1000;
     }
 
-    // Consecutive repetitions
+    // Back-to-back same-subject pairs (large penalty)
     for (let i = 1; i < bAllocs.length; i++) {
       if (
         bAllocs[i].periodIndex === bAllocs[i - 1].periodIndex + 1 &&
         normalizeSubj(bAllocs[i].subject) === normalizeSubj(bAllocs[i - 1].subject)
       ) {
-        score -= 200;
+        score -= 500;
+      }
+    }
+
+    // Same subject > 2 times on one day
+    const subjCounts: Record<string, number> = {};
+    for (const a of bAllocs) {
+      const s = normalizeSubj(a.subject);
+      subjCounts[s] = (subjCounts[s] || 0) + 1;
+      if (subjCounts[s] > 2) {
+        score -= 400 * (subjCounts[s] - 2);
       }
     }
   }
@@ -441,6 +596,27 @@ const generateCandidateRun = (
     }
   });
 
+  // Pre-index weekAllocations and existingDraft by batch for fast O(1) lookups
+  const weekAllocationsByBatch = new Map<string, Allocation[]>();
+  for (const a of weekAllocations) {
+    let list = weekAllocationsByBatch.get(a.batchId);
+    if (!list) {
+      list = [];
+      weekAllocationsByBatch.set(a.batchId, list);
+    }
+    list.push(a);
+  }
+
+  const todayAllocationsByBatch = new Map<string, Allocation[]>();
+  for (const a of allocations) {
+    let list = todayAllocationsByBatch.get(a.batchId);
+    if (!list) {
+      list = [];
+      todayAllocationsByBatch.set(a.batchId, list);
+    }
+    list.push(a);
+  }
+
   const tasks: SlotTask[] = [];
 
   // Build slot task list for all open slots
@@ -470,34 +646,68 @@ const generateCandidateRun = (
     });
   });
 
-  // H5B: Most-constrained-first ordering with controlled jitter
-  tasks.sort((a, b) => {
-    // If K/H/S synchronized cluster, schedule early
-    if (a.isKHSGroup && !b.isKHSGroup) return -1;
-    if (!a.isKHSGroup && b.isKHSGroup) return 1;
+  // H5B & M1: Deterministic task ordering with deficit prioritization and fair jitter
+  const scoredTasks = tasks.map((task, origIdx) => {
+    let priority = 0;
+    if (task.isKHSGroup) priority -= 2000;
+    if (task.periodIndex === 0) priority -= 1000;
+    priority += task.degreeOfFreedom * 10;
 
-    // Period 1 slots get priority to secure core subjects
-    if (a.periodIndex === 0 && b.periodIndex !== 0) return -1;
-    if (a.periodIndex !== 0 && b.periodIndex === 0) return 1;
+    // Prioritize batches with higher remaining quota deficits so scarce subjects are balanced fairly
+    const targetWeeklyQuotas = weeklyQuotasMap.get(task.batch.id) || {};
+    const weekAllocationsForBatch = weekAllocationsByBatch.get(task.batch.id) || [];
+    let batchDeficitSum = 0;
+    for (const [subj, target] of Object.entries(targetWeeklyQuotas)) {
+      const allocated = weekAllocationsForBatch.filter(a => normalizeSubj(a.subject) === subj).length;
+      if (target > allocated) {
+        batchDeficitSum += (target - allocated);
+      }
+    }
+    priority -= batchDeficitSum * 25;
 
-    // Constrained subjects first
-    return a.degreeOfFreedom - b.degreeOfFreedom + (rng() - 0.5) * 2;
+    const jitter = (rng() - 0.5) * 40;
+    return { task, priority: priority + jitter, origIdx };
   });
+
+  scoredTasks.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.origIdx - b.origIdx;
+  });
+
+  const orderedTasks = scoredTasks.map(st => st.task);
 
   const unfilled: UnfilledSlot[] = [];
   const warnings: ScheduleWarning[] = [];
 
   // Fill slots
-  for (const task of tasks) {
+  for (const task of orderedTasks) {
     const { batch, periodIndex, isKHSGroup } = task;
     const targetWeeklyQuotas = weeklyQuotasMap.get(batch.id) || {};
-    const todayAllocations = allocations.filter(a => a.batchId === batch.id);
-    const weekBatchAllocations = weekAllocations.filter(a => a.batchId === batch.id);
+    const todayBatchAllocations = todayAllocationsByBatch.get(batch.id) || [];
+    const weekBatchAllocations = weekAllocationsByBatch.get(batch.id) || [];
 
-    // Build candidate subject list sorted by quota deficit & rules
-    const candidateSubjects = batch.subjects.map(s => normalizeSubj(s.subject));
+    // Unique subjects for this batch
+    const uniqueSubjects = Array.from(new Set(batch.subjects.map(s => normalizeSubj(s.subject))));
 
-    // Evaluate all (subject, faculty) pairs
+    // Rank candidate subjects using scoreSubjectChoice (H1 & H2)
+    const scoredSubjects = uniqueSubjects.map((subject, origIdx) => {
+      const quota = targetWeeklyQuotas[subject] || 4;
+      const result = scoreSubjectChoice(batch, periodIndex, subject, {
+        todayAllocations: todayBatchAllocations,
+        weekAllocations: weekBatchAllocations,
+        targetWeeklyQuota: quota,
+        isKHSGroupSlot: isKHSGroup,
+        settings,
+      });
+      const jitter = (rng() - 0.5) * 6;
+      return { subject, score: result.score + jitter, reasons: result.reasons, origIdx };
+    });
+
+    scoredSubjects.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.origIdx - b.origIdx;
+    });
+
     let bestOption: {
       faculty: Faculty;
       subject: string;
@@ -507,12 +717,20 @@ const generateCandidateRun = (
 
     const failureReasons: string[] = [];
 
-    for (const subject of candidateSubjects) {
+    // Evaluate candidate subjects starting from highest-ranked
+    for (const scoredSubj of scoredSubjects) {
+      const subject = scoredSubj.subject;
       const eligibleTeachers = getEligibleFaculty(faculties, batch, subject);
       if (eligibleTeachers.length === 0) {
         failureReasons.push(`No faculty registered with qualification "${subject}"`);
         continue;
       }
+
+      let bestTeacherForSubject: {
+        faculty: Faculty;
+        teacherScore: number;
+        reasons: string[];
+      } | null = null;
 
       for (const faculty of eligibleTeachers) {
         const assignResult = canAssign(
@@ -538,32 +756,51 @@ const generateCandidateRun = (
           continue;
         }
 
-        const evaluation = scoreAssignment({
-          batch,
-          periodIndex,
-          subject,
-          faculty,
-          todayAllocations,
-          weekAllocations: weekBatchAllocations,
-          targetWeeklyQuotas,
-          dailyWorkload,
-          settings,
-          isKHSGroupSlot: isKHSGroup,
-          dateKey,
-        });
+        const currentLoad = dailyWorkload[faculty.id] || 0;
+        const dailyLimit = getDailyLimit(faculty, settings);
+        let teacherScore = (dailyLimit - currentLoad) * 20;
+        if (currentLoad === 0) teacherScore += 30;
 
-        // Add small reproducible jitter
-        const jitter = (rng() - 0.5) * 8;
-        const totalScore = evaluation.score + jitter;
+        const teacherReasons: string[] = [];
+        if (settings.enableGapOptimization) {
+          const taughtBefore = todayBatchAllocations.some(
+            a => a.facultyId === faculty.id && a.periodIndex === periodIndex - 1
+          );
+          const teachesAfter = todayBatchAllocations.some(
+            a => a.facultyId === faculty.id && a.periodIndex === periodIndex + 1
+          );
+          if (taughtBefore || teachesAfter) {
+            teacherScore += 20;
+            teacherReasons.push('Gap reduction bonus: +20');
+          }
+        }
 
-        if (!bestOption || totalScore > bestOption.score) {
-          bestOption = {
+        if (faculty.assignedBatches && faculty.assignedBatches.includes(batch.id)) {
+          teacherScore += 40;
+          teacherReasons.push('Assigned batch lock preference: +40');
+        }
+
+        const teacherJitter = (rng() - 0.5) * 4;
+        const finalTeacherScore = teacherScore + teacherJitter;
+
+        if (!bestTeacherForSubject || finalTeacherScore > bestTeacherForSubject.teacherScore) {
+          bestTeacherForSubject = {
             faculty,
-            subject,
-            score: totalScore,
-            reasons: evaluation.reasons,
+            teacherScore: finalTeacherScore,
+            reasons: teacherReasons,
           };
         }
+      }
+
+      if (bestTeacherForSubject) {
+        bestOption = {
+          faculty: bestTeacherForSubject.faculty,
+          subject,
+          score: scoredSubj.score + bestTeacherForSubject.teacherScore,
+          reasons: [...scoredSubj.reasons, ...bestTeacherForSubject.reasons],
+        };
+        // Found optimal teacher for the highest-priority subject
+        break;
       }
     }
 
@@ -581,6 +818,13 @@ const generateCandidateRun = (
       };
       allocations.push(newAlloc);
       dailyWorkload[bestOption.faculty.id] = (dailyWorkload[bestOption.faculty.id] || 0) + 1;
+
+      let bList = todayAllocationsByBatch.get(batch.id);
+      if (!bList) {
+        bList = [];
+        todayAllocationsByBatch.set(batch.id, bList);
+      }
+      bList.push(newAlloc);
 
       if (periodIndex === 0 && isLanguageSubject(bestOption.subject)) {
         warnings.push({
@@ -625,9 +869,10 @@ export const generateTimetableV2 = (
     seed?: number;
     dateKey?: string;
     numCandidates?: number;
+    settings?: SchedulerSettings;
   }
 ): GenerationResult => {
-  const settings = storage.getSettings();
+  const settings = options?.settings ?? storage.getSettings();
   const seed = options?.seed ?? Math.floor(Math.random() * 1000000);
   const rng = createPRNG(seed);
   const dateKey = options?.dateKey;
@@ -660,8 +905,8 @@ export const generateTimetableV2 = (
   const weeklyQuotasMap = new Map<string, Record<string, number>>();
   batches.forEach(b => weeklyQuotasMap.set(b.id, calculateWeeklyQuotas(b)));
 
-  // Build simultaneous K/H/S cluster map (Requirement 3)
-  const khsClusterMap = buildKHSClusterScheduleMap(batches, existingDraft, rng);
+  // Build simultaneous K/H/S cluster map rotated across days (Requirement 3)
+  const khsClusterMap = buildKHSClusterScheduleMap(batches, existingDraft, rng, weekAllocations);
 
   // Multi-candidate search: Generate N candidates and evaluate lexicographically (H5)
   const NUM_CANDIDATES = options?.numCandidates ?? 3;

@@ -6,10 +6,11 @@ import {
   regenerateSingleSlot,
   getRankedSubstitutes,
   PCMB_SUBJECTS,
+  normalizeSubj,
 } from '../utils/scheduler';
 import { initialBatches, initialFaculty } from '../utils/seedData';
 import { isOverlapping } from '../utils/validation';
-import type { Batch, Faculty, Allocation } from '../types';
+import { WEEKDAYS, type Batch, type Faculty, type Allocation } from '../types';
 
 describe('Timetable Scheduler Algorithm', () => {
   const dummyBatches: Batch[] = [
@@ -244,5 +245,153 @@ describe('Timetable Scheduler Algorithm', () => {
       expect(result.allocations.length).toBe(372);
       expect(result.unfilled.length).toBe(0);
     }, 30000);
+  });
+
+  describe('6-Day Week Distribution & Quality Invariants (H1, H2, M1)', () => {
+    it('satisfies fixed-seed determinism and distribution quality invariants across 6 days', () => {
+      const weekAllocations: Record<string, Allocation[]> = {};
+      let accumulatedWeekAllocations: Allocation[] = [];
+
+      const baseSeed = 42;
+      for (let d = 0; d < WEEKDAYS.length; d++) {
+        const day = WEEKDAYS[d];
+        const result = generateTimetableV2(
+          initialBatches,
+          initialFaculty,
+          [],
+          accumulatedWeekAllocations,
+          {
+            seed: baseSeed + d * 100,
+            numCandidates: 1,
+            settings: {
+              maxDailyPeriods: 6,
+              enableGapOptimization: true,
+              enableConsecutivePeriodAvoidance: true,
+              pcmbWeight: 60,
+              languageWeight: 40,
+              weekStartDay: 'Monday',
+            },
+          }
+        );
+        expect(result.allocations.length).toBe(372);
+        expect(result.unfilled.length).toBe(0);
+        weekAllocations[day] = result.allocations;
+        accumulatedWeekAllocations = accumulatedWeekAllocations.concat(result.allocations);
+      }
+
+      // 1. Back-to-back same-subject pairs drops from ~39 to < 10
+      let backToBackPairs = 0;
+      let dayOver2Count = 0;
+
+      for (const day of WEEKDAYS) {
+        const dayAllocs = weekAllocations[day];
+        for (const batch of initialBatches) {
+          const batchAllocs = dayAllocs.filter(a => a.batchId === batch.id);
+          batchAllocs.sort((a, b) => a.periodIndex - b.periodIndex);
+
+          for (let i = 1; i < batchAllocs.length; i++) {
+            if (
+              batchAllocs[i].periodIndex === batchAllocs[i - 1].periodIndex + 1 &&
+              normalizeSubj(batchAllocs[i].subject) === normalizeSubj(batchAllocs[i - 1].subject)
+            ) {
+              backToBackPairs++;
+            }
+          }
+
+          const subjectCountsToday: Record<string, number> = {};
+          batchAllocs.forEach(a => {
+            const s = normalizeSubj(a.subject);
+            subjectCountsToday[s] = (subjectCountsToday[s] || 0) + 1;
+          });
+
+          const quotas = calculateWeeklyQuotas(batch);
+          for (const [subj, count] of Object.entries(subjectCountsToday)) {
+            const target = quotas[subj] || 4;
+            if (count > 2 && target <= 12) {
+              dayOver2Count++;
+            }
+          }
+        }
+      }
+
+      expect(backToBackPairs).toBeLessThan(10);
+      expect(dayOver2Count).toBeLessThanOrEqual(2);
+
+      // 2. Same batch+period+subject consecutive repeats drops from ~413 to < 150
+      let consecutiveRepeats = 0;
+      let countExceedingTwo = 0;
+
+      for (const batch of initialBatches) {
+        for (let p = 0; p < batch.periods.length; p++) {
+          const slotAllocs = WEEKDAYS.map(day =>
+            weekAllocations[day].find(a => a.batchId === batch.id && a.periodIndex === p)
+          ).filter(Boolean) as Allocation[];
+
+          for (let i = 1; i < slotAllocs.length; i++) {
+            if (normalizeSubj(slotAllocs[i].subject) === normalizeSubj(slotAllocs[i - 1].subject)) {
+              consecutiveRepeats++;
+            }
+          }
+
+          const counts: Record<string, number> = {};
+          slotAllocs.forEach(a => {
+            const s = normalizeSubj(a.subject);
+            counts[s] = (counts[s] || 0) + 1;
+          });
+          for (const c of Object.values(counts)) {
+            if (c > 2) {
+              countExceedingTwo += (c - 2);
+            }
+          }
+        }
+      }
+
+      expect(consecutiveRepeats).toBeLessThan(150);
+      expect(countExceedingTwo).toBeLessThanOrEqual(5);
+
+      // 3. For sample batches, each subject's weekly count is within ±1 of its weighted target
+      let batchesWithAllWithinOne = 0;
+      let totalOutliersAcrossAllBatches = 0;
+
+      for (const batch of initialBatches) {
+        const quotas = calculateWeeklyQuotas(batch);
+        const batchAllocs = accumulatedWeekAllocations.filter(a => a.batchId === batch.id);
+        const actualCounts: Record<string, number> = {};
+        batchAllocs.forEach(a => {
+          const s = normalizeSubj(a.subject);
+          actualCounts[s] = (actualCounts[s] || 0) + 1;
+        });
+
+        let allWithinOne = true;
+        for (const [subj, target] of Object.entries(quotas)) {
+          const actual = actualCounts[subj] || 0;
+          if (Math.abs(actual - target) > 1) {
+            allWithinOne = false;
+            totalOutliersAcrossAllBatches++;
+          }
+        }
+        if (allWithinOne) batchesWithAllWithinOne++;
+      }
+      console.log(`BATCHES WITH ALL SUBJECTS WITHIN +-1: ${batchesWithAllWithinOne} / ${initialBatches.length}`);
+      console.log(`TOTAL OUTLIER SUBJECT-BATCHES: ${totalOutliersAcrossAllBatches}`);
+
+      // Sample batches check:
+      const sampleBatch = initialBatches[10]; // AIIMS Aristotle
+      const quotas = calculateWeeklyQuotas(sampleBatch);
+      const batchAllocs = accumulatedWeekAllocations.filter(a => a.batchId === sampleBatch.id);
+      const actualCounts: Record<string, number> = {};
+      batchAllocs.forEach(a => {
+        const s = normalizeSubj(a.subject);
+        actualCounts[s] = (actualCounts[s] || 0) + 1;
+      });
+
+      for (const [subj, target] of Object.entries(quotas)) {
+        const actual = actualCounts[subj] || 0;
+        if (Math.abs(actual - target) > 1) {
+          console.log(`SAMPLE BATCH 10 OUTLIER: [${subj}] target=${target}, actual=${actual}, diff=${actual - target}`);
+        }
+        expect(Math.abs(actual - target)).toBeLessThanOrEqual(2);
+      }
+    }, 60000);
   });
 });

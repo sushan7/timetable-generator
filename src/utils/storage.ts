@@ -633,6 +633,7 @@ export const storage = {
       warnings?: Timetable['warnings'];
       frozenViolations?: Timetable['frozenViolations'];
       markGenerated?: boolean;
+      seed?: number;
     }
   ) => {
     try {
@@ -653,6 +654,7 @@ export const storage = {
         unfilledSlots: options?.unfilledSlots ?? existing?.unfilledSlots ?? [],
         warnings: options?.warnings ?? existing?.warnings ?? [],
         frozenViolations: options?.frozenViolations ?? existing?.frozenViolations ?? [],
+        seed: options?.seed ?? existing?.seed,
       };
 
       week[day] = updatedTimetable;

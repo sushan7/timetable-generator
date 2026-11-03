@@ -72,6 +72,7 @@ export interface Timetable {
   unfilledSlots?: UnfilledSlot[];
   warnings?: ScheduleWarning[];
   frozenViolations?: FrozenViolation[];
+  seed?: number;
 }
 
 export interface SchedulerSettings {

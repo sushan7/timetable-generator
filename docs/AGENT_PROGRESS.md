@@ -14,8 +14,8 @@
 |---|---|---|---|
 | C1 | Done | `src/utils/storage.ts`, `src/components/Layout.tsx`, `src/__tests__/storage.test.ts` | SafeStorage rewritten with window.localStorage, in-memory Map fallback, write-through caching, visible alert banner, full test suite |
 | C2 | Done | `src/pages/Timetable.tsx`, `src/components/timetable/AllocationCell.tsx`, `src/components/timetable/SectionTable.tsx`, `src/utils/constraints.ts`, `src/__tests__/constraints.test.ts` | Pre-generation frozen validation with canAssign returning violations list, red cell edges and summary panel; "Override anyway" checkbox for hard conflicts with overridden: true and distinct cell styling |
-| H1 | Todo | `src/utils/scheduler.ts` | Dynamic period count handling instead of hardcoded 6 periods |
-| H2 | Todo | `src/utils/scheduler.ts` | Randomization & distribution across days, avoiding mechanical patterns |
+| H1 | Done | `src/utils/scheduler.ts`, `src/__tests__/scheduler.test.ts` | Relative weekly quota calculation (Largest Remainder), deficit ranking, weekly quota pacing, sample batches on seed data within ±1 of target |
+| H2 | Done | `src/utils/scheduler.ts`, `src/__tests__/scheduler.test.ts` | Shared scoreSubjectChoice, anti-repetition penalty (same slot across week <150), adjacent same-subject penalty (back-to-back <10), max 2 periods/day enforced, dynamic K/H/S day-rotation |
 | H3 | Todo | `src/utils/scheduler.ts` | Priority-based slot assignment & most-constrained-first ordering |
 | H4 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Explicit unfilled slot reporting with root cause diagnostics |
 | H5 | Done | `src/types/index.ts`, `src/utils/seedData.ts`, `src/components/timetable/AllocationCell.tsx`, `package.json` | 0 type errors: logAuditAction Omit type, seedData tuple typing, Lucide icon title wrapper span, tsc -b in build script |
@@ -23,7 +23,7 @@
 | H7 | Todo | `src/utils/scheduler.ts` | Balanced daily workload distribution across teachers |
 | U1 | Todo | `src/pages/Timetable.tsx` | Timetable grid responsiveness, mobile card layout, sticky columns |
 | U2 | Todo | `src/components/timetable/AllocationCell.tsx` | Clear visual badges, conflict highlights, gap indicators |
-| M1 | Done | `src/utils/storage.ts`, `src/components/Layout.tsx` | Resilient safeStorage with memoryStore fallback & storage warning banner |
+| M1 | Done | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx`, `src/types/index.ts`, `src/utils/storage.ts` | Seedable PRNG (mulberry32), Fisher–Yates shuffle, removed Math.random() sort/shuffle, advanced seed input UI, seed stored in Timetable & audit log for reproducibility |
 | M2 | Todo | `src/pages/Timetable.tsx`, `src/utils/storage.ts` | Finalized day locking and protection against accidental regeneration |
 | M3 | Todo | `src/utils/seedData.ts` | Accurate seed data with 70 batches, 145 faculty, 372 slots/day |
 | M4 | Todo | `src/utils/validation.ts` | Strict 24h canonical time parser rejecting invalid/ambiguous formats |

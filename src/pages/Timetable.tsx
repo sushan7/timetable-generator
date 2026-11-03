@@ -109,6 +109,13 @@ export default function Timetable() {
     return !!storage.getTimetableForDay('Monday');
   });
 
+  // M1: Seed state for deterministic and reproducible generation
+  const [currentSeed, setCurrentSeed] = useState<number | undefined>(() => {
+    const existing = storage.getTimetableForDay('Monday');
+    return existing?.seed;
+  });
+  const [manualSeedInput, setManualSeedInput] = useState<string>('');
+
   // Undo / Redo History Stack (Phase 5G)
   const [history, setHistory] = useState<Allocation[][]>([]);
   const [future, setFuture] = useState<Allocation[][]>([]);
@@ -173,6 +180,7 @@ export default function Timetable() {
     setUnfilledSlots(existing?.unfilledSlots || []);
     setWarnings(existing?.warnings || []);
     setFrozenViolations(existing?.frozenViolations || []);
+    setCurrentSeed(existing?.seed);
     setHasGenerated(!!existing);
     setHistory([]);
     setFuture([]);
@@ -184,13 +192,15 @@ export default function Timetable() {
     status: TimetableStatus = currentStatus,
     unfilled: UnfilledSlot[] = unfilledSlots,
     warns: ScheduleWarning[] = warnings,
-    violations: FrozenViolation[] = frozenViolations
+    violations: FrozenViolation[] = frozenViolations,
+    seedToSave: number | undefined = currentSeed
   ) => {
     storage.saveTimetableForDay(day, newAllocations, status, {
       unfilledSlots: unfilled,
       warnings: warns,
       frozenViolations: violations,
       markGenerated: true,
+      seed: seedToSave,
     });
   };
 
@@ -211,7 +221,7 @@ export default function Timetable() {
     setIsReopenConfirmOpen(false);
   };
 
-  // Generate timetable with multi-pass evaluation (Phase 2)
+  // Generate timetable with multi-pass evaluation (Phase 2 & M1)
   const handleGenerate = () => {
     if (currentStatus === 'Finalized') {
       setIsReopenConfirmOpen(true);
@@ -225,13 +235,19 @@ export default function Timetable() {
       setFaculties(freshFaculties);
       setBatches(freshBatches);
 
+      const parsedSeed = manualSeedInput.trim() ? parseInt(manualSeedInput.trim(), 10) : undefined;
+      const seedToUse = !isNaN(parsedSeed as number) ? parsedSeed : undefined;
+
       const weekContext = storage.getWeekAllocationsExcluding(currentDay);
-      const result = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext);
+      const result = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext, {
+        seed: seedToUse,
+      });
 
       pushState(result.allocations);
       setUnfilledSlots(result.unfilled);
       setWarnings(result.warnings);
       setFrozenViolations(result.frozenViolations || []);
+      setCurrentSeed(result.seed);
       setHasGenerated(true);
       setCurrentStatus('Draft');
       persistDay(
@@ -240,7 +256,8 @@ export default function Timetable() {
         'Draft',
         result.unfilled,
         result.warnings,
-        result.frozenViolations || []
+        result.frozenViolations || [],
+        result.seed
       );
       setIsGenerating(false);
     }, 250);
@@ -712,6 +729,23 @@ export default function Timetable() {
                 Patch Absences ({gapCount > 0 ? `${gapCount} Gaps` : `${absentFacultyCount} Absent`})
               </Button>
             )}
+
+            {/* Advanced Seed Input (M1) */}
+            <div className="flex items-center gap-1.5 no-export" title="Optional seed for deterministic, reproducible generation">
+              <input
+                type="number"
+                placeholder="Seed (opt)"
+                value={manualSeedInput}
+                onChange={e => setManualSeedInput(e.target.value)}
+                className="w-24 px-2 py-1.5 text-xs bg-white border border-[#DDD5CE] rounded-md text-[#252326] focus:outline-none focus:border-[#252326]"
+                title="Enter custom PRNG seed for reproducible results"
+              />
+              {currentSeed !== undefined && (
+                <span className="text-[10px] text-[#6E6864] font-mono px-1.5 py-0.5 bg-[#F2EDE7] rounded border border-[#E8E2DC]" title="Last seed used for this timetable">
+                  #{currentSeed}
+                </span>
+              )}
+            </div>
 
             {/* Generate Button */}
             <Button
