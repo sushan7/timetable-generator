@@ -9,8 +9,6 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  Save,
-  Trash2,
   Download,
   Undo2,
   Redo2,
@@ -22,6 +20,7 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  Printer,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type {
@@ -32,24 +31,25 @@ import type {
   TimetableStatus,
   UnfilledSlot,
   ScheduleWarning,
-  SubstituteCandidate,
   FrozenViolation,
 } from '../types';
 import {
   generateTimetableV2,
   patchAbsences,
-  regenerateSingleSlot,
-  getRankedSubstitutes,
-  getSubjectCategory,
 } from '../utils/scheduler';
 import { storage } from '../utils/storage';
 import { SECTIONS, groupBatchesBySection } from '../utils/sections';
-import { checkFacultyConflict, canAssign, isFacultyAbsent } from '../utils/validation';
+import { checkFacultyConflict, isFacultyAbsent } from '../utils/validation';
 import {
   exportTimetableToExcel,
   exportTimetableToPng,
   exportTimetableToPdf,
-} from '../utils/exportUtils';
+} from '../utils/export';
+import { useTimetableQuota } from '../hooks/useTimetableQuota';
+import SlotEditModal, {
+  type SlotEditState,
+  type SlotEditSavePayload,
+} from '../components/timetable/SlotEditModal';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -59,16 +59,6 @@ import DropdownMenu, { type DropdownItem } from '../components/ui/DropdownMenu';
 import DayTabs from '../components/timetable/DayTabs';
 import BalanceBar from '../components/timetable/BalanceBar';
 import SectionTable from '../components/timetable/SectionTable';
-
-interface SlotEditState {
-  batch: Batch;
-  periodIndex: number;
-  currentAllocation?: Allocation;
-  subject: string;
-  facultyId: string;
-  isFrozen: boolean;
-  allowConflictOverride: boolean;
-}
 
 type ViewMode = 'batches' | 'faculty' | 'rooms';
 
@@ -131,7 +121,6 @@ export default function Timetable() {
 
   // Modals
   const [editingSlot, setEditingSlot] = useState<SlotEditState | null>(null);
-  const [substituteCandidates, setSubstituteCandidates] = useState<SubstituteCandidate[]>([]);
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
   const [isUnfilledModalOpen, setIsUnfilledModalOpen] = useState(false);
   const [isUnfilledPanelExpanded, setIsUnfilledPanelExpanded] = useState(true);
@@ -142,6 +131,7 @@ export default function Timetable() {
   const [selectedRoomNumber, setSelectedRoomNumber] = useState<string>('');
 
   const pageRef = useRef<HTMLDivElement>(null);
+  const exportViewRef = useRef<HTMLDivElement>(null);
 
   // Helper to push history
   const pushState = useCallback(
@@ -328,102 +318,38 @@ export default function Timetable() {
       isFrozen: existingAlloc?.frozen ?? false,
       allowConflictOverride: false,
     });
-    setSubstituteCandidates([]);
   };
 
-  // Check conflicts in manual editing dialog (M5 & C2)
-  const conflictEvaluation = useMemo(() => {
-    if (!editingSlot || !editingSlot.facultyId) return null;
-    const selectedFac = faculties.find(f => f.id === editingSlot.facultyId);
-    if (!selectedFac) return null;
-
-    const settings = storage.getSettings();
-    return canAssign(
-      selectedFac,
-      editingSlot.batch,
-      editingSlot.periodIndex,
-      allocations,
-      batches,
-      settings,
-      { dayOfWeek: currentDay, dateKey: currentDay }
-    );
-  }, [editingSlot, faculties, batches, allocations, currentDay]);
-
-  const isHardConflict = Boolean(
-    conflictEvaluation &&
-      !conflictEvaluation.ok &&
-      ['TIME_OVERLAP', 'ABSENT', 'MAX_LOAD', 'BATCH_RESTRICTION'].includes(
-        conflictEvaluation.type || ''
-      )
-  );
-
-  // Load substitute suggestions
-  const handleLoadSubstitutes = () => {
+  const handleRegenerateSlotSuccess = (newAlloc: Allocation) => {
     if (!editingSlot) return;
-    const settings = storage.getSettings();
-    const ranked = getRankedSubstitutes(
-      editingSlot.batch.id,
-      editingSlot.periodIndex,
-      editingSlot.subject,
-      allocations,
-      batches,
-      faculties,
-      settings,
-      currentDay,
-      currentDay
+    const updated = allocations.filter(
+      a => !(a.batchId === editingSlot.batch.id && a.periodIndex === editingSlot.periodIndex)
     );
-    setSubstituteCandidates(ranked);
+    updated.push(newAlloc);
+    pushState(updated);
+    persistDay(currentDay, updated);
   };
 
-  // Regenerate single slot
-  const handleRegenerateSlot = () => {
-    if (!editingSlot || currentStatus === 'Finalized') return;
-    const settings = storage.getSettings();
-    const result = regenerateSingleSlot(
-      editingSlot.batch.id,
-      editingSlot.periodIndex,
-      allocations,
-      batches,
-      faculties,
-      settings,
-      editingSlot.subject,
-      currentDay,
-      currentDay
-    );
+  const handleSaveSlotOverride = (payload: SlotEditSavePayload) => {
+    if (currentStatus === 'Finalized') return;
 
-    if (result.success && result.newAllocation) {
-      const updated = allocations.filter(
-        a => !(a.batchId === editingSlot.batch.id && a.periodIndex === editingSlot.periodIndex)
-      );
-      updated.push(result.newAllocation);
-      pushState(updated);
-      persistDay(currentDay, updated);
-      setEditingSlot(null);
-    } else {
-      alert(result.reason || 'Could not find an available eligible teacher for this slot without causing conflicts.');
-    }
-  };
-
-  // Save manual slot override (Phase 1 C2)
-  const handleSaveSlotOverride = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSlot || currentStatus === 'Finalized') return;
-
-    // Check if hard conflict exists and override is unchecked
-    if (isHardConflict && !editingSlot.allowConflictOverride) {
-      alert('A scheduling conflict was detected (TIME_OVERLAP, ABSENT, MAX_LOAD, or BATCH_RESTRICTION). Please check "Override anyway" to confirm this assignment.');
-      return;
-    }
-
-    const { batch, periodIndex, subject, facultyId, isFrozen } = editingSlot;
-    const oldFacultyId = editingSlot.currentAllocation?.facultyId;
+    const {
+      batch,
+      periodIndex,
+      subject,
+      facultyId,
+      isFrozen,
+      allowConflictOverride,
+      conflictEvaluation,
+      isHardConflict,
+    } = payload;
+    const oldFacultyId = editingSlot?.currentAllocation?.facultyId;
     const updatedAllocations = [...allocations];
     const existingIdx = updatedAllocations.findIndex(
       a => a.batchId === batch.id && a.periodIndex === periodIndex
     );
 
     if (!facultyId) {
-      // Clear slot
       if (existingIdx >= 0) {
         updatedAllocations.splice(existingIdx, 1);
       }
@@ -436,7 +362,7 @@ export default function Timetable() {
       });
     } else {
       const isConflict = Boolean(conflictEvaluation && !conflictEvaluation.ok);
-      const isOverridden = Boolean(isHardConflict && editingSlot.allowConflictOverride);
+      const isOverridden = Boolean(isHardConflict && allowConflictOverride);
       const newAlloc: Allocation = {
         batchId: batch.id,
         periodIndex,
@@ -558,7 +484,7 @@ export default function Timetable() {
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
-      await exportTimetableToExcel(currentDay, batches, allocations, faculties);
+      await exportTimetableToExcel(currentDay, batches, allocations, faculties, currentStatus);
     } catch (e) {
       console.error(e);
       alert('Failed to generate Excel export.');
@@ -568,10 +494,11 @@ export default function Timetable() {
   };
 
   const handleExportPng = async () => {
-    if (!pageRef.current) return;
+    const target = exportViewRef.current || pageRef.current;
+    if (!target) return;
     setIsExporting(true);
     try {
-      await exportTimetableToPng(pageRef.current, currentDay);
+      await exportTimetableToPng(target, currentDay);
     } catch (e) {
       console.error(e);
       alert('Failed to generate PNG export.');
@@ -581,10 +508,9 @@ export default function Timetable() {
   };
 
   const handleExportPdf = async () => {
-    if (!pageRef.current) return;
     setIsExporting(true);
     try {
-      await exportTimetableToPdf(pageRef.current, currentDay);
+      await exportTimetableToPdf(currentDay, batches, allocations, faculties, currentStatus);
     } catch (e) {
       console.error(e);
       alert('Failed to generate PDF export.');
@@ -607,7 +533,7 @@ export default function Timetable() {
       {
         id: 'excel',
         label: 'Export to Excel (.xlsx)',
-        description: 'Styled multi-period workbook with room and faculty data',
+        description: 'Multi-sheet workbook (Summary + individual section sheets)',
         icon: <FileSpreadsheet className="w-4 h-4 text-[#6B2638]" />,
         onClick: handleExportExcel,
         disabled: isExporting || !hasGenerated,
@@ -615,7 +541,7 @@ export default function Timetable() {
       {
         id: 'png',
         label: 'Download Image (PNG)',
-        description: 'High-resolution snapshot for notices & digital displays',
+        description: 'High-resolution snapshot of clean schedule grid',
         icon: <ImageIcon className="w-4 h-4 text-[#B08D57]" />,
         onClick: handleExportPng,
         disabled: isExporting || !hasGenerated,
@@ -623,14 +549,22 @@ export default function Timetable() {
       {
         id: 'pdf',
         label: 'Export Document (PDF)',
-        description: 'Printable A4 landscape document with full headers',
+        description: 'Real vector text with proper section pagination',
         icon: <FileText className="w-4 h-4 text-[#6B2638]" />,
         onClick: handleExportPdf,
         disabled: isExporting || !hasGenerated,
       },
+      {
+        id: 'print',
+        label: 'Print Timetable (A4 Landscape)',
+        description: 'Printable formatted pages with section headers',
+        icon: <Printer className="w-4 h-4 text-[#252326]" />,
+        onClick: () => window.print(),
+        disabled: !hasGenerated,
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isExporting, hasGenerated, currentDay, batches, allocations, faculties]
+    [isExporting, hasGenerated, currentDay, batches, allocations, faculties, currentStatus]
   );
 
   const menuItems: DropdownItem[] = useMemo(
@@ -680,40 +614,12 @@ export default function Timetable() {
 
   const sectionedBatches = useMemo(() => groupBatchesBySection(filteredBatches), [filteredBatches]);
 
-  const quota = useMemo(() => {
-    const otherDays = storage.getWeekAllocationsExcluding(currentDay);
-    const allWeekly = [...otherDays, ...allocations];
-
-    let pcmb = 0;
-    let lang = 0;
-    let other = 0;
-    const settings = storage.getSettings();
-
-    allWeekly.forEach(a => {
-      if (!a.facultyId) return;
-      const cat = getSubjectCategory(a.subject, settings);
-      if (cat === 'Core') pcmb++;
-      else if (cat === 'Language') lang++;
-      else other++;
-    });
-    const total = pcmb + lang + other;
-    const actualPCMBPct = total === 0 ? 0 : Math.round((pcmb / total) * 100);
-    const actualLangPct = total === 0 ? 0 : Math.round((lang / total) * 100);
-    const actualOtherPct = total === 0 ? 0 : Math.max(0, 100 - actualPCMBPct - actualLangPct);
-    return {
-      pcmb,
-      lang,
-      other,
-      targetPCMB: settings.pcmbWeight,
-      targetLang: settings.languageWeight,
-      actualPCMBPct,
-      actualLangPct,
-      actualOtherPct,
-    };
-  }, [allocations, currentDay]);
-
-  const gapCount = allocations.filter(a => a.vacatedFacultyId && !a.facultyId).length;
-  const absentFacultyCount = faculties.filter(f => f.isAbsent).length;
+  // Quota & Balance logic extracted into custom hook (L5)
+  const { quota, gapCount, absentFacultyCount } = useTimetableQuota(
+    currentDay,
+    allocations,
+    faculties
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" ref={pageRef}>
@@ -1232,24 +1138,43 @@ export default function Timetable() {
                 </div>
               )}
 
-              {SECTIONS.map(section => {
-                const sectionBatches = sectionedBatches[section.id];
-                if (!sectionBatches || sectionBatches.length === 0) return null;
-                return (
-                  <SectionTable
-                    key={section.id}
-                    label={section.label}
-                    batches={sectionBatches}
-                    allocations={allocations}
-                    unfilledSlots={unfilledSlots}
-                    frozenViolations={frozenViolations}
-                    getFacultyName={getFacultyName}
-                    isFacultyAbsent={checkIsFacultyAbsent}
-                    onToggleFreeze={toggleFreeze}
-                    onCellClick={handleCellClick}
-                  />
-                );
-              })}
+              <div ref={exportViewRef} className="space-y-6">
+                {SECTIONS.map(section => {
+                  const sectionBatches = sectionedBatches[section.id];
+                  if (!sectionBatches || sectionBatches.length === 0) return null;
+                  return (
+                    <div key={section.id} className="print-section-page space-y-2">
+                      {/* Dedicated Print & Export Header per section (M9) */}
+                      <div className="hidden print:flex items-center justify-between border-b-2 border-[#6B2638] pb-2 text-xs">
+                        <div>
+                          <h2 className="text-base font-bold text-[#6B2638]">
+                            Timetable Pro · {section.label}
+                          </h2>
+                          <p className="text-[11px] text-[#5E5B61]">
+                            Academic Day: <strong>{currentDay}</strong> · Status: <strong>{currentStatus}</strong> · {sectionBatches.length} Batches
+                          </p>
+                        </div>
+                        <div className="text-right text-[11px] text-[#5E5B61]">
+                          <div>Printed: {new Date().toLocaleDateString()}</div>
+                          <div className="font-semibold text-[#252326]">A4 Landscape</div>
+                        </div>
+                      </div>
+
+                      <SectionTable
+                        label={section.label}
+                        batches={sectionBatches}
+                        allocations={allocations}
+                        unfilledSlots={unfilledSlots}
+                        frozenViolations={frozenViolations}
+                        getFacultyName={getFacultyName}
+                        isFacultyAbsent={checkIsFacultyAbsent}
+                        onToggleFreeze={toggleFreeze}
+                        onCellClick={handleCellClick}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -1436,208 +1361,19 @@ export default function Timetable() {
         </div>
       )}
 
-      {/* Manual Slot Override Dialog (Phase 1 C2 & Phase 5H/5I) */}
+      {/* Manual Slot Override Dialog (Extracted into SlotEditModal - L5) */}
       {editingSlot && (
-        <Modal
-          isOpen={true}
+        <SlotEditModal
+          editingSlot={editingSlot}
+          faculties={faculties}
+          batches={batches}
+          allocations={allocations}
+          currentDay={currentDay}
+          currentStatus={currentStatus}
           onClose={() => setEditingSlot(null)}
-          title={`Edit Period ${editingSlot.periodIndex + 1} · ${editingSlot.batch.name}`}
-          subtitle={`${editingSlot.batch.building} · Room ${editingSlot.batch.roomNumber}`}
-          footer={
-            <div className="flex items-center justify-between w-full">
-              <div>
-                {editingSlot.currentAllocation?.facultyId && (
-                  <Button
-                    type="button"
-                    variant="danger"
-                    icon={<Trash2 className="w-4 h-4" />}
-                    onClick={() => setEditingSlot({ ...editingSlot, facultyId: '' })}
-                  >
-                    Clear Slot
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="secondary" onClick={() => setEditingSlot(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  icon={<Save className="w-4 h-4" />}
-                  form="slot-override-form"
-                  disabled={isHardConflict && !editingSlot.allowConflictOverride}
-                >
-                  Save Assignment
-                </Button>
-              </div>
-            </div>
-          }
-        >
-          <form id="slot-override-form" onSubmit={handleSaveSlotOverride} className="space-y-4">
-            <div className="bg-[#F3EEE6] p-3 rounded-md border border-[#A89B8A]/30 space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#252326]/70 font-medium">Campus & Room:</span>
-                <span className="font-semibold text-[#252326]">
-                  Room {editingSlot.batch.roomNumber} · {editingSlot.batch.building}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#252326]/70 font-medium">Slot Timing:</span>
-                <span className="font-semibold text-[#252326]">
-                  {editingSlot.batch.periods[editingSlot.periodIndex]?.startTime} -{' '}
-                  {editingSlot.batch.periods[editingSlot.periodIndex]?.endTime}
-                </span>
-              </div>
-            </div>
-
-            {/* Quick Actions inside Dialog */}
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                icon={<RefreshCw className="w-3.5 h-3.5" />}
-                onClick={handleRegenerateSlot}
-              >
-                Regenerate Slot Only
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                icon={<User className="w-3.5 h-3.5" />}
-                onClick={handleLoadSubstitutes}
-              >
-                Suggest Substitutes
-              </Button>
-            </div>
-
-            {/* Substitute candidates list */}
-            {substituteCandidates.length > 0 && (
-              <div className="p-3 bg-white rounded border border-[#A89B8A]/30 space-y-2">
-                <span className="text-[11px] font-bold text-[#6B2638] uppercase block">
-                  Top Recommended Substitute Candidates
-                </span>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                  {substituteCandidates.map(c => (
-                    <div
-                      key={c.faculty.id}
-                      className="flex items-center justify-between p-2 rounded bg-[#F8F7F3] border border-[#A89B8A]/20 text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-[#252326]">{c.faculty.name}</span>
-                        <div className="text-[10px] text-[#252326]/60">
-                          {c.faculty.subjects.join(', ')} · Daily load: {c.currentDayLoad}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          setEditingSlot({
-                            ...editingSlot,
-                            facultyId: c.faculty.id,
-                            allowConflictOverride: false,
-                          })
-                        }
-                      >
-                        Select
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label htmlFor="slot-edit-subject" className="text-xs font-semibold text-[#252326]">Subject</label>
-              <select
-                id="slot-edit-subject"
-                value={editingSlot.subject}
-                onChange={e => setEditingSlot({ ...editingSlot, subject: e.target.value })}
-                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
-              >
-                {editingSlot.batch.subjects.map(s => (
-                  <option key={s.subject} value={s.subject}>
-                    {s.subject}
-                  </option>
-                ))}
-                {!editingSlot.batch.subjects.some(s => s.subject === editingSlot.subject) && (
-                  <option value={editingSlot.subject}>{editingSlot.subject}</option>
-                )}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="slot-edit-faculty" className="text-xs font-semibold text-[#252326]">Assigned Instructor</label>
-              <select
-                id="slot-edit-faculty"
-                value={editingSlot.facultyId}
-                onChange={e =>
-                  setEditingSlot({
-                    ...editingSlot,
-                    facultyId: e.target.value,
-                    allowConflictOverride: false,
-                  })
-                }
-                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
-              >
-                <option value="">-- Vacant (Free Period) --</option>
-                {faculties
-                  .filter(f => f.subjects.includes(editingSlot.subject))
-                  .map(f => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} {f.isAbsent ? '(ABSENT)' : ''}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {/* Conflict Warning & Confirmation Checkbox (C2) */}
-            {conflictEvaluation && !conflictEvaluation.ok && (
-              <div className="p-3 bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] rounded-md text-xs space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-bold">Scheduling Conflict Detected:</strong>
-                    <p className="mt-0.5 leading-relaxed">{conflictEvaluation.reason}</p>
-                  </div>
-                </div>
-                {isHardConflict && (
-                  <label htmlFor="slot-conflict-override" className="flex items-center gap-2 pt-2 border-t border-[#ECD9DE] cursor-pointer font-bold select-none text-[#6B2638]">
-                    <input
-                      id="slot-conflict-override"
-                      type="checkbox"
-                      checked={editingSlot.allowConflictOverride}
-                      onChange={e =>
-                        setEditingSlot({ ...editingSlot, allowConflictOverride: e.target.checked })
-                      }
-                      className="w-4 h-4 text-[#6B2638] focus:ring-[#6B2638] rounded"
-                    />
-                    <span>Override anyway</span>
-                  </label>
-                )}
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-[#A89B8A]/20">
-              <label htmlFor="slot-is-frozen" className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252326] select-none">
-                <input
-                  id="slot-is-frozen"
-                  type="checkbox"
-                  checked={editingSlot.isFrozen}
-                  onChange={e => setEditingSlot({ ...editingSlot, isFrozen: e.target.checked })}
-                  className="w-4 h-4 text-[#6B2638] focus:ring-[#6B2638] rounded"
-                />
-                <span className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-[#6B2638]" />
-                  Freeze this slot (protect from future automatic regeneration)
-                </span>
-              </label>
-            </div>
-          </form>
-        </Modal>
+          onSave={handleSaveSlotOverride}
+          onRegenerateSlotSuccess={handleRegenerateSlotSuccess}
+        />
       )}
 
       {/* Full Day Validation Audit Report Modal (Phase 5C) */}

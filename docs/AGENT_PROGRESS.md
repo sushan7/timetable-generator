@@ -3,7 +3,7 @@
 ## Baseline Verification
 - **Baseline Typecheck (`npx tsc -b`)**: 0 errors
 - **Baseline Lint (`npx eslint .`)**: 0 errors, 0 warnings
-- **Baseline Test Suite (`npm test`)**: 6 test files, 70 tests passing
+- **Baseline Test Suite (`npm test`)**: 7 test files, 73 tests passing
 - **Baseline Build (`npm run build`)**: Passing with zero errors
 
 ---
@@ -31,9 +31,9 @@
 | M6 | Done | `src/types/index.ts`, `src/utils/seedData.ts`, `src/utils/storage.ts`, `src/utils/scheduler.ts`, `src/pages/Settings.tsx`, `src/components/timetable/BalanceBar.tsx`, `src/pages/Timetable.tsx`, `src/__tests__/management.test.ts` | Subject categories (Core | Language | Other) editable in Settings with defaults (Physics/Chemistry/Mathematics/Biology Core; English and K/H/S Language; rest Other); scheduler deficit logic and BalanceBar treat Other subjects (e.g. Computer Science) distinctly so they are never counted as languages; legacy Second Language -> K/H/S normalisation preserved |
 | M7 | Done | `src/pages/Settings.tsx`, `src/components/timetable/DayTabs.tsx`, `src/utils/validation.ts`, `src/pages/Timetable.tsx`, `src/__tests__/management.test.ts` | Settings validation: integer weights 0-100 with normalized percentage helper text (Core % · Languages %), saving blocked when both are 0; maxDailyPeriods validated 1-8; weekStartDay implemented with DayTabs display order and keyboard arrow navigation following it |
 | M8 | Done | `src/pages/Faculty.tsx`, `src/utils/storage.ts`, `src/__tests__/management.test.ts` | Case-insensitive duplicate detection on add/import offering to merge; seed data VAISHNAVI and ASHWINI listed under "Possible duplicates" with review & merge actions (individual and bulk merge) re-linking stored allocations to primary profile |
-| M9 | Todo | `src/utils/storage.ts` | Date-specific absence tracking |
+| M9 | Done | `src/utils/export.ts`, `src/utils/exportUtils.ts`, `src/index.css`, `src/__tests__/export.test.ts` | Dedicated export/print view per section (A4 landscape, header with day/status/date) and @media print styles; vector PDF via jsPDF + jspdf-autotable with real selectable text and proper section pagination; ExcelJS multi-sheet export (Summary sheet + one sheet per section with real batch period counts); removed oklch colour-sanitising hack |
 | M10 | Done | `src/pages/Timetable.tsx`, `src/pages/Batches.tsx`, `src/pages/Faculty.tsx`, `src/components/timetable/BalanceBar.tsx`, `src/components/AuditLogView.tsx`, `src/components/timetable/SectionTable.tsx` | Cleaned up literal &middot; (replaced with ·) and HTML entities (&amp;, &quot;, &ldquo;, &rdquo;) across JS/TSX strings |
-| M11 | Todo | `src/utils/exportUtils.ts` | High-res PNG and A4 landscape PDF export with color sanitization |
+| M11 | Done | `src/utils/export.ts` | Unified high-res PNG and vector A4 PDF export integrated into M9 |
 | N1 | Todo | `src/pages/Batches.tsx` | Safe batch deletion with confirmation modal showing affected links |
 | N2 | Todo | `src/pages/Batches.tsx` | Full batch editing modal (timings, subjects, categories, weights) |
 | N3 | Todo | `src/pages/Settings.tsx` | System backup export to JSON with metadata and schema version |
@@ -49,7 +49,7 @@
 | L2 | Done | `src/components/timetable/SectionTable.tsx` | Accessible table semantics with scope="col" on period headers and scope="row" on batch headers |
 | L3 | Todo | `src/components/ui/Button.tsx`, `src/components/ui/` | Focus ring visibility and contrast standards (WCAG AA) |
 | L4 | Todo | `src/components/AuditLogView.tsx` | Accessible modal confirmation for audit trail clearing |
-| L5 | Todo | `src/pages/Timetable.tsx` | First-run onboarding 3-step guide when no timetable exists |
+| L5 | Done | `src/pages/Timetable.tsx`, `src/components/timetable/SlotEditModal.tsx`, `src/hooks/useTimetableQuota.ts`, `src/utils/export.ts` | Split Timetable.tsx: extracted SlotEditModal component (~270 lines), extracted quota and balance metrics into useTimetableQuota hook, and moved export code into src/utils/export.ts with 0 behavior change |
 | T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, and scheduler (40 tests passing) |
 | accessibility | Done | Across app (`Modal.tsx`, `DayTabs.tsx`, `AllocationCell.tsx`, form inputs, contrast) | Linked every label to its input via htmlFor/id, aria-labelledby, focus trap and focus restore on Modal, aria-controls on DayTabs, icons+text for every status (no color reliance), absent teachers flagged on grid immediately, WCAG AA contrast compliant |
 | theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
