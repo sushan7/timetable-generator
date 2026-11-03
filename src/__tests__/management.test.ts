@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { storage, type WeekTimetables } from '../utils/storage';
-import { validateFacultyRecord, checkTimetableOverlaps } from '../utils/validation';
-import type { Faculty, Batch, Allocation } from '../types';
-import { initialFaculty } from '../utils/seedData';
+import { storage, type WeekTimetables, defaultSettings } from '../utils/storage';
+import { validateFacultyRecord, checkTimetableOverlaps, getTabsOrder } from '../utils/validation';
+import type { Faculty, Batch, Allocation, SchedulerSettings } from '../types';
+import { initialFaculty, inferSubjectCategory } from '../utils/seedData';
+import { getSubjectCategory, isLanguageSubject, isPCMBSubject } from '../utils/scheduler';
 
 describe('Faculty & Batch Management (H6, H7, M8)', () => {
   beforeEach(() => {
@@ -358,6 +359,147 @@ describe('Faculty & Batch Management (H6, H7, M8)', () => {
       const monTT = storage.getTimetableForDay('Monday');
       const updatedAlloc = monTT?.allocations.find(a => a.batchId === 'batch_m1');
       expect(updatedAlloc?.facultyId).toBe('fac_v1');
+    });
+  });
+
+  describe('Subject Categories (M6)', () => {
+    it('classifies PCMB as Core, English and K/H/S as Language, and rest as Other by default', () => {
+      expect(inferSubjectCategory('Physics')).toBe('Core');
+      expect(inferSubjectCategory('Chemistry')).toBe('Core');
+      expect(inferSubjectCategory('Mathematics')).toBe('Core');
+      expect(inferSubjectCategory('Biology')).toBe('Core');
+
+      expect(inferSubjectCategory('English')).toBe('Language');
+      expect(inferSubjectCategory('K/H/S')).toBe('Language');
+      expect(inferSubjectCategory('Second Language')).toBe('Language');
+      expect(inferSubjectCategory('Kannada')).toBe('Language');
+      expect(inferSubjectCategory('Hindi')).toBe('Language');
+      expect(inferSubjectCategory('Sanskrit')).toBe('Language');
+
+      expect(inferSubjectCategory('Computer Science')).toBe('Other');
+      expect(inferSubjectCategory('Electronics')).toBe('Other');
+      expect(inferSubjectCategory('Physical Education')).toBe('Other');
+    });
+
+    it('ensures "Other" subjects (e.g. Computer Science) are not counted as languages', () => {
+      expect(isLanguageSubject('Computer Science')).toBe(false);
+      expect(isPCMBSubject('Computer Science')).toBe(false);
+
+      expect(isLanguageSubject('Electronics')).toBe(false);
+      expect(isLanguageSubject('Second Language')).toBe(true);
+      expect(isLanguageSubject('K/H/S')).toBe(true);
+    });
+
+    it('respects custom subject category overrides configured in settings', () => {
+      const customSettings: SchedulerSettings = {
+        ...defaultSettings,
+        subjectCategories: {
+          'Computer Science': 'Core',
+          Philosophy: 'Other',
+          French: 'Language',
+        },
+      };
+
+      expect(getSubjectCategory('Computer Science', customSettings)).toBe('Core');
+      expect(isPCMBSubject('Computer Science', customSettings)).toBe(true);
+      expect(isLanguageSubject('Computer Science', customSettings)).toBe(false);
+
+      expect(getSubjectCategory('French', customSettings)).toBe('Language');
+      expect(isLanguageSubject('French', customSettings)).toBe(true);
+
+      expect(getSubjectCategory('Philosophy', customSettings)).toBe('Other');
+    });
+  });
+
+  describe('Settings Validation & weekStartDay (M7)', () => {
+    it('generates expected tab orders following weekStartDay', () => {
+      // Monday start (default academic week)
+      expect(getTabsOrder('Monday')).toEqual([
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+      ]);
+      expect(getTabsOrder(undefined)).toEqual([
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+      ]);
+
+      // Sunday start
+      expect(getTabsOrder('Sunday')).toEqual([
+        'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+      ]);
+
+      // Rotated start on Tuesday
+      expect(getTabsOrder('Tuesday')).toEqual([
+        'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Monday',
+      ]);
+
+      // Rotated start on Thursday
+      expect(getTabsOrder('Thursday')).toEqual([
+        'Thursday', 'Friday', 'Saturday', 'Monday', 'Tuesday', 'Wednesday',
+      ]);
+    });
+  });
+
+  describe('Finalized Protection & Timestamps (M2)', () => {
+    it('prevents regenerating or silently flipping Finalized day to Draft without Reopen', () => {
+      const initialAlloc: Allocation = {
+        batchId: 'batch_f1',
+        periodIndex: 0,
+        facultyId: 'fac_1',
+        subject: 'Physics',
+      };
+
+      // Save as Finalized
+      storage.saveTimetableForDay('Monday', [initialAlloc], 'Finalized', { markGenerated: true });
+      const finalizedTT = storage.getTimetableForDay('Monday');
+      expect(finalizedTT?.status).toBe('Finalized');
+      const genTime = finalizedTT?.lastGeneratedAt;
+      expect(genTime).toBeTypeOf('number');
+
+      // Attempting to overwrite with Draft generation without reopening must be blocked
+      const attemptAlloc: Allocation = {
+        batchId: 'batch_f1',
+        periodIndex: 0,
+        facultyId: 'fac_2',
+        subject: 'Chemistry',
+      };
+      const result = storage.saveTimetableForDay('Monday', [attemptAlloc], 'Draft', { markGenerated: true });
+      expect(result?.status).toBe('Finalized');
+
+      const recheckedTT = storage.getTimetableForDay('Monday');
+      expect(recheckedTT?.status).toBe('Finalized');
+      // Original allocations preserved
+      expect(recheckedTT?.allocations[0].facultyId).toBe('fac_1');
+    });
+
+    it('changes lastGeneratedAt only on generation and preserves it while updating updatedAt on manual edits', async () => {
+      const alloc: Allocation = {
+        batchId: 'batch_ts',
+        periodIndex: 0,
+        facultyId: 'fac_1',
+        subject: 'Physics',
+      };
+
+      // 1. Generation sets lastGeneratedAt
+      const t1 = Date.now();
+      storage.saveTimetableForDay('Tuesday', [alloc], 'Draft', { markGenerated: true });
+      const tt1 = storage.getTimetableForDay('Tuesday')!;
+      expect(tt1.lastGeneratedAt).toBeGreaterThanOrEqual(t1);
+      const originalGenAt = tt1.lastGeneratedAt;
+
+      // Small delay to ensure timestamp separation
+      await new Promise(r => setTimeout(r, 15));
+
+      // 2. Manual edit (markGenerated not passed / false)
+      const editedAlloc: Allocation = {
+        ...alloc,
+        subject: 'Chemistry',
+      };
+      storage.saveTimetableForDay('Tuesday', [editedAlloc], 'Draft', { markGenerated: false });
+      const tt2 = storage.getTimetableForDay('Tuesday')!;
+
+      // lastGeneratedAt remains identical to original generation timestamp!
+      expect(tt2.lastGeneratedAt).toBe(originalGenAt);
+      // updatedAt is updated to newer timestamp
+      expect(tt2.updatedAt).toBeGreaterThan(originalGenAt!);
     });
   });
 });

@@ -73,7 +73,7 @@ export default function AuditLogView() {
               <option value="SLOT_REGENERATE">Slot Regenerations</option>
               <option value="FACULTY_DELETE">Faculty Deletions</option>
               <option value="BATCH_DELETE">Batch Deletions</option>
-              <option value="BACKUP_RESTORE">Backups &amp; Restores</option>
+              <option value="BACKUP_RESTORE">Backups & Restores</option>
             </select>
           </div>
 
@@ -105,7 +105,7 @@ export default function AuditLogView() {
               <tr className="bg-[#FAF7F2] border-b border-[#E5E0D8] text-xs text-[#5E5B61] font-semibold">
                 <th className="p-3.5 w-48">Timestamp</th>
                 <th className="p-3.5 w-44">Action Type</th>
-                <th className="p-3.5">Event Details &amp; Justification</th>
+                <th className="p-3.5">Event Details & Justification</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E0D8] text-sm">

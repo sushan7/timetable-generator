@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import type { Batch, PeriodTiming, BatchSubject } from '../types';
 import { storage } from '../utils/storage';
-import { parseTimeMinutesStrict, checkTimetableOverlaps, type TimetableOverlapConflict } from '../utils/validation';
+import { parseTimeMinutesStrict, normalizeTimeToHHmm, checkTimetableOverlaps, type TimetableOverlapConflict } from '../utils/validation';
 import { inferSubjectCategory } from '../utils/seedData';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -81,6 +81,35 @@ export default function Batches() {
   const saveToStorage = (updatedBatches: Batch[]) => {
     storage.setBatches(updatedBatches);
     setBatches(updatedBatches);
+  };
+
+  const getPeriodInlineError = (
+    p: PeriodTiming,
+    index: number,
+    allPeriods: PeriodTiming[]
+  ): string | null => {
+    if (!p.startTime && !p.endTime) return null;
+    if (p.startTime && !p.endTime) return 'Missing end time';
+    if (!p.startTime && p.endTime) return 'Missing start time';
+
+    const start = parseTimeMinutesStrict(p.startTime);
+    const end = parseTimeMinutesStrict(p.endTime);
+
+    if (start === null) return `Invalid start: "${p.startTime}"`;
+    if (end === null) return `Invalid end: "${p.endTime}"`;
+    if (start >= end) return 'Start must be before end';
+
+    for (let prevIdx = index - 1; prevIdx >= 0; prevIdx--) {
+      const prev = allPeriods[prevIdx];
+      if (prev && prev.startTime && prev.endTime) {
+        const prevEnd = parseTimeMinutesStrict(prev.endTime);
+        if (prevEnd !== null && start < prevEnd) {
+          return `Starts before P${prevIdx + 1} ends (${prev.endTime})`;
+        }
+        break;
+      }
+    }
+    return null;
   };
 
   const validatePeriods = (timings: PeriodTiming[]): string | null => {
@@ -180,7 +209,11 @@ export default function Batches() {
       return;
     }
 
-    const paddedPeriods = [...modalPeriods];
+    const normalizedPeriods = modalPeriods.map(p => ({
+      startTime: p.startTime ? (normalizeTimeToHHmm(p.startTime) || p.startTime) : '',
+      endTime: p.endTime ? (normalizeTimeToHHmm(p.endTime) || p.endTime) : '',
+    }));
+    const paddedPeriods = [...normalizedPeriods];
     while (paddedPeriods.length < 6) {
       paddedPeriods.push({ startTime: '', endTime: '' });
     }
@@ -783,38 +816,56 @@ export default function Batches() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {modalPeriods.map((period, i) => (
-                <div
-                  key={i}
-                  className="p-2.5 bg-[#F3EEE6]/70 rounded border border-[#A89B8A]/30 space-y-1 text-center"
-                >
-                  <div className="text-[11px] font-semibold text-[#6B2638]">Period {i + 1}</div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <input
-                      type="time"
-                      value={period.startTime}
-                      onChange={e => {
-                        const newP = [...modalPeriods];
-                        newP[i] = { ...newP[i], startTime: e.target.value };
-                        setModalPeriods(newP);
-                      }}
-                      className="w-full text-xs p-1.5 border border-[#A89B8A]/30 rounded bg-white text-center focus:border-[#6B2638] outline-none text-[#252326]"
-                      title="Start Time"
-                    />
-                    <input
-                      type="time"
-                      value={period.endTime}
-                      onChange={e => {
-                        const newP = [...modalPeriods];
-                        newP[i] = { ...newP[i], endTime: e.target.value };
-                        setModalPeriods(newP);
-                      }}
-                      className="w-full text-xs p-1.5 border border-[#A89B8A]/30 rounded bg-white text-center focus:border-[#6B2638] outline-none text-[#252326]"
-                      title="End Time"
-                    />
+              {modalPeriods.map((period, i) => {
+                const inlineError = getPeriodInlineError(period, i, modalPeriods);
+                return (
+                  <div
+                    key={i}
+                    className={`p-2.5 rounded border space-y-1 text-center transition-colors ${
+                      inlineError
+                        ? 'bg-[#FAF0F2] border-[#ECD9DE]'
+                        : 'bg-[#F3EEE6]/70 border-[#A89B8A]/30'
+                    }`}
+                  >
+                    <div className="text-[11px] font-semibold text-[#6B2638]">Period {i + 1}</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="HH:mm"
+                        value={period.startTime}
+                        onChange={e => {
+                          const newP = [...modalPeriods];
+                          newP[i] = { ...newP[i], startTime: e.target.value };
+                          setModalPeriods(newP);
+                        }}
+                        className={`w-full text-xs p-1.5 border rounded bg-white text-center outline-none text-[#252326] ${
+                          inlineError ? 'border-[#A63232] focus:border-[#A63232]' : 'border-[#A89B8A]/30 focus:border-[#6B2638]'
+                        }`}
+                        title="Start Time"
+                      />
+                      <input
+                        type="text"
+                        placeholder="HH:mm"
+                        value={period.endTime}
+                        onChange={e => {
+                          const newP = [...modalPeriods];
+                          newP[i] = { ...newP[i], endTime: e.target.value };
+                          setModalPeriods(newP);
+                        }}
+                        className={`w-full text-xs p-1.5 border rounded bg-white text-center outline-none text-[#252326] ${
+                          inlineError ? 'border-[#A63232] focus:border-[#A63232]' : 'border-[#A89B8A]/30 focus:border-[#6B2638]'
+                        }`}
+                        title="End Time"
+                      />
+                    </div>
+                    {inlineError && (
+                      <p className="text-[10px] text-[#A63232] font-semibold leading-tight mt-0.5">
+                        {inlineError}
+                      </p>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -913,7 +964,7 @@ export default function Batches() {
               <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
               <div className="text-xs text-[#252326] space-y-1">
                 <p className="font-semibold text-[#6B2638]">
-                  You are about to delete batch &ldquo;{batchToDelete.name}&rdquo; ({batchToDelete.building}, Room {batchToDelete.roomNumber}).
+                  You are about to delete batch "{batchToDelete.name}" ({batchToDelete.building}, Room {batchToDelete.roomNumber}).
                 </p>
                 <p>
                   This action will remove all scheduled allocations for this batch across all weekly timetables and cleanly unlock any faculty members currently pinned to it.

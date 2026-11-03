@@ -162,7 +162,7 @@ export default function SectionTable({
             <thead>
               <tr className="bg-[#FAF7F2] border-b border-[#E5E0D8] text-xs font-semibold text-[#5E5B61]">
                 <th className="p-3 w-56 sticky left-0 z-20 bg-[#FAF7F2] border-r border-[#E5E0D8] shadow-[1px_0_0_0_#E5E0D8]">
-                  Batch &amp; Classroom
+                  Batch & Classroom
                 </th>
                 {Array.from({ length: maxPeriods }).map((_, i) => {
                   const timing = getPeriodHeaderLabel(i);

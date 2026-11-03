@@ -40,7 +40,7 @@ import {
   patchAbsences,
   regenerateSingleSlot,
   getRankedSubstitutes,
-  PCMB_SUBJECTS,
+  getSubjectCategory,
 } from '../utils/scheduler';
 import { storage } from '../utils/storage';
 import { SECTIONS, groupBatchesBySection } from '../utils/sections';
@@ -196,13 +196,14 @@ export default function Timetable() {
     unfilled: UnfilledSlot[] = unfilledSlots,
     warns: ScheduleWarning[] = warnings,
     violations: FrozenViolation[] = frozenViolations,
-    seedToSave: number | undefined = currentSeed
+    seedToSave: number | undefined = currentSeed,
+    markGenerated: boolean = false
   ) => {
     storage.saveTimetableForDay(day, newAllocations, status, {
       unfilledSlots: unfilled,
       warnings: warns,
       frozenViolations: violations,
-      markGenerated: true,
+      markGenerated,
       seed: seedToSave,
     });
   };
@@ -262,7 +263,8 @@ export default function Timetable() {
         result.unfilled,
         result.warnings,
         result.frozenViolations || [],
-        result.seed
+        result.seed,
+        true
       );
       setIsGenerating(false);
     }, 250);
@@ -375,7 +377,7 @@ export default function Timetable() {
 
   // Regenerate single slot
   const handleRegenerateSlot = () => {
-    if (!editingSlot) return;
+    if (!editingSlot || currentStatus === 'Finalized') return;
     const settings = storage.getSettings();
     const result = regenerateSingleSlot(
       editingSlot.batch.id,
@@ -405,7 +407,7 @@ export default function Timetable() {
   // Save manual slot override (Phase 1 C2)
   const handleSaveSlotOverride = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingSlot) return;
+    if (!editingSlot || currentStatus === 'Finalized') return;
 
     // Check if hard conflict exists and override is unchecked
     if (isHardConflict && !editingSlot.allowConflictOverride) {
@@ -641,21 +643,29 @@ export default function Timetable() {
 
     let pcmb = 0;
     let lang = 0;
+    let other = 0;
+    const settings = storage.getSettings();
+
     allWeekly.forEach(a => {
       if (!a.facultyId) return;
-      if (PCMB_SUBJECTS.includes(a.subject)) pcmb++;
-      else lang++;
+      const cat = getSubjectCategory(a.subject, settings);
+      if (cat === 'Core') pcmb++;
+      else if (cat === 'Language') lang++;
+      else other++;
     });
-    const total = pcmb + lang;
-    const settings = storage.getSettings();
+    const total = pcmb + lang + other;
     const actualPCMBPct = total === 0 ? 0 : Math.round((pcmb / total) * 100);
+    const actualLangPct = total === 0 ? 0 : Math.round((lang / total) * 100);
+    const actualOtherPct = total === 0 ? 0 : Math.max(0, 100 - actualPCMBPct - actualLangPct);
     return {
       pcmb,
       lang,
+      other,
       targetPCMB: settings.pcmbWeight,
       targetLang: settings.languageWeight,
       actualPCMBPct,
-      actualLangPct: total === 0 ? 0 : 100 - actualPCMBPct,
+      actualLangPct,
+      actualOtherPct,
     };
   }, [allocations, currentDay]);
 
@@ -990,6 +1000,7 @@ export default function Timetable() {
           currentDay={currentDay}
           onSelect={handleSelectDay}
           hasData={d => !!storage.getTimetableForDay(d)}
+          weekStartDay={storage.getSettings().weekStartDay}
         />
       </div>
 
@@ -1125,7 +1136,7 @@ export default function Timetable() {
                   <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
                     2
                   </div>
-                  <h4 className="text-xs font-bold text-[#252326]">Review Batches &amp; Timings</h4>
+                  <h4 className="text-xs font-bold text-[#252326]">Review Batches & Timings</h4>
                   <p className="text-[11px] text-[#252326]/60 leading-normal">
                     Inspect active period timings across {batches.length} classroom sections.
                   </p>
@@ -1256,7 +1267,7 @@ export default function Timetable() {
                   <div>
                     <h3 className="text-sm font-bold text-[#252326]">{targetFaculty.name}</h3>
                     <p className="text-xs text-[#252326]/60">
-                      Subjects: {targetFaculty.subjects.join(', ')} &middot; Daily Limit: {targetFaculty.maxPeriodsPerDay || 3} periods
+                      Subjects: {targetFaculty.subjects.join(', ')} · Daily Limit: {targetFaculty.maxPeriodsPerDay || 3} periods
                     </p>
                   </div>
                   {targetFaculty.isAbsent && <Badge tone="danger">Currently Absent</Badge>}

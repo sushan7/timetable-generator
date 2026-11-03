@@ -14,9 +14,10 @@ import {
   FileCheck,
   Info,
 } from 'lucide-react';
-import type { SchedulerSettings, BackupData } from '../types';
+import type { SchedulerSettings, BackupData, SubjectCategory, DayOfWeek } from '../types';
 import { storage, defaultSettings } from '../utils/storage';
 import { calculateCapacityReport } from '../utils/scheduler';
+import { inferSubjectCategory } from '../utils/seedData';
 import AuditLogView from '../components/AuditLogView';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -42,10 +43,50 @@ export default function SettingsView() {
   const batches = useMemo(() => storage.getBatches(), []);
   const faculty = useMemo(() => storage.getFaculty(), []);
 
+  const [newSubjName, setNewSubjName] = useState('');
+  const [newSubjCategory, setNewSubjCategory] = useState<SubjectCategory>('Other');
+
   // Capacity calculation
   const capacityReport = useMemo(() => {
     return calculateCapacityReport(batches, faculty, settings);
   }, [batches, faculty, settings]);
+
+  const allKnownSubjects = useMemo(() => {
+    const set = new Set<string>();
+    ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'English', 'K/H/S', 'Kannada', 'Hindi', 'Sanskrit'].forEach(s => set.add(s));
+    batches.forEach(b => (b.subjects || []).forEach(s => {
+      const norm = s.subject === 'Second Language' ? 'K/H/S' : s.subject;
+      set.add(norm);
+    }));
+    faculty.forEach(f => (f.subjects || []).forEach(s => {
+      const norm = s === 'Second Language' ? 'K/H/S' : s;
+      set.add(norm);
+    }));
+    if (settings.subjectCategories) {
+      Object.keys(settings.subjectCategories).forEach(s => set.add(s));
+    }
+    return Array.from(set).sort();
+  }, [batches, faculty, settings.subjectCategories]);
+
+  const handleCategoryChange = (subject: string, category: SubjectCategory) => {
+    const norm = subject === 'Second Language' ? 'K/H/S' : subject;
+    setSettings(prev => ({
+      ...prev,
+      subjectCategories: {
+        ...(prev.subjectCategories || {}),
+        [norm]: category,
+      },
+    }));
+  };
+
+  const handleAddCustomSubject = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newSubjName.trim();
+    if (!trimmed) return;
+    const norm = trimmed === 'Second Language' ? 'K/H/S' : trimmed;
+    handleCategoryChange(norm, newSubjCategory);
+    setNewSubjName('');
+  };
 
   const handleChange = <K extends keyof SchedulerSettings>(key: K, value: SchedulerSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -56,19 +97,29 @@ export default function SettingsView() {
     e.preventDefault();
 
     // M7: Settings Validation
-    if (settings.maxDailyPeriods < 1 || settings.maxDailyPeriods > 10) {
-      setValidationError('Max daily periods must be between 1 and 10.');
+    if (
+      !Number.isInteger(settings.maxDailyPeriods) ||
+      settings.maxDailyPeriods < 1 ||
+      settings.maxDailyPeriods > 8
+    ) {
+      setValidationError('Max daily periods must be an integer between 1 and 8.');
       return;
     }
 
-    if (settings.pcmbWeight < 0 || settings.languageWeight < 0) {
-      setValidationError('Subject distribution weights must be non-negative.');
+    if (
+      !Number.isInteger(settings.pcmbWeight) ||
+      settings.pcmbWeight < 0 ||
+      settings.pcmbWeight > 100 ||
+      !Number.isInteger(settings.languageWeight) ||
+      settings.languageWeight < 0 ||
+      settings.languageWeight > 100
+    ) {
+      setValidationError('Subject distribution weights must be integers between 0 and 100.');
       return;
     }
 
-    const totalWeight = settings.pcmbWeight + settings.languageWeight;
-    if (totalWeight <= 0) {
-      setValidationError('Combined weight of PCMB and Languages must be greater than zero.');
+    if (settings.pcmbWeight === 0 && settings.languageWeight === 0) {
+      setValidationError('Subject distribution weights cannot both be 0.');
       return;
     }
 
@@ -292,6 +343,95 @@ export default function SettingsView() {
                 </div>
               </div>
 
+              {/* Normalized percentage helper text (M7) */}
+              {(() => {
+                const totalWeight = (settings.pcmbWeight || 0) + (settings.languageWeight || 0);
+                const corePct = totalWeight > 0 ? Math.round((settings.pcmbWeight / totalWeight) * 100) : 0;
+                const langPct = totalWeight > 0 ? 100 - corePct : 0;
+                return (
+                  <div className="p-2.5 bg-[#FAF7F2] rounded border border-[#E5E0D8] text-xs flex items-center justify-between">
+                    <span className="text-[#252326]/70">Normalized Distribution Target:</span>
+                    <span className="font-semibold text-[#252326]">
+                      {totalWeight > 0 ? (
+                        <>Core {corePct}% · Languages {langPct}%</>
+                      ) : (
+                        <span className="text-[#A63232]">Both weights cannot be 0</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
+
+              <hr className="border-[#A89B8A]/20" />
+
+              {/* Subject Categories (M6) */}
+              <div>
+                <h3 className="text-base font-bold text-[#252326] leading-snug">
+                  Curriculum Subject Categories
+                </h3>
+                <p className="text-xs text-[#252326]/60 mt-0.5">
+                  Categorize subjects as Core (PCMB), Language, or Other. Other subjects (e.g. Computer Science) are never counted as languages.
+                </p>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {allKnownSubjects.map(subj => {
+                  const currentCat =
+                    settings.subjectCategories?.[subj] ||
+                    inferSubjectCategory(subj, settings.subjectCategories);
+                  return (
+                    <div
+                      key={subj}
+                      className="flex items-center justify-between p-2.5 bg-white border border-[#A89B8A]/30 rounded-md text-xs"
+                    >
+                      <span className="font-semibold text-[#252326]">{subj}</span>
+                      <div className="flex items-center gap-1">
+                        {(['Core', 'Language', 'Other'] as const).map(cat => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => handleCategoryChange(subj, cat)}
+                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                              currentCat === cat
+                                ? cat === 'Core'
+                                  ? 'bg-[#6B2638] text-white shadow-2xs'
+                                  : cat === 'Language'
+                                  ? 'bg-[#B08D57] text-white shadow-2xs'
+                                  : 'bg-[#5C6B73] text-white shadow-2xs'
+                                : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E8E2D9]'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  placeholder="New subject name (e.g. Computer Science)"
+                  value={newSubjName}
+                  onChange={e => setNewSubjName(e.target.value)}
+                  className="flex-1 px-3 py-1.5 border border-[#A89B8A]/40 rounded-md text-xs bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+                />
+                <select
+                  value={newSubjCategory}
+                  onChange={e => setNewSubjCategory(e.target.value as SubjectCategory)}
+                  className="px-2.5 py-1.5 border border-[#A89B8A]/40 rounded-md text-xs bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+                >
+                  <option value="Core">Core</option>
+                  <option value="Language">Language</option>
+                  <option value="Other">Other</option>
+                </select>
+                <Button size="sm" variant="secondary" onClick={handleAddCustomSubject}>
+                  Add Category
+                </Button>
+              </div>
+
               <hr className="border-[#A89B8A]/20" />
 
               <div>
@@ -306,18 +446,18 @@ export default function SettingsView() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-[#252326]">
-                    Maximum Daily Periods per Faculty
+                    Maximum Daily Periods per Faculty (1–8)
                   </label>
                   <input
                     type="number"
                     min={1}
-                    max={10}
+                    max={8}
                     value={settings.maxDailyPeriods}
                     onChange={e => handleChange('maxDailyPeriods', Number(e.target.value))}
                     className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
                   />
                   <p className="text-xs text-[#252326]/60">
-                    Global daily teaching ceiling per instructor (overridden by individual faculty limits).
+                    Global daily teaching ceiling per instructor (1–8 periods, overridden by individual faculty limits).
                   </p>
                 </div>
 
@@ -327,10 +467,15 @@ export default function SettingsView() {
                   </label>
                   <select
                     value={settings.weekStartDay}
-                    onChange={e => handleChange('weekStartDay', e.target.value as 'Monday' | 'Sunday')}
+                    onChange={e => handleChange('weekStartDay', e.target.value as DayOfWeek)}
                     className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
                   >
                     <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
                     <option value="Sunday">Sunday</option>
                   </select>
                   <p className="text-xs text-[#252326]/60">Initial day for weekly timetable generation cycles.</p>

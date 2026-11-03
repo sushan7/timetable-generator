@@ -10,6 +10,7 @@ import type {
   GenerationStats,
   SubstituteCandidate,
   SubjectCapacityReport,
+  SubjectCategory,
   DayOfWeek,
 } from '../types';
 import { WEEKDAYS } from '../types';
@@ -17,18 +18,34 @@ import { storage } from './storage';
 import { isOverlapping } from './validation';
 import { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent } from './constraints';
 import { groupBatchesBySection } from './sections';
+import { inferSubjectCategory } from './seedData';
 
 export const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
 export const LANGUAGE_SUBJECTS = ['English', 'K/H/S', 'Second Language', 'Kannada', 'Hindi', 'Sanskrit'];
 
-export const isPCMBSubject = (subject: string): boolean => PCMB_SUBJECTS.includes(subject);
-export const isLanguageSubject = (subject: string): boolean =>
-  LANGUAGE_SUBJECTS.includes(subject) || subject.toLowerCase().includes('lang');
+// Helper to normalize subject string (legacy Second Language -> K/H/S normalisation)
+export const normalizeSubj = (s: string) => (s === 'Second Language' ? 'K/H/S' : s);
+
+export const getSubjectCategory = (
+  subject: string,
+  settings?: SchedulerSettings
+): SubjectCategory => {
+  const norm = normalizeSubj(subject);
+  if (settings?.subjectCategories) {
+    if (settings.subjectCategories[norm]) return settings.subjectCategories[norm];
+    if (settings.subjectCategories[subject]) return settings.subjectCategories[subject];
+  }
+  return inferSubjectCategory(norm);
+};
+
+export const isPCMBSubject = (subject: string, settings?: SchedulerSettings): boolean =>
+  getSubjectCategory(subject, settings) === 'Core';
+
+export const isLanguageSubject = (subject: string, settings?: SchedulerSettings): boolean =>
+  getSubjectCategory(subject, settings) === 'Language';
+
 export const isKHS = (subject: string): boolean =>
   subject === 'K/H/S' || subject === 'Second Language' || subject.toLowerCase().includes('k/h');
-
-// Helper to normalize subject string
-export const normalizeSubj = (s: string) => (s === 'Second Language' ? 'K/H/S' : s);
 
 // -------------------------------------------------------------
 // SEEDABLE PSEUDO-RANDOM NUMBER GENERATOR (M1)
@@ -160,7 +177,7 @@ export const calculateCapacityReport = (
 
     reports.push({
       subject: subj,
-      category: isPCMBSubject(subj) ? 'Core' : isLanguageSubject(subj) ? 'Language' : 'Other',
+      category: getSubjectCategory(subj, settings),
       requiredWeeklyPeriods: required,
       availableWeeklyPeriods: availableCapacity,
       deficit: Math.max(0, deficit),
@@ -260,6 +277,7 @@ export const scoreSubjectChoice = (
     todayAllocations = [],
     weekAllocations = [],
     isKHSGroupSlot,
+    settings,
   } = context;
 
   let score = 100;
@@ -333,7 +351,7 @@ export const scoreSubjectChoice = (
 
   // 5. Language in Period 1 (very large but not infinite, scales down under high weekly deficit for English)
   if (periodIndex === 0) {
-    if (isLanguageSubject(subject)) {
+    if (isLanguageSubject(subject, settings)) {
       if (isKHS(subject)) {
         score -= 2500;
         reasons.push('Period 1 K/H/S prohibited: -2500');
@@ -342,7 +360,7 @@ export const scoreSubjectChoice = (
         score -= p1LangPenalty;
         reasons.push(`Period 1 language penalty: -${p1LangPenalty}`);
       }
-    } else if (isPCMBSubject(subject)) {
+    } else if (isPCMBSubject(subject, settings)) {
       score += 200;
       reasons.push('Period 1 core subject reward: +200');
     }

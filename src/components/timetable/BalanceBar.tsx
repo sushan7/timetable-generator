@@ -1,13 +1,15 @@
 import { AlertTriangle, BookOpen } from 'lucide-react';
 import Card from '../ui/Card';
 
-interface Quota {
+export interface Quota {
   pcmb: number;
   lang: number;
+  other?: number;
   targetPCMB: number;
   targetLang: number;
   actualPCMBPct: number;
   actualLangPct: number;
+  actualOtherPct?: number;
 }
 
 export default function BalanceBar({
@@ -19,7 +21,9 @@ export default function BalanceBar({
   gapCount: number;
   day: string;
 }) {
-  const total = quota.pcmb + quota.lang;
+  const otherCount = quota.other || 0;
+  const total = quota.pcmb + quota.lang + otherCount;
+  const otherPct = quota.actualOtherPct || 0;
 
   return (
     <Card className="space-y-3.5 shadow-2xs border-[#E5E0D8]">
@@ -33,7 +37,7 @@ export default function BalanceBar({
               Academic Balance & Subject Quotas
             </h2>
             <p className="text-xs text-[#5E5B61] mt-0.5">
-              Target Ratio: {quota.targetPCMB}% Core Science (PCMB) · {quota.targetLang}% Languages & Electives
+              Target Ratio: {quota.targetPCMB}% Core Science (PCMB) · {quota.targetLang}% Languages
             </p>
           </div>
         </div>
@@ -55,6 +59,13 @@ export default function BalanceBar({
             style={{ width: `${quota.actualLangPct}%` }}
             title={`Languages: ${quota.lang} slots (${quota.actualLangPct}%)`}
           />
+          {otherCount > 0 && (
+            <div
+              className="bg-[#5C6B73] h-full transition-all duration-300"
+              style={{ width: `${otherPct}%` }}
+              title={`Other: ${otherCount} slots (${otherPct}%)`}
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap justify-between text-xs font-medium text-[#5E5B61] gap-2 px-0.5">
@@ -64,8 +75,14 @@ export default function BalanceBar({
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[#B08D57] inline-block shrink-0" />
-            Languages & Electives: <strong className="text-[#252326] font-semibold">{quota.lang}</strong> ({quota.actualLangPct}%)
+            Languages: <strong className="text-[#252326] font-semibold">{quota.lang}</strong> ({quota.actualLangPct}%)
           </span>
+          {otherCount > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#5C6B73] inline-block shrink-0" />
+              Other Subjects: <strong className="text-[#252326] font-semibold">{otherCount}</strong> ({otherPct}%)
+            </span>
+          )}
         </div>
       </div>
 
@@ -76,7 +93,7 @@ export default function BalanceBar({
             <strong className="font-semibold text-[#8F2424]">
               {gapCount} unresolved gap{gapCount > 1 ? 's' : ''} on {day}:
             </strong>{' '}
-            Assigned instructor is absent and no conflict-free substitute was found automatically. Click any gap slot to assign a replacement teacher or run &ldquo;Sync Absences&rdquo;.
+            Assigned instructor is absent and no conflict-free substitute was found automatically. Click any gap slot to assign a replacement teacher or run "Patch Absences".
           </div>
         </div>
       )}

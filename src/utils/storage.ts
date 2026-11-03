@@ -12,9 +12,10 @@ import type {
   UnfilledSlot,
 } from '../types';
 import { WEEKDAYS } from '../types';
-import { initialFaculty, initialBatches, inferSubjectCategory } from './seedData';
+import { initialFaculty, initialBatches, inferSubjectCategory, DEFAULT_SUBJECT_CATEGORIES } from './seedData';
+import { normalizeTimeToHHmm } from './validation';
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const KEYS = {
   VERSION: 'sdtg_schema_version',
@@ -37,6 +38,7 @@ export const defaultSettings: SchedulerSettings = {
   enableKHSGrouping: true,
   respectDailyLimits: true,
   allowSameSubjectConsecutive: false,
+  subjectCategories: { ...DEFAULT_SUBJECT_CATEGORIES },
 };
 
 export type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
@@ -71,6 +73,10 @@ export const normalizeFaculty = (list: Faculty[]): Faculty[] =>
 export const normalizeBatches = (list: Batch[]): Batch[] =>
   (list || []).map(b => ({
     ...b,
+    periods: (b.periods || []).map(p => ({
+      startTime: p.startTime ? (normalizeTimeToHHmm(p.startTime) || p.startTime) : '',
+      endTime: p.endTime ? (normalizeTimeToHHmm(p.endTime) || p.endTime) : '',
+    })),
     subjects: (b.subjects || []).map(s => ({
       ...s,
       subject: normalizeSubjectName(s.subject),
@@ -552,7 +558,14 @@ export const storage = {
         return settingsCache;
       }
       const parsed = JSON.parse(stored);
-      settingsCache = { ...defaultSettings, ...parsed };
+      settingsCache = {
+        ...defaultSettings,
+        ...parsed,
+        subjectCategories: {
+          ...DEFAULT_SUBJECT_CATEGORIES,
+          ...(parsed.subjectCategories || {}),
+        },
+      };
       return settingsCache!;
     } catch {
       settingsCache = { ...defaultSettings };
@@ -750,17 +763,24 @@ export const storage = {
       const week = storage.getWeekTimetables();
       const existing = week[day];
       const now = Date.now();
+      const isGenerating = Boolean(options?.markGenerated);
+
+      // Finalized protection (M2): if already Finalized, and attempting to generate/edit without Reopen as Draft
+      if (existing?.status === 'Finalized' && status !== 'Finalized') {
+        return existing;
+      }
 
       const updatedTimetable: Timetable = {
         id: existing?.id || `tt_${day.toLowerCase()}_${Date.now()}`,
         date: day,
-        status: existing?.status === 'Finalized' && status === 'Draft' ? 'Finalized' : status,
+        status: status,
         allocations: allocations.map(a => ({
           ...a,
           subject: normalizeSubjectName(a.subject),
           updatedAt: a.updatedAt || now,
         })),
-        lastGeneratedAt: options?.markGenerated ? now : existing?.lastGeneratedAt,
+        lastGeneratedAt: isGenerating ? now : existing?.lastGeneratedAt,
+        updatedAt: isGenerating ? (existing?.updatedAt ?? now) : now,
         unfilledSlots: options?.unfilledSlots ?? existing?.unfilledSlots ?? [],
         warnings: options?.warnings ?? existing?.warnings ?? [],
         frozenViolations: options?.frozenViolations ?? existing?.frozenViolations ?? [],
@@ -785,6 +805,7 @@ export const storage = {
 
       const previousStatus = existing.status;
       existing.status = status;
+      existing.updatedAt = Date.now();
       week[day] = existing;
       storage.setWeekTimetables(week);
 

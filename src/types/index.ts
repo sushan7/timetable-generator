@@ -24,7 +24,9 @@ export interface Faculty {
 }
 
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
-export type DayOfWeek = typeof WEEKDAYS[number];
+export const ALL_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+export type Weekday = typeof WEEKDAYS[number];
+export type DayOfWeek = typeof ALL_DAYS[number];
 
 export interface Batch {
   id: string;
@@ -71,6 +73,7 @@ export interface Timetable {
   status: TimetableStatus;
   allocations: Allocation[];
   lastGeneratedAt?: number;
+  updatedAt?: number;
   unfilledSlots?: UnfilledSlot[];
   warnings?: ScheduleWarning[];
   frozenViolations?: FrozenViolation[];
@@ -82,7 +85,7 @@ export interface SchedulerSettings {
   pcmbWeight: number;
   languageWeight: number;
   maxDailyPeriods: number;
-  weekStartDay: 'Monday' | 'Sunday';
+  weekStartDay: DayOfWeek;
   enableGapOptimization: boolean;
   enableConsecutivePeriodAvoidance: boolean;
   enableStrictPeriod1NoLanguage?: boolean;
@@ -90,6 +93,7 @@ export interface SchedulerSettings {
   respectDailyLimits?: boolean;
   allowSameSubjectConsecutive?: boolean;
   randomSeed?: number;
+  subjectCategories?: Record<string, SubjectCategory>;
 }
 
 export type AuditLogAction =

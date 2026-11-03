@@ -1,23 +1,29 @@
-import { WEEKDAYS, type DayOfWeek } from '../../types';
+import { useMemo } from 'react';
+import type { DayOfWeek } from '../../types';
+import { getTabsOrder } from '../../utils/validation';
 
 export default function DayTabs({
   currentDay,
   onSelect,
   hasData,
+  weekStartDay,
 }: {
   currentDay: DayOfWeek;
   onSelect: (day: DayOfWeek) => void;
   hasData: (day: DayOfWeek) => boolean;
+  weekStartDay?: string;
 }) {
+  const orderedDays = useMemo(() => getTabsOrder(weekStartDay), [weekStartDay]);
+
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      const nextIdx = (index + 1) % WEEKDAYS.length;
-      onSelect(WEEKDAYS[nextIdx]);
+      const nextIdx = (index + 1) % orderedDays.length;
+      onSelect(orderedDays[nextIdx]);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      const prevIdx = (index - 1 + WEEKDAYS.length) % WEEKDAYS.length;
-      onSelect(WEEKDAYS[prevIdx]);
+      const prevIdx = (index - 1 + orderedDays.length) % orderedDays.length;
+      onSelect(orderedDays[prevIdx]);
     }
   };
 
@@ -27,7 +33,7 @@ export default function DayTabs({
       aria-label="Academic Weekdays"
       className="flex flex-wrap gap-1 bg-[#FAF7F2] p-1 rounded-md border border-[#E5E0D8] select-none"
     >
-      {WEEKDAYS.map((day, idx) => {
+      {orderedDays.map((day, idx) => {
         const active = currentDay === day;
         const exists = hasData(day);
         return (

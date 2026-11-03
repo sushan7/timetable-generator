@@ -495,7 +495,7 @@ export default function FacultyManager() {
             onClick={() => setShowDuplicateResolutionModal(true)}
             className="shrink-0"
           >
-            Review &amp; Merge
+            Review & Merge
           </Button>
         </div>
       )}
@@ -987,7 +987,7 @@ export default function FacultyManager() {
               across stored days.
             </p>
             <p className="text-[#5E5B61]">
-              Deleting them will safely turn all those allocations into <strong>unfilled shortage slots</strong> across all stored weekly timetables (preventing orphaned &quot;Unknown&quot; references).
+              Deleting them will safely turn all those allocations into <strong>unfilled shortage slots</strong> across all stored weekly timetables (preventing orphaned "Unknown" references).
             </p>
           </div>
         </div>
@@ -1128,7 +1128,7 @@ export default function FacultyManager() {
                 setTimeout(() => setFeedback(null), 4000);
               }}
             >
-              Confirm &amp; Replace Directory
+              Confirm & Replace Directory
             </Button>
           </>
         }
@@ -1211,7 +1211,7 @@ export default function FacultyManager() {
       >
         <div className="space-y-3">
           <p className="text-sm text-[#252326]">
-            A faculty member named <strong>&ldquo;{duplicateAddWarning?.existing.name}&rdquo;</strong> already exists in the directory.
+            A faculty member named <strong>"{duplicateAddWarning?.existing.name}"</strong> already exists in the directory.
           </p>
           <div className="p-3 bg-[#F8F3EA] border border-[#E7D7BD] rounded text-xs text-[#7A5B28] space-y-1.5">
             <div>

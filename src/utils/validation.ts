@@ -5,15 +5,33 @@ import { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent } 
 export { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent };
 
 /**
- * Strict time parser (Requirement M4)
- * Returns integer total minutes from midnight, or null if the string is invalid or ambiguous.
+ * Computes tabs order based on weekStartDay (M7)
  */
-export const parseTimeMinutesStrict = (timeStr: string): number | null => {
+export const getTabsOrder = (weekStartDay?: string): DayOfWeek[] => {
+  if (weekStartDay === 'Sunday') {
+    return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  }
+  const base: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  if (!weekStartDay || weekStartDay === 'Monday') {
+    return base;
+  }
+  const idx = base.indexOf(weekStartDay as DayOfWeek);
+  if (idx === -1) return base;
+  return [...base.slice(idx), ...base.slice(0, idx)];
+};
+
+/**
+ * Strict time parser (Requirement M4)
+ * Accepts H:mm / HH:mm (24-hour clock) and h:mm AM/PM / hh:mm AM/PM (12-hour clock).
+ * Returns integer total minutes from midnight (0..1439), or null for invalid input.
+ * Never returns 0 or out-of-range values for invalid input.
+ */
+export const parseTimeMinutes = (timeStr: string): number | null => {
   if (!timeStr || typeof timeStr !== 'string') return null;
   const trimmed = timeStr.trim();
   if (!trimmed) return null;
 
-  // 12-hour format with required AM/PM (e.g. "09:30 AM", "1:30 PM")
+  // 12-hour format with required AM/PM (e.g. "09:30 AM", "1:30 PM", "9:00pm")
   const match12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (match12) {
     let hours = parseInt(match12[1], 10);
@@ -28,17 +46,10 @@ export const parseTimeMinutesStrict = (timeStr: string): number | null => {
     return hours * 60 + minutes;
   }
 
-  // 24-hour format: requires exactly 2-digit hour (or 1-digit with leading zero), e.g. "08:40", "14:15", "00:00"
-  // Reject ambiguous single-digit hour without AM/PM like "1:30"
+  // 24-hour format: accepts H:mm and HH:mm (e.g. "1:30", "08:40", "14:15", "00:00")
   const match24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
   if (match24) {
-    const rawHourStr = match24[1];
-    // Reject ambiguous non-zero-padded single digit hour like "1:30" (could mean 01:30 or 13:30)
-    if (rawHourStr.length === 1 && parseInt(rawHourStr, 10) < 10) {
-      return null;
-    }
-
-    const hours = parseInt(rawHourStr, 10);
+    const hours = parseInt(match24[1], 10);
     const minutes = parseInt(match24[2], 10);
 
     if (hours < 0 || hours > 23) return null;
@@ -50,29 +61,39 @@ export const parseTimeMinutesStrict = (timeStr: string): number | null => {
   return null;
 };
 
+// Alias parseTimeMinutesStrict to parseTimeMinutes for complete compatibility
+export const parseTimeMinutesStrict = parseTimeMinutes;
+
 /**
- * Backward-compatible parse function: returns 0 if invalid (safe for calculations),
- * but checks validity via parseTimeMinutesStrict.
+ * Format total minutes from midnight to HH:mm (e.g. 90 -> "01:30", 1260 -> "21:00")
  */
-export const parseTimeMinutes = (timeStr: string): number => {
-  const result = parseTimeMinutesStrict(timeStr);
-  return result !== null ? result : 0;
+export const formatMinutesToHHmm = (minutes: number): string => {
+  const normMin = Math.max(0, Math.min(1439, Math.floor(minutes)));
+  const h = String(Math.floor(normMin / 60)).padStart(2, '0');
+  const m = String(normMin % 60).padStart(2, '0');
+  return `${h}:${m}`;
+};
+
+/**
+ * Normalise any valid time string to standard HH:mm 24-hour format, or null if invalid
+ */
+export const normalizeTimeToHHmm = (timeStr: string): string | null => {
+  const mins = parseTimeMinutes(timeStr);
+  return mins !== null ? formatMinutesToHHmm(mins) : null;
 };
 
 /**
  * Validates a single time string
  */
 export const isValidTime = (timeStr: string): boolean => {
-  return parseTimeMinutesStrict(timeStr) !== null;
+  return parseTimeMinutes(timeStr) !== null;
 };
 
 /**
  * Formats minutes from midnight to canonical 24-hour "HH:mm"
  */
 export const formatCanonicalTime = (minutes: number): string => {
-  const h = Math.floor(minutes / 60) % 24;
-  const m = minutes % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  return formatMinutesToHHmm(minutes);
 };
 
 /**

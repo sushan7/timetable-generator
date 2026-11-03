@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  parseTimeMinutes,
   parseTimeMinutesStrict,
+  normalizeTimeToHHmm,
+  formatMinutesToHHmm,
   isTimeRangeValid,
   isOverlapping,
   checkFacultyConflict,
@@ -8,27 +11,48 @@ import {
 import type { Faculty, Batch, Allocation, SchedulerSettings } from '../types';
 
 describe('Validation Utilities', () => {
-  describe('parseTimeMinutesStrict', () => {
-    it('correctly parses valid 24-hour HH:mm format', () => {
-      expect(parseTimeMinutesStrict('00:00')).toBe(0);
-      expect(parseTimeMinutesStrict('08:30')).toBe(510);
-      expect(parseTimeMinutesStrict('12:00')).toBe(720);
-      expect(parseTimeMinutesStrict('15:45')).toBe(945);
-      expect(parseTimeMinutesStrict('23:59')).toBe(1439);
+  describe('parseTimeMinutes (M4 Strict Time Parsing)', () => {
+    it('correctly parses valid 24-hour HH:mm and H:mm format', () => {
+      expect(parseTimeMinutes('00:00')).toBe(0);
+      expect(parseTimeMinutes('08:30')).toBe(510);
+      expect(parseTimeMinutes('8:30')).toBe(510); // H:mm single digit hour
+      expect(parseTimeMinutes('1:30')).toBe(90); // M4 requirement: 1:30 -> 90 (1:30 AM)
+      expect(parseTimeMinutes('12:00')).toBe(720);
+      expect(parseTimeMinutes('15:45')).toBe(945);
+      expect(parseTimeMinutes('23:59')).toBe(1439);
     });
 
-    it('rejects invalid or ambiguous time strings', () => {
-      expect(parseTimeMinutesStrict('')).toBeNull();
-      expect(parseTimeMinutesStrict('8:30')).toBeNull(); // Missing leading zero
-      expect(parseTimeMinutesStrict('24:00')).toBeNull(); // Hour >= 24
-      expect(parseTimeMinutesStrict('12:60')).toBeNull(); // Minute >= 60
-      expect(parseTimeMinutesStrict('13:30 PM')).toBeNull(); // 13 is invalid for 12h clock
-      expect(parseTimeMinutesStrict('abcd')).toBeNull();
+    it('rejects invalid or out-of-range time strings with null', () => {
+      expect(parseTimeMinutes('')).toBeNull(); // M4 requirement: empty returns null
+      expect(parseTimeMinutes('   ')).toBeNull();
+      expect(parseTimeMinutes('25:99')).toBeNull(); // M4 requirement: 25:99 returns null
+      expect(parseTimeMinutes('24:00')).toBeNull(); // Hour >= 24
+      expect(parseTimeMinutes('12:60')).toBeNull(); // Minute >= 60
+      expect(parseTimeMinutes('13:30 PM')).toBeNull(); // 13 is invalid for 12h clock
+      expect(parseTimeMinutes('abcd')).toBeNull();
+      expect(parseTimeMinutes('null')).toBeNull();
     });
 
-    it('parses valid 12-hour AM/PM formats', () => {
-      expect(parseTimeMinutesStrict('12:30 PM')).toBe(750);
-      expect(parseTimeMinutesStrict('09:15 AM')).toBe(555);
+    it('parses valid 12-hour AM/PM formats (including 09:00 PM)', () => {
+      expect(parseTimeMinutes('12:30 PM')).toBe(750);
+      expect(parseTimeMinutes('09:15 AM')).toBe(555);
+      expect(parseTimeMinutes('09:00 PM')).toBe(1260); // M4 requirement: 09:00 PM -> 1260
+      expect(parseTimeMinutes('9:00 PM')).toBe(1260);
+      expect(parseTimeMinutes('12:00 AM')).toBe(0);
+
+      // Verify parseTimeMinutesStrict alias works identically
+      expect(parseTimeMinutesStrict('09:00 PM')).toBe(1260);
+      expect(parseTimeMinutesStrict('25:99')).toBeNull();
+    });
+
+    it('normalizes times to HH:mm with normalizeTimeToHHmm', () => {
+      expect(normalizeTimeToHHmm('1:30')).toBe('01:30');
+      expect(normalizeTimeToHHmm('09:00 PM')).toBe('21:00');
+      expect(normalizeTimeToHHmm('9:00 PM')).toBe('21:00');
+      expect(normalizeTimeToHHmm('25:99')).toBeNull();
+      expect(normalizeTimeToHHmm('')).toBeNull();
+      expect(formatMinutesToHHmm(90)).toBe('01:30');
+      expect(formatMinutesToHHmm(1260)).toBe('21:00');
     });
   });
 

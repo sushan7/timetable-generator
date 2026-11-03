@@ -4,10 +4,35 @@ import type { Faculty, Batch, PeriodTiming, BatchSubject, SubjectCategory } from
 // DATA BUILDER UTILITIES
 // ==========================================
 
-export const inferSubjectCategory = (subject: string): SubjectCategory => {
-  const norm = (subject || '').trim().toLowerCase();
-  if (['physics', 'chemistry', 'mathematics', 'biology'].includes(norm)) return 'Core';
-  if (['english', 'k/h/s', 'second language', 'kannada', 'hindi', 'sanskrit'].includes(norm)) return 'Language';
+export const DEFAULT_SUBJECT_CATEGORIES: Record<string, SubjectCategory> = {
+  Physics: 'Core',
+  Chemistry: 'Core',
+  Mathematics: 'Core',
+  Biology: 'Core',
+  English: 'Language',
+  'K/H/S': 'Language',
+  'Second Language': 'Language',
+  Kannada: 'Language',
+  Hindi: 'Language',
+  Sanskrit: 'Language',
+};
+
+export const inferSubjectCategory = (
+  subject: string,
+  customCategories?: Record<string, SubjectCategory>
+): SubjectCategory => {
+  if (!subject) return 'Other';
+  const trimmed = subject.trim();
+  const normalized = trimmed === 'Second Language' ? 'K/H/S' : trimmed;
+
+  if (customCategories) {
+    if (customCategories[normalized]) return customCategories[normalized];
+    if (customCategories[trimmed]) return customCategories[trimmed];
+  }
+
+  const normLower = normalized.toLowerCase();
+  if (['physics', 'chemistry', 'mathematics', 'biology'].includes(normLower)) return 'Core';
+  if (['english', 'k/h/s', 'second language', 'kannada', 'hindi', 'sanskrit'].includes(normLower)) return 'Language';
   return 'Other';
 };
 
