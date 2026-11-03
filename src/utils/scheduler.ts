@@ -4,8 +4,10 @@ import type {
   Allocation,
   SchedulerSettings,
   UnfilledSlot,
+  UnfilledReason,
   ScheduleWarning,
   GenerationResult,
+  GenerationStats,
   SubstituteCandidate,
   SubjectCapacityReport,
 } from '../types';
@@ -322,7 +324,7 @@ export const scoreSubjectChoice = (
     a => a.periodIndex === periodIndex && normalizeSubj(a.subject) === normSubj
   ).length;
   if (sameSlotOtherDays > 0) {
-    const penalty = 1200 * sameSlotOtherDays + (sameSlotOtherDays > 1 ? 1500 : 0);
+    const penalty = 1200 * sameSlotOtherDays + (sameSlotOtherDays > 1 ? 3000 * (sameSlotOtherDays - 1) : 0);
     score -= penalty;
     reasons.push(`Same slot repeat across week (${sameSlotOtherDays} days): -${penalty}`);
   }
@@ -566,6 +568,98 @@ export const evaluateTimetableCandidate = (
 };
 
 // -------------------------------------------------------------
+// UNFILLED REASON DIAGNOSTICS (H3 & H4)
+// Precise root cause identification for unfilled slots
+// -------------------------------------------------------------
+export const diagnoseUnfilledReason = (
+  batch: Batch,
+  periodIndex: number,
+  faculties: Faculty[],
+  allocations: Allocation[],
+  batches: Batch[],
+  settings: SchedulerSettings,
+  dateKey?: string
+): { reason: UnfilledReason; detail: string } => {
+  // 1. NO_SUBJECTS: Batch has no subjects configured
+  if (!batch.subjects || batch.subjects.length === 0) {
+    return {
+      reason: 'NO_SUBJECTS',
+      detail: `Batch "${batch.name}" has no subjects configured.`,
+    };
+  }
+
+  // Find all qualified teachers across all subjects of this batch
+  const allBatchSubjects = batch.subjects.map(s => normalizeSubj(s.subject));
+  const qualifiedFaculty = faculties.filter(
+    f =>
+      f.subjects.some(s => allBatchSubjects.includes(normalizeSubj(s))) &&
+      (!f.assignedBatches || f.assignedBatches.length === 0 || f.assignedBatches.includes(batch.id))
+  );
+
+  // 2. NO_QUALIFIED_TEACHER: No faculty in directory is qualified (or permitted for this batch)
+  if (qualifiedFaculty.length === 0) {
+    return {
+      reason: 'NO_QUALIFIED_TEACHER',
+      detail: `No registered faculty member is qualified for [${allBatchSubjects.join(', ')}] or permitted for batch "${batch.name}".`,
+    };
+  }
+
+  // 3. ALL_ABSENT: All qualified teachers are absent today
+  const nonAbsentFaculty = qualifiedFaculty.filter(
+    f => !f.isAbsent && !(dateKey && f.unavailableDates?.includes(dateKey))
+  );
+
+  if (nonAbsentFaculty.length === 0) {
+    return {
+      reason: 'ALL_ABSENT',
+      detail: `All ${qualifiedFaculty.length} qualified faculty members for batch "${batch.name}" are marked absent today.`,
+    };
+  }
+
+  // 4. DAILY_LIMIT vs ALL_BUSY:
+  // For each non-absent qualified teacher, check workload and time availability
+  let availableWithCapacityCount = 0;
+  let busyWithTimeOverlapCount = 0;
+  let reachedDailyLimitCount = 0;
+
+  for (const f of nonAbsentFaculty) {
+    const dailyLimit = getDailyLimit(f, settings);
+    const currentLoad = allocations.filter(
+      a => a.facultyId === f.id && !(a.batchId === batch.id && a.periodIndex === periodIndex)
+    ).length;
+
+    if (currentLoad >= dailyLimit) {
+      reachedDailyLimitCount++;
+    } else {
+      availableWithCapacityCount++;
+      const canResult = canAssign(f, batch, periodIndex, allocations, batches, settings, { dateKey });
+      if (!canResult.ok && canResult.type === 'TIME_OVERLAP') {
+        busyWithTimeOverlapCount++;
+      }
+    }
+  }
+
+  if (availableWithCapacityCount === 0) {
+    return {
+      reason: 'DAILY_LIMIT',
+      detail: `All qualified faculty have reached their maximum daily teaching limit (${reachedDailyLimitCount} faculty capped).`,
+    };
+  }
+
+  if (busyWithTimeOverlapCount > 0) {
+    return {
+      reason: 'ALL_BUSY',
+      detail: `All available qualified faculty are currently teaching other batches during this time interval.`,
+    };
+  }
+
+  return {
+    reason: 'ALL_BUSY',
+    detail: `Eligible faculty could not be assigned due to schedule conflicts or capacity limits.`,
+  };
+};
+
+// -------------------------------------------------------------
 // CORE CANDIDATE SCHEDULING RUN
 // -------------------------------------------------------------
 interface SlotTask {
@@ -586,7 +680,7 @@ const generateCandidateRun = (
   weeklyQuotasMap: Map<string, Record<string, number>>,
   rng: () => number,
   dateKey?: string
-): { allocations: Allocation[]; unfilled: UnfilledSlot[]; warnings: ScheduleWarning[] } => {
+): { allocations: Allocation[]; unfilled: UnfilledSlot[]; warnings: ScheduleWarning[]; repairedCount: number } => {
   const allocations: Allocation[] = [...existingDraft.filter(a => a.frozen)];
   const dailyWorkload: Record<string, number> = {};
 
@@ -621,6 +715,18 @@ const generateCandidateRun = (
 
   // Build slot task list for all open slots
   batches.forEach(batch => {
+    const minEligibleTeachers =
+      batch.subjects.length > 0
+        ? Math.min(
+            ...batch.subjects.map(
+              s =>
+                getEligibleFaculty(faculties, batch, s.subject).filter(
+                  f => !f.isAbsent && !(dateKey && f.unavailableDates?.includes(dateKey))
+                ).length
+            )
+          )
+        : 0;
+
     batch.periods.forEach((timing, pIndex) => {
       if (!timing || !timing.startTime || !timing.endTime) return;
       const isFrozen = allocations.some(
@@ -630,30 +736,45 @@ const generateCandidateRun = (
 
       const isKHSGroup = khsClusterMap.get(batch.id) === pIndex;
 
-      // Degree of freedom estimate: how many teachers qualify for subjects of this batch
-      let totalEligibleCount = 0;
-      batch.subjects.forEach(s => {
-        totalEligibleCount += getEligibleFaculty(faculties, batch, s.subject).length;
-      });
+      // Degree of freedom: bottleneck subject teacher count adjusted by time concurrency
+      const concurrentBatches = batches.filter(
+        ob =>
+          ob.id !== batch.id &&
+          ob.periods.some(
+            op => op.startTime && isOverlapping(timing.startTime, timing.endTime, op.startTime, op.endTime)
+          )
+      ).length;
+
+      const degreeOfFreedom = minEligibleTeachers * 10 - concurrentBatches;
 
       tasks.push({
         batch,
         periodIndex: pIndex,
         periodTiming: timing,
         isKHSGroup,
-        degreeOfFreedom: totalEligibleCount,
+        degreeOfFreedom,
       });
     });
   });
 
-  // H5B & M1: Deterministic task ordering with deficit prioritization and fair jitter
+  // H3 & M1: Most-constrained first task ordering, preserving K/H/S and Period-1 preferences
   const scoredTasks = tasks.map((task, origIdx) => {
-    let priority = 0;
-    if (task.isKHSGroup) priority -= 2000;
-    if (task.periodIndex === 0) priority -= 1000;
-    priority += task.degreeOfFreedom * 10;
+    // 1. Most-constrained first: lower degree of freedom = scheduled first
+    let priority = task.degreeOfFreedom * 8;
 
-    // Prioritize batches with higher remaining quota deficits so scarce subjects are balanced fairly
+    // Prioritize specialized batches with narrow subject options (e.g. NLT PCMB-only)
+    if (task.batch.subjects.length <= 4) priority -= 800;
+
+    // 2. K/H/S group synchronization preference across clusters
+    if (task.isKHSGroup) priority -= 600;
+
+    // 3. Period 1 preference (prioritize scheduling core subjects early before faculty capacity is exhausted)
+    if (task.periodIndex === 0) priority -= 500;
+
+    // 4. Prevent starvation of late periods (Periods 5 & 6)
+    if (task.periodIndex >= 4) priority -= 400;
+
+    // 5. Prioritize batches with higher remaining quota deficits so scarce subjects are balanced fairly
     const targetWeeklyQuotas = weeklyQuotasMap.get(task.batch.id) || {};
     const weekAllocationsForBatch = weekAllocationsByBatch.get(task.batch.id) || [];
     let batchDeficitSum = 0;
@@ -663,9 +784,9 @@ const generateCandidateRun = (
         batchDeficitSum += (target - allocated);
       }
     }
-    priority -= batchDeficitSum * 25;
+    priority -= batchDeficitSum * 20;
 
-    const jitter = (rng() - 0.5) * 40;
+    const jitter = (rng() - 0.5) * 15;
     return { task, priority: priority + jitter, origIdx };
   });
 
@@ -678,8 +799,9 @@ const generateCandidateRun = (
 
   const unfilled: UnfilledSlot[] = [];
   const warnings: ScheduleWarning[] = [];
+  const unfilledTasks: SlotTask[] = [];
 
-  // Fill slots
+  // Primary assignment pass
   for (const task of orderedTasks) {
     const { batch, periodIndex, isKHSGroup } = task;
     const targetWeeklyQuotas = weeklyQuotasMap.get(batch.id) || {};
@@ -715,16 +837,15 @@ const generateCandidateRun = (
       reasons: string[];
     } | null = null;
 
-    const failureReasons: string[] = [];
-
     // Evaluate candidate subjects starting from highest-ranked
     for (const scoredSubj of scoredSubjects) {
       const subject = scoredSubj.subject;
-      const eligibleTeachers = getEligibleFaculty(faculties, batch, subject);
-      if (eligibleTeachers.length === 0) {
-        failureReasons.push(`No faculty registered with qualification "${subject}"`);
-        continue;
+      if (periodIndex === 0 && isLanguageSubject(subject)) {
+        const currentP1Lang = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+        if (currentP1Lang >= 4) continue;
       }
+      const eligibleTeachers = getEligibleFaculty(faculties, batch, subject);
+      if (eligibleTeachers.length === 0) continue;
 
       let bestTeacherForSubject: {
         faculty: Faculty;
@@ -743,18 +864,7 @@ const generateCandidateRun = (
           { dateKey }
         );
 
-        if (!assignResult.ok) {
-          if (assignResult.type === 'TIME_OVERLAP') {
-            failureReasons.push(`${faculty.name} is teaching ${assignResult.conflictingBatchName} at this time`);
-          } else if (assignResult.type === 'MAX_LOAD') {
-            failureReasons.push(`${faculty.name} reached max daily limit`);
-          } else if (assignResult.type === 'ABSENT') {
-            failureReasons.push(`${faculty.name} is absent`);
-          } else if (assignResult.type === 'BATCH_RESTRICTION') {
-            failureReasons.push(`${faculty.name} is restricted to other batches`);
-          }
-          continue;
-        }
+        if (!assignResult.ok) continue;
 
         const currentLoad = dailyWorkload[faculty.id] || 0;
         const dailyLimit = getDailyLimit(faculty, settings);
@@ -799,7 +909,7 @@ const generateCandidateRun = (
           score: scoredSubj.score + bestTeacherForSubject.teacherScore,
           reasons: [...scoredSubj.reasons, ...bestTeacherForSubject.reasons],
         };
-        // Found optimal teacher for the highest-priority subject
+        // Found optimal teacher for highest-priority subject
         break;
       }
     }
@@ -837,24 +947,438 @@ const generateCandidateRun = (
         });
       }
     } else {
-      // H4: Explicit unfilled slot reporting
-      const primaryReason =
-        failureReasons.length > 0
-          ? failureReasons[0]
-          : 'All eligible teachers are busy with other batches or reached daily limit';
-
-      unfilled.push({
-        batchId: batch.id,
-        batchName: batch.name,
-        periodIndex,
-        requiredSubject: batch.subjects[0]?.subject || 'Unassigned',
-        reason: primaryReason,
-        candidateIssue: failureReasons.slice(0, 3).join('; '),
-      });
+      unfilledTasks.push(task);
     }
   }
 
-  return { allocations, unfilled, warnings };
+  // -------------------------------------------------------------
+  // H3: BOUNDED REPAIR PASS
+  // For each unfilled cell try:
+  // (a) another eligible subject for this batch
+  // (b) swapping a teacher already placed elsewhere in the day to free a qualified teacher, within hard constraints
+  // -------------------------------------------------------------
+  const MAX_REPAIR_ITERATIONS = 40;
+  let repairedSlotsCount = 0;
+
+  for (let iter = 0; iter < MAX_REPAIR_ITERATIONS && unfilledTasks.length > 0; iter++) {
+    let anyRepaired = false;
+
+    for (let uIdx = 0; uIdx < unfilledTasks.length; uIdx++) {
+      const task = unfilledTasks[uIdx];
+      const { batch, periodIndex } = task;
+
+      // Verify slot is not already filled
+      const isAlreadyFilled = allocations.some(
+        a => a.batchId === batch.id && a.periodIndex === periodIndex
+      );
+      if (isAlreadyFilled) {
+        unfilledTasks.splice(uIdx, 1);
+        uIdx--;
+        continue;
+      }
+
+      let slotRepaired = false;
+      const todayBatchAllocs = todayAllocationsByBatch.get(batch.id) || [];
+      const uniqueSubjects = Array.from(new Set(batch.subjects.map(s => normalizeSubj(s.subject))));
+
+      // (a) Try another eligible subject for this batch
+      for (const subject of uniqueSubjects) {
+        if (periodIndex === 0 && isLanguageSubject(subject)) {
+          const currentP1 = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+          if (currentP1 >= 4) continue;
+        }
+        const eligibleTeachers = getEligibleFaculty(faculties, batch, subject);
+        if (eligibleTeachers.length === 0) continue;
+
+        for (const faculty of eligibleTeachers) {
+          const assignResult = canAssign(
+            faculty,
+            batch,
+            periodIndex,
+            allocations,
+            batches,
+            settings,
+            { dateKey }
+          );
+
+          if (assignResult.ok) {
+            const newAlloc: Allocation = {
+              batchId: batch.id,
+              periodIndex,
+              facultyId: faculty.id,
+              subject,
+              autoGenerated: true,
+              manualEdited: false,
+              frozen: false,
+              explanation: ['Assigned via scheduler repair pass: alternative eligible subject'],
+              updatedAt: Date.now(),
+            };
+            allocations.push(newAlloc);
+            dailyWorkload[faculty.id] = (dailyWorkload[faculty.id] || 0) + 1;
+            todayBatchAllocs.push(newAlloc);
+
+            if (periodIndex === 0 && isLanguageSubject(subject)) {
+              warnings.push({
+                type: 'PERIOD_1_LANGUAGE',
+                severity: 'warning',
+                batchId: batch.id,
+                periodIndex: 0,
+                facultyId: faculty.id,
+                message: `Batch "${batch.name}" was scheduled with language "${subject}" in Period 1 due to teacher availability constraints.`,
+              });
+            }
+
+            slotRepaired = true;
+            repairedSlotsCount++;
+            anyRepaired = true;
+            unfilledTasks.splice(uIdx, 1);
+            uIdx--;
+            break;
+          }
+        }
+        if (slotRepaired) break;
+      }
+
+      if (slotRepaired) continue;
+
+      // (b) Swapping a teacher already placed elsewhere in the day to free a qualified teacher
+      for (const subject of uniqueSubjects) {
+        if (periodIndex === 0 && isLanguageSubject(subject)) {
+          const currentP1 = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+          if (currentP1 >= 4) continue;
+        }
+        const qualifiedTeachers = getEligibleFaculty(faculties, batch, subject);
+        if (qualifiedTeachers.length === 0) continue;
+
+        for (const teacherT of qualifiedTeachers) {
+          if (teacherT.isAbsent || (dateKey && teacherT.unavailableDates?.includes(dateKey))) {
+            continue;
+          }
+
+          // Case b1: Teacher T is busy teaching another batch B during an overlapping time interval
+          const targetTiming = batch.periods[periodIndex];
+          const conflictingAllocIdx = allocations.findIndex(a => {
+            if (a.facultyId !== teacherT.id) return false;
+            if (a.batchId === batch.id && a.periodIndex === periodIndex) return false;
+            const otherBatch = batches.find(b => b.id === a.batchId);
+            if (!otherBatch) return false;
+            const otherTiming = otherBatch.periods[a.periodIndex];
+            if (!otherTiming || !otherTiming.startTime || !targetTiming || !targetTiming.startTime) {
+              return a.periodIndex === periodIndex;
+            }
+            return isOverlapping(
+              targetTiming.startTime,
+              targetTiming.endTime,
+              otherTiming.startTime,
+              otherTiming.endTime
+            );
+          });
+
+          if (conflictingAllocIdx !== -1) {
+            const conflictingAlloc = allocations[conflictingAllocIdx];
+            const batchB = batches.find(b => b.id === conflictingAlloc.batchId);
+
+            if (batchB && !conflictingAlloc.frozen) {
+              const bSubjects = [
+                conflictingAlloc.subject,
+                ...batchB.subjects.map(s => normalizeSubj(s.subject)).filter(s => s !== conflictingAlloc.subject),
+              ];
+              for (const subjB of bSubjects) {
+                if (conflictingAlloc.periodIndex === 0 && isLanguageSubject(subjB)) {
+                  const currentP1 = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+                  if (currentP1 >= 4) continue;
+                }
+                const altTeachers = getEligibleFaculty(faculties, batchB, subjB);
+                for (const tAlt of altTeachers) {
+                  if (tAlt.id === teacherT.id) continue;
+                  if (tAlt.isAbsent || (dateKey && tAlt.unavailableDates?.includes(dateKey))) continue;
+
+                  const allocsWithoutConflicting = allocations.filter((_, idx) => idx !== conflictingAllocIdx);
+                  const canAltAssign = canAssign(
+                    tAlt,
+                    batchB,
+                    conflictingAlloc.periodIndex,
+                    allocsWithoutConflicting,
+                    batches,
+                    settings,
+                    { dateKey }
+                  );
+
+                  if (canAltAssign.ok) {
+                    const tempConflictingAlloc: Allocation = {
+                      ...conflictingAlloc,
+                      facultyId: tAlt.id,
+                      subject: subjB,
+                      explanation: [...(conflictingAlloc.explanation || []), `Reassigned to ${tAlt.name} (${subjB}) via repair pass`],
+                      updatedAt: Date.now(),
+                    };
+                    const tempAllocs = [...allocsWithoutConflicting, tempConflictingAlloc];
+
+                    const canTAssign = canAssign(
+                      teacherT,
+                      batch,
+                      periodIndex,
+                      tempAllocs,
+                      batches,
+                      settings,
+                      { dateKey }
+                    );
+
+                    if (canTAssign.ok) {
+                      allocations[conflictingAllocIdx] = tempConflictingAlloc;
+                      dailyWorkload[teacherT.id] = Math.max(0, (dailyWorkload[teacherT.id] || 0) - 1);
+                      dailyWorkload[tAlt.id] = (dailyWorkload[tAlt.id] || 0) + 1;
+
+                      const newAllocA: Allocation = {
+                        batchId: batch.id,
+                        periodIndex,
+                        facultyId: teacherT.id,
+                        subject,
+                        autoGenerated: true,
+                        manualEdited: false,
+                        frozen: false,
+                        explanation: [`Assigned via scheduler repair pass: teacher swap with ${batchB.name}`],
+                        updatedAt: Date.now(),
+                      };
+                      allocations.push(newAllocA);
+                      dailyWorkload[teacherT.id] = (dailyWorkload[teacherT.id] || 0) + 1;
+                      todayBatchAllocs.push(newAllocA);
+
+                      if (periodIndex === 0 && isLanguageSubject(subject)) {
+                        warnings.push({
+                          type: 'PERIOD_1_LANGUAGE',
+                          severity: 'warning',
+                          batchId: batch.id,
+                          periodIndex: 0,
+                          facultyId: teacherT.id,
+                          message: `Batch "${batch.name}" was scheduled with language "${subject}" in Period 1 due to teacher availability constraints.`,
+                        });
+                      }
+
+                      slotRepaired = true;
+                      repairedSlotsCount++;
+                      anyRepaired = true;
+                      unfilledTasks.splice(uIdx, 1);
+                      uIdx--;
+                      break;
+                    }
+                  }
+                }
+                if (slotRepaired) break;
+              }
+            }
+          }
+
+          if (slotRepaired) break;
+
+          // Case b2: Teacher T reached daily limit because of teaching batch B at some other period Q
+          const dailyLimit = getDailyLimit(teacherT, settings);
+          const currentLoadT = dailyWorkload[teacherT.id] || 0;
+          if (currentLoadT >= dailyLimit) {
+            const tAllocs = allocations.filter(
+              a => a.facultyId === teacherT.id && !(a.batchId === batch.id && a.periodIndex === periodIndex) && !a.frozen
+            );
+
+            for (const allocQ of tAllocs) {
+              const batchQ = batches.find(b => b.id === allocQ.batchId);
+              if (!batchQ) continue;
+
+              const qSubjects = [
+                allocQ.subject,
+                ...batchQ.subjects.map(s => normalizeSubj(s.subject)).filter(s => s !== allocQ.subject),
+              ];
+              for (const subjQ of qSubjects) {
+                if (allocQ.periodIndex === 0 && isLanguageSubject(subjQ)) {
+                  const currentP1 = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+                  if (currentP1 >= 4) continue;
+                }
+                const altTeachersQ = getEligibleFaculty(faculties, batchQ, subjQ);
+                for (const tAlt of altTeachersQ) {
+                  if (tAlt.id === teacherT.id) continue;
+                  if (tAlt.isAbsent || (dateKey && tAlt.unavailableDates?.includes(dateKey))) continue;
+
+                  const allocsWithoutQ = allocations.filter(a => a !== allocQ);
+                  const canAltQ = canAssign(
+                    tAlt,
+                    batchQ,
+                    allocQ.periodIndex,
+                    allocsWithoutQ,
+                    batches,
+                    settings,
+                    { dateKey }
+                  );
+
+                  if (canAltQ.ok) {
+                    const tempAllocQ: Allocation = {
+                      ...allocQ,
+                      facultyId: tAlt.id,
+                      subject: subjQ,
+                      explanation: [...(allocQ.explanation || []), `Reassigned to ${tAlt.name} (${subjQ}) to free daily load`],
+                      updatedAt: Date.now(),
+                    };
+                    const tempAllocs = [...allocsWithoutQ, tempAllocQ];
+
+                    const canTAssignP = canAssign(
+                      teacherT,
+                      batch,
+                      periodIndex,
+                      tempAllocs,
+                      batches,
+                      settings,
+                      { dateKey }
+                    );
+
+                    if (canTAssignP.ok) {
+                      const qIdx = allocations.indexOf(allocQ);
+                      if (qIdx !== -1) allocations[qIdx] = tempAllocQ;
+                      dailyWorkload[teacherT.id] = Math.max(0, (dailyWorkload[teacherT.id] || 0) - 1);
+                      dailyWorkload[tAlt.id] = (dailyWorkload[tAlt.id] || 0) + 1;
+
+                      const newAllocA: Allocation = {
+                        batchId: batch.id,
+                        periodIndex,
+                        facultyId: teacherT.id,
+                        subject,
+                        autoGenerated: true,
+                        manualEdited: false,
+                        frozen: false,
+                        explanation: [`Assigned via scheduler repair pass: load swap with ${batchQ.name}`],
+                        updatedAt: Date.now(),
+                      };
+                      allocations.push(newAllocA);
+                      dailyWorkload[teacherT.id] = (dailyWorkload[teacherT.id] || 0) + 1;
+                      todayBatchAllocs.push(newAllocA);
+
+                      slotRepaired = true;
+                      repairedSlotsCount++;
+                      anyRepaired = true;
+                      unfilledTasks.splice(uIdx, 1);
+                      uIdx--;
+                      break;
+                    }
+                  }
+                }
+                if (slotRepaired) break;
+              }
+              if (slotRepaired) break;
+            }
+          }
+
+          if (slotRepaired) break;
+        }
+        if (slotRepaired) break;
+      }
+
+      // (c) Intra-batch slot shift: move an already scheduled period of this batch to this slot, then fill the freed slot
+      if (!slotRepaired) {
+        const batchExistingAllocs = allocations.filter(
+          a => a.batchId === batch.id && a.periodIndex !== periodIndex && !a.frozen
+        );
+
+        for (const allocOther of batchExistingAllocs) {
+          const teacherOther = faculties.find(f => f.id === allocOther.facultyId);
+          if (!teacherOther) continue;
+
+          const allocsWithoutOther = allocations.filter(a => a !== allocOther);
+          const canShift = canAssign(
+            teacherOther,
+            batch,
+            periodIndex,
+            allocsWithoutOther,
+            batches,
+            settings,
+            { dateKey }
+          );
+
+          if (canShift.ok) {
+            const freedPeriodIndex = allocOther.periodIndex;
+            for (const subjFreed of uniqueSubjects) {
+              if (freedPeriodIndex === 0 && isLanguageSubject(subjFreed)) {
+                const currentP1 = allocsWithoutOther.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+                if (currentP1 >= 4) continue;
+              }
+              const eligibleForFreed = getEligibleFaculty(faculties, batch, subjFreed);
+              for (const tFreed of eligibleForFreed) {
+                if (tFreed.id === teacherOther.id) continue;
+                if (tFreed.isAbsent || (dateKey && tFreed.unavailableDates?.includes(dateKey))) continue;
+
+                const canFillFreed = canAssign(
+                  tFreed,
+                  batch,
+                  freedPeriodIndex,
+                  allocsWithoutOther,
+                  batches,
+                  settings,
+                  { dateKey }
+                );
+
+                if (canFillFreed.ok) {
+                  const otherIdx = allocations.indexOf(allocOther);
+                  if (otherIdx !== -1) {
+                    allocations[otherIdx] = {
+                      ...allocOther,
+                      periodIndex,
+                      explanation: [...(allocOther.explanation || []), `Shifted to period ${periodIndex + 1} via repair pass`],
+                      updatedAt: Date.now(),
+                    };
+                  }
+                  const newAllocFreed: Allocation = {
+                    batchId: batch.id,
+                    periodIndex: freedPeriodIndex,
+                    facultyId: tFreed.id,
+                    subject: subjFreed,
+                    autoGenerated: true,
+                    manualEdited: false,
+                    frozen: false,
+                    explanation: [`Assigned to freed period ${freedPeriodIndex + 1} via intra-batch repair pass`],
+                    updatedAt: Date.now(),
+                  };
+                  allocations.push(newAllocFreed);
+                  dailyWorkload[tFreed.id] = (dailyWorkload[tFreed.id] || 0) + 1;
+                  todayBatchAllocs.push(newAllocFreed);
+
+                  slotRepaired = true;
+                  repairedSlotsCount++;
+                  anyRepaired = true;
+                  unfilledTasks.splice(uIdx, 1);
+                  uIdx--;
+                  break;
+                }
+              }
+              if (slotRepaired) break;
+            }
+          }
+          if (slotRepaired) break;
+        }
+      }
+    }
+
+    if (!anyRepaired) break;
+  }
+
+  // Diagnose reasons for any slots that remain unfilled after repair
+  for (const task of unfilledTasks) {
+    const diagnosis = diagnoseUnfilledReason(
+      task.batch,
+      task.periodIndex,
+      faculties,
+      allocations,
+      batches,
+      settings,
+      dateKey
+    );
+
+    unfilled.push({
+      batchId: task.batch.id,
+      batchName: task.batch.name,
+      periodIndex: task.periodIndex,
+      requiredSubject: task.batch.subjects[0]?.subject || 'Unassigned',
+      reason: diagnosis.reason,
+      candidateIssue: diagnosis.detail,
+    });
+  }
+
+  return { allocations, unfilled, warnings, repairedCount: repairedSlotsCount };
 };
 
 // -------------------------------------------------------------
@@ -914,6 +1438,7 @@ export const generateTimetableV2 = (
     allocations: Allocation[];
     unfilled: UnfilledSlot[];
     warnings: ScheduleWarning[];
+    repairedCount: number;
   } | null = null;
   let bestScore = -Infinity;
 
@@ -949,6 +1474,29 @@ export const generateTimetableV2 = (
   const finalUnfilled = bestCandidateResult?.unfilled || [];
   const finalWarnings = [...initialWarnings, ...(bestCandidateResult?.warnings || [])];
 
+  const totalSlots = batches.reduce(
+    (sum, b) => sum + b.periods.filter(p => p && p.startTime).length,
+    0
+  );
+  const byPeriodFilled: Record<number, number> = {};
+  finalAllocations.forEach(a => {
+    byPeriodFilled[a.periodIndex] = (byPeriodFilled[a.periodIndex] || 0) + 1;
+  });
+
+  const period1LanguageCount = finalAllocations.filter(
+    a => a.periodIndex === 0 && isLanguageSubject(a.subject)
+  ).length;
+
+  const stats: GenerationStats = {
+    totalSlots,
+    filledSlots: finalAllocations.length,
+    unfilledSlots: finalUnfilled.length,
+    fillPercentage: totalSlots > 0 ? Math.round((finalAllocations.length / totalSlots) * 100) : 0,
+    period1LanguageCount,
+    byPeriodFilled,
+    repairedSlotsCount: bestCandidateResult?.repairedCount || 0,
+  };
+
   storage.logAuditAction('TIMETABLE_GENERATE', {
     reason: `Generated timetable: ${finalAllocations.length} slots assigned, ${finalUnfilled.length} unfilled. Multi-candidate score: ${Math.round(bestScore)}. (Seed: ${seed})`,
   });
@@ -957,6 +1505,7 @@ export const generateTimetableV2 = (
     allocations: finalAllocations,
     unfilled: finalUnfilled,
     warnings: finalWarnings,
+    stats,
     frozenViolations: frozenValidation.invalidEntries,
     score: bestScore,
     seed,

@@ -5,14 +5,24 @@ import {
   calculateWeeklyQuotas,
   regenerateSingleSlot,
   getRankedSubstitutes,
+  diagnoseUnfilledReason,
   PCMB_SUBJECTS,
   normalizeSubj,
 } from '../utils/scheduler';
 import { initialBatches, initialFaculty } from '../utils/seedData';
 import { isOverlapping } from '../utils/validation';
-import { WEEKDAYS, type Batch, type Faculty, type Allocation } from '../types';
+import { WEEKDAYS, type Batch, type Faculty, type Allocation, type SchedulerSettings } from '../types';
 
 describe('Timetable Scheduler Algorithm', () => {
+  const baseTestSettings: SchedulerSettings = {
+    maxDailyPeriods: 4,
+    enableGapOptimization: true,
+    enableConsecutivePeriodAvoidance: true,
+    pcmbWeight: 4,
+    languageWeight: 2,
+    weekStartDay: 'Monday',
+  };
+
   const dummyBatches: Batch[] = [
     {
       id: 'batch_1',
@@ -392,6 +402,177 @@ describe('Timetable Scheduler Algorithm', () => {
         }
         expect(Math.abs(actual - target)).toBeLessThanOrEqual(2);
       }
+    }, 60000);
+  });
+
+  describe('Hard vs Soft Rules, Shortage Scenarios & Unfilled Diagnostics (H3)', () => {
+    // 1. Unfilled reasons: NO_SUBJECTS, NO_QUALIFIED_TEACHER, ALL_ABSENT, DAILY_LIMIT, ALL_BUSY
+    it('diagnoses all 5 unfilled slot reasons accurately', () => {
+      const baseBatch: Batch = {
+        id: 'diag_batch_1',
+        building: 'Building 1',
+        yearCategory: 'First PU',
+        name: 'Diag Batch 1',
+        roomNumber: '101',
+        periods: [{ startTime: '08:30', endTime: '10:00' }],
+        subjects: [{ subject: 'Physics', count: 1, category: 'Core' }],
+      };
+
+      // 1. NO_SUBJECTS
+      const emptySubjectBatch: Batch = { ...baseBatch, subjects: [] };
+      const resNoSubjects = diagnoseUnfilledReason(
+        emptySubjectBatch,
+        0,
+        dummyFaculties,
+        [],
+        [emptySubjectBatch],
+        baseTestSettings
+      );
+      expect(resNoSubjects.reason).toBe('NO_SUBJECTS');
+
+      // 2. NO_QUALIFIED_TEACHER
+      const noTeacherBatch: Batch = {
+        ...baseBatch,
+        subjects: [{ subject: 'Astronomy', count: 1, category: 'Core' }],
+      };
+      const resNoTeacher = diagnoseUnfilledReason(
+        noTeacherBatch,
+        0,
+        dummyFaculties,
+        [],
+        [noTeacherBatch],
+        baseTestSettings
+      );
+      expect(resNoTeacher.reason).toBe('NO_QUALIFIED_TEACHER');
+
+      // 3. ALL_ABSENT
+      const absentFaculties: Faculty[] = [
+        {
+          id: 'f_absent',
+          name: 'Absent Newton',
+          subjects: ['Physics'],
+          isAbsent: true,
+          maxPeriodsPerDay: 4,
+        },
+      ];
+      const resAllAbsent = diagnoseUnfilledReason(
+        baseBatch,
+        0,
+        absentFaculties,
+        [],
+        [baseBatch],
+        baseTestSettings
+      );
+      expect(resAllAbsent.reason).toBe('ALL_ABSENT');
+
+      // 4. DAILY_LIMIT
+      const cappedFaculties: Faculty[] = [
+        {
+          id: 'f_capped',
+          name: 'Capped Newton',
+          subjects: ['Physics'],
+          isAbsent: false,
+          maxPeriodsPerDay: 1,
+        },
+      ];
+      const priorAlloc: Allocation = {
+        batchId: 'other_batch',
+        periodIndex: 1,
+        facultyId: 'f_capped',
+        subject: 'Physics',
+      };
+      const resDailyLimit = diagnoseUnfilledReason(
+        baseBatch,
+        0,
+        cappedFaculties,
+        [priorAlloc],
+        [baseBatch],
+        { ...baseTestSettings, maxDailyPeriods: 1 }
+      );
+      expect(resDailyLimit.reason).toBe('DAILY_LIMIT');
+
+      // 5. ALL_BUSY
+      const busyFaculties: Faculty[] = [
+        {
+          id: 'f_busy',
+          name: 'Busy Newton',
+          subjects: ['Physics'],
+          isAbsent: false,
+          maxPeriodsPerDay: 4,
+        },
+      ];
+      const otherBatch: Batch = {
+        id: 'other_batch',
+        building: 'Building 1',
+        yearCategory: 'First PU',
+        name: 'Other Batch',
+        roomNumber: '102',
+        periods: [{ startTime: '08:30', endTime: '10:00' }],
+        subjects: [{ subject: 'Physics', count: 1, category: 'Core' }],
+      };
+      const busyAlloc: Allocation = {
+        batchId: 'other_batch',
+        periodIndex: 0,
+        facultyId: 'f_busy',
+        subject: 'Physics',
+      };
+      const resAllBusy = diagnoseUnfilledReason(
+        baseBatch,
+        0,
+        busyFaculties,
+        [busyAlloc],
+        [baseBatch, otherBatch],
+        baseTestSettings
+      );
+      expect(resAllBusy.reason).toBe('ALL_BUSY');
+    });
+
+    // 2. Returns stats object with required metrics
+    it('returns stats including totalSlots, filledSlots, unfilledSlots, and period1LanguageCount', () => {
+      const result = generateTimetableV2(dummyBatches, dummyFaculties, [], [], { seed: 123 });
+      expect(result.stats).toBeDefined();
+      expect(result.stats.totalSlots).toBe(6);
+      expect(result.stats.filledSlots).toBe(result.allocations.length);
+      expect(result.stats.unfilledSlots).toBe(result.unfilled.length);
+      expect(result.stats.fillPercentage).toBeGreaterThanOrEqual(0);
+      expect(typeof result.stats.period1LanguageCount).toBe('number');
+      expect(result.stats.byPeriodFilled).toBeDefined();
+    });
+
+    // 3. Stress acceptance with 50% seed teachers
+    it('meets 50% shortage stress criteria (>= 363/372 filled, < 5 Period-1 languages)', () => {
+      const halfFaculty = initialFaculty.filter((_, idx) => idx % 2 === 0);
+      const settings6: SchedulerSettings = { ...baseTestSettings, maxDailyPeriods: 6 };
+      const result = generateTimetableV2(initialBatches, halfFaculty, [], [], {
+        seed: 15,
+        numCandidates: 1,
+        settings: settings6,
+      });
+
+      console.log(`50% Shortage Result: ${result.allocations.length}/372 filled, unfilled=${result.unfilled.length}, P1 lang=${result.stats.period1LanguageCount}, repaired=${result.stats.repairedSlotsCount}`);
+
+      expect(result.allocations.length).toBeGreaterThanOrEqual(363);
+      expect(result.stats.period1LanguageCount).toBeLessThan(5);
+    }, 30000);
+
+    // 4. Stress acceptance with 25% seed teachers
+    it('meets 25% shortage stress criteria (>= 195/372 filled, Period 5 > 24, Period 6 > 7)', () => {
+      const quarterFaculty = initialFaculty.filter((_, idx) => idx % 4 === 0);
+      const settings6: SchedulerSettings = { ...baseTestSettings, maxDailyPeriods: 6 };
+      const result = generateTimetableV2(initialBatches, quarterFaculty, [], [], {
+        seed: 42,
+        numCandidates: 1,
+        settings: settings6,
+      });
+
+      const p5Filled = result.stats.byPeriodFilled[4] || 0;
+      const p6Filled = result.stats.byPeriodFilled[5] || 0;
+
+      console.log(`25% Shortage Result: ${result.allocations.length}/372 filled, Period 5=${p5Filled}, Period 6=${p6Filled}, P1 lang=${result.stats.period1LanguageCount}`);
+
+      expect(result.allocations.length).toBeGreaterThanOrEqual(195);
+      expect(p5Filled).toBeGreaterThan(24);
+      expect(p6Filled).toBeGreaterThan(7);
     }, 60000);
   });
 });

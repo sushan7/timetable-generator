@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   Sparkles,
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type {
@@ -132,6 +134,7 @@ export default function Timetable() {
   const [substituteCandidates, setSubstituteCandidates] = useState<SubstituteCandidate[]>([]);
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
   const [isUnfilledModalOpen, setIsUnfilledModalOpen] = useState(false);
+  const [isUnfilledPanelExpanded, setIsUnfilledPanelExpanded] = useState(true);
   const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
 
   // Selected faculty or room for dedicated view modes
@@ -790,22 +793,183 @@ export default function Timetable() {
         </div>
       )}
 
-      {/* Unfilled Slots Alert Banner (Phase 2 H4) */}
-      {unfilledSlots.length > 0 && (
-        <div className="p-3 bg-[#FAF6EE] border border-[#B08D57]/40 rounded-md flex items-center justify-between gap-3 text-xs text-[#252326] no-export">
-          <div className="flex items-center gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-[#B08D57] shrink-0" />
-            <span>
-              <strong>Notice:</strong> {unfilledSlots.length} period slot{unfilledSlots.length !== 1 ? 's' : ''} could not be filled automatically due to faculty capacity or timing conflicts.
-            </span>
+      {/* Dedicated "Unfilled & Warnings" Panel (H3) */}
+      {(unfilledSlots.length > 0 || warnings.length > 0) && (
+        <div className="bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg p-4 space-y-3 no-export shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E0D8] pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-[#FEF7EC] text-[#C2410C] rounded border border-[#E9BF85]/60">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[#252326] leading-tight">
+                  Unfilled Slots & Schedule Warnings
+                </h3>
+                <p className="text-[11px] text-[#5E5B61]">
+                  Click any slot or warning below to immediately jump to and edit that cell.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {unfilledSlots.length > 0 && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF7EC] text-[#92400E] border border-[#E9BF85]">
+                  {unfilledSlots.length} Unfilled
+                </span>
+              )}
+              {warnings.length > 0 && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FAF0F2] text-[#6B2638] border border-[#E8D0D6]">
+                  {warnings.length} Warning{warnings.length !== 1 ? 's' : ''}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsUnfilledPanelExpanded(!isUnfilledPanelExpanded)}
+                className="p-1 text-[#5E5B61] hover:text-[#252326] hover:bg-white rounded border border-transparent hover:border-[#E5E0D8] transition-colors"
+                title={isUnfilledPanelExpanded ? 'Collapse panel' : 'Expand panel'}
+                aria-label={isUnfilledPanelExpanded ? 'Collapse panel' : 'Expand panel'}
+              >
+                {isUnfilledPanelExpanded ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setIsUnfilledModalOpen(true)}
-          >
-            Inspect Unfilled Slots
-          </Button>
+
+          {isUnfilledPanelExpanded && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
+              {/* Left Column: Unfilled Slots */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-[#92400E]">
+                  <span>Unfilled Slots ({unfilledSlots.length})</span>
+                  {unfilledSlots.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsUnfilledModalOpen(true)}
+                      className="text-[11px] font-semibold text-[#6B2638] hover:underline"
+                    >
+                      View Full Modal
+                    </button>
+                  )}
+                </div>
+
+                {unfilledSlots.length === 0 ? (
+                  <p className="text-xs text-[#5E5B61] italic py-2">
+                    No unfilled slots. All scheduled periods are assigned!
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {unfilledSlots.map((u, i) => {
+                      const batch = batches.find(b => b.id === u.batchId);
+                      const period = batch?.periods?.[u.periodIndex];
+                      return (
+                        <div
+                          key={`unfilled-${u.batchId}-${u.periodIndex}-${i}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            if (batch) handleCellClick(batch, u.periodIndex);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              if (batch) handleCellClick(batch, u.periodIndex);
+                            }
+                          }}
+                          className="p-2.5 bg-[#FEF7EC] hover:bg-[#FDF2E2] border border-[#E9BF85] hover:border-[#B45309] rounded text-xs cursor-pointer transition-colors shadow-2xs group flex flex-col gap-1 outline-none focus-visible:ring-2 focus-visible:ring-[#B45309]"
+                          title="Click to open and manually assign this cell"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-[#252326] truncate">
+                              {u.batchName} · Period {u.periodIndex + 1}
+                              {period?.startTime ? ` (${period.startTime} - ${period.endTime})` : ''}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-[#92400E] border border-[#E9BF85] shrink-0">
+                              Unfilled: {u.reason}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-[#78350F]">
+                            <span className="truncate">
+                              Required: <strong>{u.requiredSubject || 'Any'}</strong>
+                              {u.candidateIssue ? ` — ${u.candidateIssue}` : ''}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-medium text-[#C2410C] opacity-0 group-hover:opacity-100 transition-opacity">
+                              Edit slot →
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Schedule Warnings */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-[#6B2638]">
+                  Schedule Warnings ({warnings.length})
+                </div>
+
+                {warnings.length === 0 ? (
+                  <p className="text-xs text-[#5E5B61] italic py-2">
+                    No soft-rule warnings. All distribution preferences satisfied!
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {warnings.map((w, i) => {
+                      const batch = w.batchId ? batches.find(b => b.id === w.batchId) : undefined;
+                      const hasCell = Boolean(batch && typeof w.periodIndex === 'number');
+                      return (
+                        <div
+                          key={`warning-${w.batchId || ''}-${w.periodIndex || 0}-${i}`}
+                          role={hasCell ? 'button' : undefined}
+                          tabIndex={hasCell ? 0 : undefined}
+                          onClick={() => {
+                            if (batch && typeof w.periodIndex === 'number') {
+                              handleCellClick(batch, w.periodIndex);
+                            }
+                          }}
+                          onKeyDown={e => {
+                            if (hasCell && (e.key === 'Enter' || e.key === ' ')) {
+                              e.preventDefault();
+                              if (batch && typeof w.periodIndex === 'number') {
+                                handleCellClick(batch, w.periodIndex);
+                              }
+                            }
+                          }}
+                          className={`p-2.5 bg-white border border-[#E5E0D8] rounded text-xs transition-colors shadow-2xs group flex flex-col gap-1 ${
+                            hasCell
+                              ? 'cursor-pointer hover:border-[#6B2638] hover:bg-[#FAF7F2] outline-none focus-visible:ring-2 focus-visible:ring-[#6B2638]'
+                              : ''
+                          }`}
+                          title={hasCell ? 'Click to inspect slot' : undefined}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-[#252326] truncate">
+                              {batch ? `${batch.name} · P${(w.periodIndex || 0) + 1}` : w.type}
+                            </span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FAF0F2] text-[#6B2638] border border-[#E8D0D6] shrink-0">
+                              {w.type.replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-[#5E5B61]">
+                            <span className="truncate">{w.message}</span>
+                            {hasCell && (
+                              <span className="shrink-0 text-[10px] font-medium text-[#6B2638] opacity-0 group-hover:opacity-100 transition-opacity">
+                                Inspect →
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1510,23 +1674,49 @@ export default function Timetable() {
             The scheduler respects strict daily workload caps and avoids teacher double-booking. The following slots remain unassigned:
           </p>
           <div className="space-y-2 max-h-72 overflow-y-auto">
-            {unfilledSlots.map((u, i) => (
-              <div
-                key={i}
-                className="p-3 bg-[#FAF6EE] rounded border border-[#B08D57]/30 text-xs text-[#252326] space-y-1"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#6B2638]">
-                    {u.batchName} · Period {u.periodIndex + 1}
-                  </span>
-                  <Badge tone="gold">{u.requiredSubject}</Badge>
+            {unfilledSlots.map((u, i) => {
+              const batch = batches.find(b => b.id === u.batchId);
+              return (
+                <div
+                  key={i}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setIsUnfilledModalOpen(false);
+                    if (batch) handleCellClick(batch, u.periodIndex);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIsUnfilledModalOpen(false);
+                      if (batch) handleCellClick(batch, u.periodIndex);
+                    }
+                  }}
+                  className="p-3 bg-[#FEF7EC] hover:bg-[#FDF2E2] rounded border border-[#E9BF85] hover:border-[#B45309] text-xs text-[#252326] space-y-1.5 cursor-pointer transition-colors shadow-2xs group outline-none focus-visible:ring-2 focus-visible:ring-[#B45309]"
+                  title="Click to open and manually assign this cell"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#252326]">
+                      {u.batchName} · Period {u.periodIndex + 1}
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-[#92400E] border border-[#E9BF85]">
+                      Unfilled: {u.reason}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-[#78350F]">
+                    <span>
+                      Required: <strong>{u.requiredSubject || 'Any'}</strong>
+                    </span>
+                    <span className="text-[10px] text-[#C2410C] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                      Click to assign →
+                    </span>
+                  </div>
+                  {u.candidateIssue && (
+                    <p className="text-[10px] text-[#5E5B61] italic">{u.candidateIssue}</p>
+                  )}
                 </div>
-                <p className="text-[11px] text-[#252326]/80">{u.reason}</p>
-                {u.candidateIssue && (
-                  <p className="text-[10px] text-[#252326]/60 italic">{u.candidateIssue}</p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </Modal>

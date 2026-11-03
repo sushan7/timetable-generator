@@ -72,6 +72,7 @@ export interface Timetable {
   unfilledSlots?: UnfilledSlot[];
   warnings?: ScheduleWarning[];
   frozenViolations?: FrozenViolation[];
+  stats?: GenerationStats;
   seed?: number;
 }
 
@@ -120,13 +121,30 @@ export interface AuditLog {
   day?: DayOfWeek;
 }
 
+export type UnfilledReason =
+  | 'NO_QUALIFIED_TEACHER'
+  | 'ALL_BUSY'
+  | 'DAILY_LIMIT'
+  | 'ALL_ABSENT'
+  | 'NO_SUBJECTS';
+
 export interface UnfilledSlot {
   batchId: string;
   batchName: string;
   periodIndex: number;
   requiredSubject?: string;
-  reason: string;
+  reason: UnfilledReason | string;
   candidateIssue?: string;
+}
+
+export interface GenerationStats {
+  totalSlots: number;
+  filledSlots: number;
+  unfilledSlots: number;
+  fillPercentage: number;
+  period1LanguageCount: number;
+  byPeriodFilled: Record<number, number>;
+  repairedSlotsCount: number;
 }
 
 export interface ScheduleWarning {
@@ -149,6 +167,7 @@ export interface GenerationResult {
   allocations: Allocation[];
   unfilled: UnfilledSlot[];
   warnings: ScheduleWarning[];
+  stats: GenerationStats;
   frozenViolations?: FrozenViolation[];
   score?: number;
   seed?: number;

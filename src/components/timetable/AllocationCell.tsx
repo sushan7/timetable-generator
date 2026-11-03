@@ -49,7 +49,7 @@ export default function AllocationCell({
       return 'bg-[#FDF2F2] border border-[#F6CECE] hover:border-[#E8AAAA] text-[#A63232]';
     }
     if (isUnfilled) {
-      return 'bg-[#FDF8EE] border border-[#F4E2C2] hover:border-[#D4BC92] text-[#8B5602]';
+      return 'bg-[#FEF7EC] border border-[#E9BF85] hover:border-[#B45309] text-[#92400E] shadow-2xs';
     }
     if (isFree) {
       return 'bg-[#FAF7F2]/60 border border-dashed border-[#E5E0D8] hover:border-[#6B2638] hover:bg-[#FAF7F2] text-[#5E5B61]';
@@ -145,14 +145,16 @@ export default function AllocationCell({
           </div>
         </div>
       ) : isUnfilled ? (
-        <div className="flex flex-col justify-center h-full text-center">
-          <div className="flex items-center justify-center gap-1 text-xs font-semibold text-[#8B5602]">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#B08D57]" />
-            <span>Unfilled Shortage</span>
+        <div className="flex flex-col justify-center h-full text-center p-1">
+          <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-[#92400E]">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#C2410C]" />
+            <span className="truncate">Unfilled: {unfilledReason || 'Shortage'}</span>
           </div>
-          <div className="text-[10px] text-[#8B5602]/90 mt-0.5 truncate">
-            {unfilledReason || 'No teacher available'}
-          </div>
+          {allocation?.subject && (
+            <div className="text-[10px] text-[#A16207] truncate font-medium mt-0.5">
+              {allocation.subject}
+            </div>
+          )}
         </div>
       ) : isFree ? (
         <div className="flex items-center justify-center h-full text-xs font-medium text-[#5E5B61]">

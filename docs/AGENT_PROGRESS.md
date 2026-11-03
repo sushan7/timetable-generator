@@ -1,9 +1,9 @@
 # Timetable Pro — Agent Progress Tracker
 
 ## Baseline Verification
-- **Baseline Typecheck (`npx tsc -b`)**: 0 errors (baseline 26 known type errors in initial state now verified clean)
+- **Baseline Typecheck (`npx tsc -b`)**: 0 errors
 - **Baseline Lint (`npx eslint .`)**: 0 errors, 0 warnings
-- **Baseline Test Suite (`npm test`)**: 4 test files, 31 tests passing (including trivial test `src/utils/setup.test.ts`)
+- **Baseline Test Suite (`npm test`)**: 5 test files, 51 tests passing
 - **Baseline Build (`npm run build`)**: Passing with zero errors
 
 ---
@@ -16,7 +16,7 @@
 | C2 | Done | `src/pages/Timetable.tsx`, `src/components/timetable/AllocationCell.tsx`, `src/components/timetable/SectionTable.tsx`, `src/utils/constraints.ts`, `src/__tests__/constraints.test.ts` | Pre-generation frozen validation with canAssign returning violations list, red cell edges and summary panel; "Override anyway" checkbox for hard conflicts with overridden: true and distinct cell styling |
 | H1 | Done | `src/utils/scheduler.ts`, `src/__tests__/scheduler.test.ts` | Relative weekly quota calculation (Largest Remainder), deficit ranking, weekly quota pacing, sample batches on seed data within ±1 of target |
 | H2 | Done | `src/utils/scheduler.ts`, `src/__tests__/scheduler.test.ts` | Shared scoreSubjectChoice, anti-repetition penalty (same slot across week <150), adjacent same-subject penalty (back-to-back <10), max 2 periods/day enforced, dynamic K/H/S day-rotation |
-| H3 | Todo | `src/utils/scheduler.ts` | Priority-based slot assignment & most-constrained-first ordering |
+| H3 | Done | `src/utils/scheduler.ts`, `src/types/index.ts`, `src/pages/Timetable.tsx`, `src/components/timetable/AllocationCell.tsx`, `src/__tests__/scheduler.test.ts` | Hard vs soft rules separation; most-constrained first task ordering; bounded repair pass with alternative subjects, cross-period teacher swaps and intra-batch shift; generateTimetableV2 returning { allocations, unfilled, warnings, stats }; amber/cognac unfilled cell styling; interactive Unfilled & Warnings panel; verified 50% shortage (364/372, P1 lang=4) and 25% shortage (202/372, P5=30, P6=29) |
 | H4 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Explicit unfilled slot reporting with root cause diagnostics |
 | H5 | Done | `src/types/index.ts`, `src/utils/seedData.ts`, `src/components/timetable/AllocationCell.tsx`, `package.json` | 0 type errors: logAuditAction Omit type, seedData tuple typing, Lucide icon title wrapper span, tsc -b in build script |
 | H6 | Todo | `src/utils/scheduler.ts` | Original-subject-first absence patching |
