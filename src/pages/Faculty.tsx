@@ -843,8 +843,9 @@ export default function FacultyManager() {
       >
         <form onSubmit={handleSaveFaculty} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#252326]">Instructor Name</label>
+            <label htmlFor="faculty-name" className="text-xs font-semibold text-[#252326]">Instructor Name</label>
             <input
+              id="faculty-name"
               type="text"
               required
               placeholder="e.g. Dr. Jane Smith"
@@ -855,10 +856,11 @@ export default function FacultyManager() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#252326]">
+            <label htmlFor="faculty-max-periods" className="text-xs font-semibold text-[#252326]">
               Maximum Daily Teaching Limit (Periods/Day)
             </label>
             <input
+              id="faculty-max-periods"
               type="number"
               min={1}
               max={8}
@@ -872,9 +874,10 @@ export default function FacultyManager() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#252326]">Qualified Subjects</label>
+            <label htmlFor="faculty-subject-input" className="text-xs font-semibold text-[#252326]">Qualified Subjects</label>
             <div className="flex gap-2">
               <input
+                id="faculty-subject-input"
                 type="text"
                 placeholder="e.g. Mathematics"
                 value={subjectInput}
@@ -909,7 +912,7 @@ export default function FacultyManager() {
           </div>
 
           <div className="space-y-1 border-t border-[#E5E0D8] pt-4">
-            <label className="text-xs font-semibold text-[#252326] flex items-center gap-1.5">
+            <label htmlFor="faculty-batch-search" className="text-xs font-semibold text-[#252326] flex items-center gap-1.5">
               <Link2 className="w-3.5 h-3.5 text-[#5E5B61]" />
               <span>Assigned Batches (Optional Lock)</span>
             </label>
@@ -917,6 +920,7 @@ export default function FacultyManager() {
               Leave unrestricted to let the heuristic scheduler place this teacher anywhere, or select specific batches to lock them exclusively.
             </p>
             <input
+              id="faculty-batch-search"
               type="text"
               placeholder="Filter batches..."
               value={batchSearch}
@@ -1063,10 +1067,11 @@ export default function FacultyManager() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Import Mode</label>
+              <span className="text-xs font-semibold text-[#252326] block">Import Mode</span>
               <div className="flex gap-3">
-                <label className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
+                <label htmlFor="import-mode-merge" className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
                   <input
+                    id="import-mode-merge"
                     type="radio"
                     name="importMode"
                     value="merge"
@@ -1075,8 +1080,9 @@ export default function FacultyManager() {
                   />
                   <span><strong>Merge:</strong> Add new faculty and update existing matching records by ID or name</span>
                 </label>
-                <label className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
+                <label htmlFor="import-mode-replace" className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
                   <input
+                    id="import-mode-replace"
                     type="radio"
                     name="importMode"
                     value="replace"

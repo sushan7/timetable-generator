@@ -20,10 +20,14 @@ export default function DayTabs({
       e.preventDefault();
       const nextIdx = (index + 1) % orderedDays.length;
       onSelect(orderedDays[nextIdx]);
+      const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[role="tab"]');
+      buttons?.[nextIdx]?.focus();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       const prevIdx = (index - 1 + orderedDays.length) % orderedDays.length;
       onSelect(orderedDays[prevIdx]);
+      const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('button[role="tab"]');
+      buttons?.[prevIdx]?.focus();
     }
   };
 
@@ -41,6 +45,8 @@ export default function DayTabs({
             key={day}
             type="button"
             role="tab"
+            id={`timetable-tab-${day.toLowerCase()}`}
+            aria-controls={`timetable-panel-${day.toLowerCase()}`}
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(day)}

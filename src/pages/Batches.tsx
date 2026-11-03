@@ -751,8 +751,9 @@ export default function Batches() {
         <form onSubmit={handleSaveModal} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Campus Building</label>
+              <label htmlFor="batch-building" className="text-xs font-semibold text-[#252326]">Campus Building</label>
               <select
+                id="batch-building"
                 value={modalBuilding}
                 onChange={e => setModalBuilding(e.target.value)}
                 className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
@@ -766,8 +767,9 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Academic Track / Category</label>
+              <label htmlFor="batch-track" className="text-xs font-semibold text-[#252326]">Academic Track / Category</label>
               <input
+                id="batch-track"
                 list="years-list"
                 value={modalYearCategory}
                 onChange={e => setModalYearCategory(e.target.value)}
@@ -784,8 +786,9 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Batch Name</label>
+              <label htmlFor="batch-name" className="text-xs font-semibold text-[#252326]">Batch Name</label>
               <input
+                id="batch-name"
                 value={modalName}
                 onChange={e => setModalName(e.target.value)}
                 className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
@@ -795,8 +798,9 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Room Number</label>
+              <label htmlFor="batch-room" className="text-xs font-semibold text-[#252326]">Room Number</label>
               <input
+                id="batch-room"
                 value={modalRoomNumber}
                 onChange={e => setModalRoomNumber(e.target.value)}
                 className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
@@ -833,6 +837,7 @@ export default function Batches() {
                         type="text"
                         placeholder="HH:mm"
                         value={period.startTime}
+                        aria-label={`Period ${i + 1} start time`}
                         onChange={e => {
                           const newP = [...modalPeriods];
                           newP[i] = { ...newP[i], startTime: e.target.value };
@@ -847,6 +852,7 @@ export default function Batches() {
                         type="text"
                         placeholder="HH:mm"
                         value={period.endTime}
+                        aria-label={`Period ${i + 1} end time`}
                         onChange={e => {
                           const newP = [...modalPeriods];
                           newP[i] = { ...newP[i], endTime: e.target.value };
@@ -891,9 +897,10 @@ export default function Batches() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-3">
-                    <label className="text-xs text-[#252326]/70 flex items-center gap-1.5">
+                    <label htmlFor={`subject-weight-${idx}`} className="text-xs text-[#252326]/70 flex items-center gap-1.5 cursor-pointer">
                       <span>Weight:</span>
                       <input
+                        id={`subject-weight-${idx}`}
                         type="number"
                         min={1}
                         max={10}

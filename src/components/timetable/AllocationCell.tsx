@@ -1,4 +1,4 @@
-import { Lock, Unlock, AlertTriangle, Edit2, ShieldAlert } from 'lucide-react';
+import { Lock, Unlock, AlertTriangle, Edit2, ShieldAlert, UserX } from 'lucide-react';
 import type { Allocation, PeriodTiming } from '../../types';
 
 export default function AllocationCell({
@@ -10,6 +10,7 @@ export default function AllocationCell({
   requiredSubject,
   isViolated,
   violationReason,
+  isTeacherAbsent,
   onToggleFreeze,
   onClickSlot,
 }: {
@@ -21,6 +22,7 @@ export default function AllocationCell({
   requiredSubject?: string;
   isViolated?: boolean;
   violationReason?: string;
+  isTeacherAbsent?: boolean;
   onToggleFreeze: () => void;
   onClickSlot?: () => void;
 }) {
@@ -49,6 +51,9 @@ export default function AllocationCell({
     }
     if (isGap) {
       return 'bg-[#FDF2F2] border border-[#F6CECE] hover:border-[#E8AAAA] text-[#A63232]';
+    }
+    if (isTeacherAbsent && !isGap && allocation?.facultyId) {
+      return 'bg-[#FFF5F5] border-2 border-dashed border-[#DC2626] text-[#991B1B] shadow-2xs';
     }
     if (isUnfilled) {
       return 'bg-[#FEF7EC] border border-[#E9BF85] hover:border-[#B45309] text-[#92400E] shadow-2xs';
@@ -87,13 +92,17 @@ export default function AllocationCell({
             ? `OVERRIDDEN MANUAL ASSIGNMENT:\n${allocation.conflictNote || 'Forced assignment bypassing constraints'}`
             : allocation?.hasConflictOverride
               ? `WARNING: Schedule conflict override!\n${allocation.conflictNote || ''}`
-              : isUnfilled
-                ? `UNFILLED SHORTAGE: ${unfilledReason || 'No teacher available'}`
-                : allocation?.subjectChanged
-                  ? `SUBJECT CHANGED:\n${allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join('\n') : 'Subject changed')}`
-                  : allocation?.explanation
-                    ? allocation.explanation.join('\n')
-                    : 'Click to assign or edit this slot'
+              : isGap
+                ? `GAP (TEACHER ABSENT): Click to assign a substitute teacher.`
+                : isTeacherAbsent && allocation?.facultyId
+                  ? `TEACHER ABSENT TODAY: ${facultyName} is marked absent for this day! Click to assign substitute.`
+                  : isUnfilled
+                    ? `UNFILLED SHORTAGE: ${unfilledReason || 'No teacher available'}`
+                    : allocation?.subjectChanged
+                      ? `SUBJECT CHANGED:\n${allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join('\n') : 'Subject changed')}`
+                      : allocation?.explanation
+                        ? allocation.explanation.join('\n')
+                        : 'Click to assign or edit this slot'
       }
     >
       {/* Main slot content */}
@@ -123,9 +132,12 @@ export default function AllocationCell({
             <span className="font-bold text-xs text-[#9A3412] truncate">
               {allocation.subject}
             </span>
-            <span className="text-[9px] font-bold px-1 py-0.5 bg-[#FFEDD5] text-[#C2410C] rounded border border-[#FDBA74]">
-              OVERRIDDEN
-            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <ShieldAlert className="w-3.5 h-3.5 text-[#C2410C]" />
+              <span className="text-[9px] font-bold px-1 py-0.5 bg-[#FFEDD5] text-[#C2410C] rounded border border-[#FDBA74]">
+                OVERRIDDEN
+              </span>
+            </div>
           </div>
           <div className="text-[11px] text-[#9A3412] font-medium truncate">
             {facultyName}
@@ -190,16 +202,25 @@ export default function AllocationCell({
                   title="Manually edited slot"
                 />
               )}
+              {/* Persistent Lock Icon & Text when frozen (U1 & Accessibility) */}
               {allocation?.frozen && (
-                <span title="Locked slot" className="shrink-0 inline-flex items-center">
-                  <Lock className="w-3 h-3 text-[#B08D57]" />
+                <span title="Locked slot (frozen)" className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-[#FAF2E6] text-[#7A5B28] border border-[#E7D7BD]">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Locked</span>
+                </span>
+              )}
+              {/* Flag Absent Teacher on grid even before Sync (Accessibility) */}
+              {isTeacherAbsent && !isGap && allocation?.facultyId && (
+                <span title="Assigned teacher is absent today!" className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5]">
+                  <UserX className="w-2.5 h-2.5" />
+                  <span>Absent</span>
                 </span>
               )}
             </div>
           </div>
 
           <div className="flex flex-col text-xs text-[#5E5B61] mt-0.5 min-w-0">
-            <span className="truncate font-medium">
+            <span className={`truncate font-medium ${isTeacherAbsent ? 'text-[#991B1B] line-through' : ''}`}>
               {facultyName}
             </span>
             {allocation?.subjectChanged && (allocation?.conflictNote || allocation?.explanation?.[0]) && (
@@ -214,8 +235,8 @@ export default function AllocationCell({
         </>
       )}
 
-      {/* Quick Action Overlay (Freeze Lock & Edit) - visible on hover, and accessible via keyboard/touch */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover/cell:opacity-100 focus-within:opacity-100 transition-opacity z-10">
+      {/* Quick Action Overlay (Freeze Lock & Edit) - persistent lock icon when frozen, always visible under hover:none touch devices (U1) */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover/cell:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 touch-show-actions transition-opacity z-10">
         {allocation && !isGap && (
           <button
             type="button"

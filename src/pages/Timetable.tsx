@@ -44,7 +44,7 @@ import {
 } from '../utils/scheduler';
 import { storage } from '../utils/storage';
 import { SECTIONS, groupBatchesBySection } from '../utils/sections';
-import { checkFacultyConflict, canAssign } from '../utils/validation';
+import { checkFacultyConflict, canAssign, isFacultyAbsent } from '../utils/validation';
 import {
   exportTimetableToExcel,
   exportTimetableToPng,
@@ -593,32 +593,75 @@ export default function Timetable() {
     }
   };
 
-  const exportItems: DropdownItem[] = [
-    {
-      id: 'excel',
-      label: 'Export to Excel (.xlsx)',
-      description: 'Styled multi-period workbook with room and faculty data',
-      icon: <FileSpreadsheet className="w-4 h-4 text-[#6B2638]" />,
-      onClick: handleExportExcel,
-      disabled: isExporting || !hasGenerated,
+  const checkIsFacultyAbsent = useCallback(
+    (facultyId: string) => {
+      const f = faculties.find(fac => fac.id === facultyId);
+      if (!f) return false;
+      return isFacultyAbsent(f, currentDay);
     },
-    {
-      id: 'png',
-      label: 'Download Image (PNG)',
-      description: 'High-resolution snapshot for notices & digital displays',
-      icon: <ImageIcon className="w-4 h-4 text-[#B08D57]" />,
-      onClick: handleExportPng,
-      disabled: isExporting || !hasGenerated,
-    },
-    {
-      id: 'pdf',
-      label: 'Export Document (PDF)',
-      description: 'Printable A4 landscape document with full headers',
-      icon: <FileText className="w-4 h-4 text-[#6B2638]" />,
-      onClick: handleExportPdf,
-      disabled: isExporting || !hasGenerated,
-    },
-  ];
+    [faculties, currentDay]
+  );
+
+  const exportItems: DropdownItem[] = useMemo(
+    () => [
+      {
+        id: 'excel',
+        label: 'Export to Excel (.xlsx)',
+        description: 'Styled multi-period workbook with room and faculty data',
+        icon: <FileSpreadsheet className="w-4 h-4 text-[#6B2638]" />,
+        onClick: handleExportExcel,
+        disabled: isExporting || !hasGenerated,
+      },
+      {
+        id: 'png',
+        label: 'Download Image (PNG)',
+        description: 'High-resolution snapshot for notices & digital displays',
+        icon: <ImageIcon className="w-4 h-4 text-[#B08D57]" />,
+        onClick: handleExportPng,
+        disabled: isExporting || !hasGenerated,
+      },
+      {
+        id: 'pdf',
+        label: 'Export Document (PDF)',
+        description: 'Printable A4 landscape document with full headers',
+        icon: <FileText className="w-4 h-4 text-[#6B2638]" />,
+        onClick: handleExportPdf,
+        disabled: isExporting || !hasGenerated,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isExporting, hasGenerated, currentDay, batches, allocations, faculties]
+  );
+
+  const menuItems: DropdownItem[] = useMemo(
+    () => [
+      {
+        id: 'audit',
+        label: `Audit ${currentDay} (${validationReport.length} issues)`,
+        description: 'Check teacher clashes, daily caps, and room overlaps',
+        icon: <ShieldCheck className="w-4 h-4 text-[#6B2638]" />,
+        onClick: () => setIsValidationModalOpen(true),
+      },
+      {
+        id: 'status',
+        label: currentStatus === 'Finalized' ? 'Reopen as Draft' : 'Mark as Finalized',
+        description:
+          currentStatus === 'Finalized'
+            ? 'Unlock schedule for editing and regeneration'
+            : 'Lock timetable to safeguard official schedule',
+        icon:
+          currentStatus === 'Finalized' ? (
+            <Unlock className="w-4 h-4 text-[#B08D57]" />
+          ) : (
+            <Lock className="w-4 h-4 text-[#6B2638]" />
+          ),
+        onClick: () => handleStatusChange(currentStatus === 'Finalized' ? 'Draft' : 'Finalized'),
+      },
+      ...exportItems,
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentDay, validationReport.length, currentStatus, exportItems]
+  );
 
   const filteredBatches = useMemo(() => {
     return batches.filter(b => {
@@ -681,32 +724,14 @@ export default function Timetable() {
         subtitle={`Generate, validate, and manage academic period assignments for ${currentDay}`}
         actions={
           <div className="flex items-center gap-2 flex-wrap no-export">
-            {/* Status Selector */}
-            <div className="inline-flex items-center rounded-md border border-[#A89B8A]/30 bg-white p-0.5 text-xs font-semibold shadow-2xs">
-              <button
-                type="button"
-                onClick={() => handleStatusChange('Draft')}
-                className={`px-3 py-1.5 rounded transition-colors ${
-                  currentStatus === 'Draft'
-                    ? 'bg-[#F3EEE6] text-[#6B2638] font-bold shadow-2xs'
-                    : 'text-[#252326]/60 hover:text-[#252326]'
-                }`}
-              >
-                Draft
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusChange('Finalized')}
-                className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors ${
-                  currentStatus === 'Finalized'
-                    ? 'bg-[#6B2638] text-white font-bold shadow-2xs'
-                    : 'text-[#252326]/60 hover:text-[#252326]'
-                }`}
-              >
-                <Lock className="w-3 h-3" />
-                <span>Finalized</span>
-              </button>
-            </div>
+            {/* Status indicator badge */}
+            <Badge
+              tone={currentStatus === 'Finalized' ? 'burgundy' : 'neutral'}
+              className="px-2.5 py-1 text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+            >
+              {currentStatus === 'Finalized' ? <Lock className="w-3 h-3" /> : null}
+              <span>{currentStatus}</span>
+            </Badge>
 
             {/* Undo / Redo */}
             <div className="flex items-center rounded border border-[#A89B8A]/30 bg-white">
@@ -716,6 +741,7 @@ export default function Timetable() {
                 disabled={history.length === 0 || currentStatus === 'Finalized'}
                 className="p-1.5 text-[#252326]/70 hover:text-[#6B2638] disabled:opacity-30 disabled:pointer-events-none"
                 title="Undo (Ctrl+Z)"
+                aria-label="Undo"
               >
                 <Undo2 className="w-4 h-4" />
               </button>
@@ -726,37 +752,19 @@ export default function Timetable() {
                 disabled={future.length === 0 || currentStatus === 'Finalized'}
                 className="p-1.5 text-[#252326]/70 hover:text-[#6B2638] disabled:opacity-30 disabled:pointer-events-none"
                 title="Redo (Ctrl+Y)"
+                aria-label="Redo"
               >
                 <Redo2 className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Audit / Validate Button */}
-            <Button
-              variant="secondary"
-              icon={<ShieldCheck className="w-4 h-4 text-[#6B2638]" />}
-              onClick={() => setIsValidationModalOpen(true)}
-              title="Audit active timetable for teacher clashes and quota rules"
-            >
-              Audit Day ({validationReport.length})
-            </Button>
-
-            {/* Sync Absences Button */}
-            {absentFacultyCount > 0 && (
-              <Button
-                variant="secondary"
-                icon={<RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />}
-                loading={isSyncing}
-                onClick={handleSyncAbsences}
-                disabled={currentStatus === 'Finalized'}
-              >
-                Patch Absences ({gapCount > 0 ? `${gapCount} Gaps` : `${absentFacultyCount} Absent`})
-              </Button>
-            )}
-
             {/* Advanced Seed Input (M1) */}
             <div className="flex items-center gap-1.5 no-export" title="Optional seed for deterministic, reproducible generation">
+              <label htmlFor="timetable-seed-input" className="sr-only">
+                Random Seed
+              </label>
               <input
+                id="timetable-seed-input"
                 type="number"
                 placeholder="Seed (opt)"
                 value={manualSeedInput}
@@ -771,7 +779,20 @@ export default function Timetable() {
               )}
             </div>
 
-            {/* Generate Button */}
+            {/* Secondary Action: Patch Absences */}
+            {absentFacultyCount > 0 && (
+              <Button
+                variant="secondary"
+                icon={<RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />}
+                loading={isSyncing}
+                onClick={handleSyncAbsences}
+                disabled={currentStatus === 'Finalized'}
+              >
+                Patch Absences ({gapCount > 0 ? `${gapCount} Gaps` : `${absentFacultyCount} Absent`})
+              </Button>
+            )}
+
+            {/* Primary Action: Generate */}
             <Button
               variant="primary"
               icon={<Play className="w-4 h-4" />}
@@ -782,11 +803,11 @@ export default function Timetable() {
               Generate {currentDay}
             </Button>
 
-            {/* Export Menu */}
+            {/* Menu Action: Grouped Export, Status, Audit (Requirement U2) */}
             <DropdownMenu
-              label="Export"
+              label="Actions"
               icon={<Download className="w-4 h-4" />}
-              items={exportItems}
+              items={menuItems}
               align="right"
               disabled={isExporting}
             />
@@ -1104,7 +1125,11 @@ export default function Timetable() {
 
       {/* View Mode: BATCH MATRIX */}
       {viewMode === 'batches' && (
-        <div>
+        <div
+          id={`timetable-panel-${currentDay.toLowerCase()}`}
+          role="tabpanel"
+          aria-labelledby={`timetable-tab-${currentDay.toLowerCase()}`}
+        >
           {!hasGenerated ? (
             <div className="p-8 bg-[#F3EEE6]/50 rounded-xl border border-[#A89B8A]/30 space-y-6 text-center">
               <div className="w-12 h-12 bg-[#6B2638]/10 text-[#6B2638] rounded-full flex items-center justify-center mx-auto">
@@ -1219,6 +1244,7 @@ export default function Timetable() {
                     unfilledSlots={unfilledSlots}
                     frozenViolations={frozenViolations}
                     getFacultyName={getFacultyName}
+                    isFacultyAbsent={checkIsFacultyAbsent}
                     onToggleFreeze={toggleFreeze}
                     onCellClick={handleCellClick}
                   />
@@ -1235,10 +1261,11 @@ export default function Timetable() {
           <div className="flex items-center gap-3 p-4 bg-[#F3EEE6]/50 rounded-lg border border-[#A89B8A]/30">
             <User className="w-5 h-5 text-[#6B2638]" />
             <div className="flex-1">
-              <label className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
+              <label htmlFor="select-faculty-matrix" className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
                 Select Instructor to Inspect Weekly Matrix
               </label>
               <select
+                id="select-faculty-matrix"
                 value={selectedFacultyId || faculties[0]?.id || ''}
                 onChange={e => setSelectedFacultyId(e.target.value)}
                 className="mt-1 w-full max-w-md px-3 py-2 text-xs border border-[#A89B8A]/40 rounded bg-white text-[#252326] outline-none focus:border-[#6B2638]"
@@ -1336,10 +1363,11 @@ export default function Timetable() {
           <div className="flex items-center gap-3 p-4 bg-[#F3EEE6]/50 rounded-lg border border-[#A89B8A]/30">
             <Building className="w-5 h-5 text-[#6B2638]" />
             <div className="flex-1">
-              <label className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
+              <label htmlFor="filter-room-number" className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
                 Filter by Room Number
               </label>
               <input
+                id="filter-room-number"
                 type="text"
                 placeholder="Search room (e.g. 204(A), 101, or leave empty for all rooms)"
                 value={selectedRoomNumber}
@@ -1523,8 +1551,9 @@ export default function Timetable() {
             )}
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Subject</label>
+              <label htmlFor="slot-edit-subject" className="text-xs font-semibold text-[#252326]">Subject</label>
               <select
+                id="slot-edit-subject"
                 value={editingSlot.subject}
                 onChange={e => setEditingSlot({ ...editingSlot, subject: e.target.value })}
                 className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
@@ -1541,8 +1570,9 @@ export default function Timetable() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#252326]">Assigned Instructor</label>
+              <label htmlFor="slot-edit-faculty" className="text-xs font-semibold text-[#252326]">Assigned Instructor</label>
               <select
+                id="slot-edit-faculty"
                 value={editingSlot.facultyId}
                 onChange={e =>
                   setEditingSlot({
@@ -1575,8 +1605,9 @@ export default function Timetable() {
                   </div>
                 </div>
                 {isHardConflict && (
-                  <label className="flex items-center gap-2 pt-2 border-t border-[#ECD9DE] cursor-pointer font-bold select-none text-[#6B2638]">
+                  <label htmlFor="slot-conflict-override" className="flex items-center gap-2 pt-2 border-t border-[#ECD9DE] cursor-pointer font-bold select-none text-[#6B2638]">
                     <input
+                      id="slot-conflict-override"
                       type="checkbox"
                       checked={editingSlot.allowConflictOverride}
                       onChange={e =>
@@ -1591,8 +1622,9 @@ export default function Timetable() {
             )}
 
             <div className="pt-2 border-t border-[#A89B8A]/20">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252326] select-none">
+              <label htmlFor="slot-is-frozen" className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252326] select-none">
                 <input
+                  id="slot-is-frozen"
                   type="checkbox"
                   checked={editingSlot.isFrozen}
                   onChange={e => setEditingSlot({ ...editingSlot, isFrozen: e.target.checked })}

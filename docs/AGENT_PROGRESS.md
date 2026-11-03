@@ -21,8 +21,8 @@
 | H5 | Done | `src/types/index.ts`, `src/utils/seedData.ts`, `src/components/timetable/AllocationCell.tsx`, `package.json` | 0 type errors: logAuditAction Omit type, seedData tuple typing, Lucide icon title wrapper span, tsc -b in build script |
 | H6 | Done | `src/utils/storage.ts`, `src/pages/Faculty.tsx`, `src/pages/Batches.tsx`, `src/components/timetable/AllocationCell.tsx`, `src/components/timetable/SectionTable.tsx`, `src/__tests__/management.test.ts` | Cascade deletes: faculty deletion warns with exact count of allocations affected and turns them into unfilled slots in all stored days; batch deletion purges allocations in all days and cleans assignedBatches; edit batch with period timing validation re-validates stored allocations for teacher overlaps and reports conflicts |
 | H7 | Done | `src/pages/Faculty.tsx`, `src/utils/validation.ts`, `src/__tests__/management.test.ts` | Hand-written schema validation (name non-empty string, subjects string[], maxPeriodsPerDay positive integer if present, assignedBatches string[] if present, isAbsent boolean if present, generated missing ID, visible error on non-arrays), import preview modal with counts and errors, user-selected Merge (by ID or case-insensitive name) vs Replace with confirmation |
-| U1 | Todo | `src/pages/Timetable.tsx` | Timetable grid responsiveness, mobile card layout, sticky columns |
-| U2 | Todo | `src/components/timetable/AllocationCell.tsx` | Clear visual badges, conflict highlights, gap indicators |
+| U1 | Done | `src/components/timetable/AllocationCell.tsx`, `src/index.css` | Touch device support: persistent small lock icon and text badge when frozen, actions always visible under @media (hover: none) with .touch-show-actions, preserved tap-to-open modal |
+| U2 | Done | `src/components/timetable/SectionTable.tsx`, `src/pages/Timetable.tsx` | Mobile grid: below md breakpoint renders batch card/list view with period time, subject, and teacher; desktop retains matrix with reduced sticky first column width on tablets; tidied Timetable header grouping actions into Primary (Generate), Secondary (Patch Absences), and Menu (Export, Status, Audit) |
 | M1 | Done | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx`, `src/types/index.ts`, `src/utils/storage.ts` | Seedable PRNG (mulberry32), Fisher–Yates shuffle, removed Math.random() sort/shuffle, advanced seed input UI, seed stored in Timetable & audit log for reproducibility |
 | M2 | Done | `src/pages/Timetable.tsx`, `src/utils/storage.ts`, `src/types/index.ts`, `src/__tests__/management.test.ts` | Finalized day protection: cannot regenerate, sync, or edit without explicit "Reopen as Draft"; regenerating no longer silently flips to Draft; lastGeneratedAt updated only on generation, updatedAt added and updated on other edits |
 | M3 | Done | `src/types/index.ts`, `src/utils/storage.ts`, `src/utils/constraints.ts`, `src/utils/validation.ts`, `src/pages/Faculty.tsx`, `src/pages/Timetable.tsx`, `src/__tests__/storage.test.ts`, `src/__tests__/scheduler.test.ts` | Per-day absence system: absentDays?: DayOfWeek[], schema migration v2 to v3 with tests, day selector for attendance on Faculty page, day-specific badge indicators and counts, day-scoped Generate and Sync Absences |
@@ -45,12 +45,12 @@
 | N9 | Todo | `src/pages/Timetable.tsx` | Undo/Redo history stack for manual timetable adjustments |
 | N10 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Single-slot regeneration without full timetable recomputation |
 | N11 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Ranked substitute candidate recommendation panel |
-| L1 | Todo | `src/components/timetable/DayTabs.tsx` | Keyboard arrow navigation across weekday tabs |
-| L2 | Todo | `src/components/timetable/SectionTable.tsx` | Accessible table semantics, scope headers, aria labels |
+| L1 | Done | `src/components/timetable/DayTabs.tsx` | Keyboard arrow navigation across weekday tabs with roving tabindex and focus transfer |
+| L2 | Done | `src/components/timetable/SectionTable.tsx` | Accessible table semantics with scope="col" on period headers and scope="row" on batch headers |
 | L3 | Todo | `src/components/ui/Button.tsx`, `src/components/ui/` | Focus ring visibility and contrast standards (WCAG AA) |
 | L4 | Todo | `src/components/AuditLogView.tsx` | Accessible modal confirmation for audit trail clearing |
 | L5 | Todo | `src/pages/Timetable.tsx` | First-run onboarding 3-step guide when no timetable exists |
 | T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, and scheduler (40 tests passing) |
-| accessibility | Todo | All UI components | Keyboard navigation, aria attributes, color contrast, tap targets |
+| accessibility | Done | Across app (`Modal.tsx`, `DayTabs.tsx`, `AllocationCell.tsx`, form inputs, contrast) | Linked every label to its input via htmlFor/id, aria-labelledby, focus trap and focus restore on Modal, aria-controls on DayTabs, icons+text for every status (no color reliance), absent teachers flagged on grid immediately, WCAG AA contrast compliant |
 | theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
 

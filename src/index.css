@@ -68,3 +68,10 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #A89B8A;
 }
+
+/* Touch devices support (U1) */
+@media (hover: none) {
+  .touch-show-actions {
+    opacity: 1 !important;
+  }
+}

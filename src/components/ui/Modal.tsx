@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useId, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { cn } from './cn';
 
@@ -29,16 +29,76 @@ export default function Modal({
   footer,
   maxWidth = 'lg',
 }: ModalProps) {
+  const generatedId = useId();
+  const titleId = `modal-title-${generatedId.replace(/[:]/g, '')}`;
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+
+    // Save active element for focus restoration on close
+    previousActiveElement.current = document.activeElement as HTMLElement | null;
+
+    // Initial focus on opening
+    const timer = setTimeout(() => {
+      if (modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length > 0) {
+          focusable[0].focus();
+        } else {
+          modalRef.current.focus();
+        }
+      }
+    }, 40);
+
+    // Focus trap & escape key handler
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = Array.from(
+          modalRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter(el => el.offsetParent !== null);
+
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first || !modalRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !modalRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
     };
-    window.addEventListener('keydown', onKey);
+
+    window.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
+
     return () => {
-      window.removeEventListener('keydown', onKey);
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
+
+      // Restore focus to previously focused element on close
+      if (previousActiveElement.current && typeof previousActiveElement.current.focus === 'function') {
+        previousActiveElement.current.focus();
+      }
     };
   }, [isOpen, onClose]);
 
@@ -51,18 +111,21 @@ export default function Modal({
       role="presentation"
     >
       <div
+        ref={modalRef}
+        tabIndex={-1}
         className={cn(
-          'bg-white rounded-lg shadow-xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-[#E5E0D8] animate-in zoom-in-95 duration-120',
+          'bg-white rounded-lg shadow-xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-[#E5E0D8] animate-in zoom-in-95 duration-120 outline-none',
           MAX_WIDTH_STYLES[maxWidth]
         )}
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
       >
         {/* Modal Header */}
         <div className="flex justify-between items-start p-5 sm:p-6 border-b border-[#E5E0D8] bg-[#FAF7F2]">
           <div>
-            <h2 className="text-base sm:text-lg font-bold text-[#252326] tracking-tight leading-snug">
+            <h2 id={titleId} className="text-base sm:text-lg font-bold text-[#252326] tracking-tight leading-snug">
               {title}
             </h2>
             {subtitle && (
