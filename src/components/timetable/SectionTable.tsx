@@ -48,7 +48,9 @@ export default function SectionTable({
 
   const isSlotUnfilled = (batchId: string, pIndex: number) => {
     const found = unfilledSlots.find(u => u.batchId === batchId && u.periodIndex === pIndex);
-    return found ? { isUnfilled: true, reason: found.reason } : { isUnfilled: false };
+    return found
+      ? { isUnfilled: true, reason: found.reason, requiredSubject: found.requiredSubject }
+      : { isUnfilled: false };
   };
 
   const isSlotViolated = (batchId: string, pIndex: number) => {
@@ -127,7 +129,7 @@ export default function SectionTable({
                   const allocation = allocations.find(
                     a => a.batchId === batch.id && a.periodIndex === i
                   );
-                  const { isUnfilled, reason } = isSlotUnfilled(batch.id, i);
+                  const { isUnfilled, reason, requiredSubject } = isSlotUnfilled(batch.id, i);
                   const { isViolated, reason: violationReason } = isSlotViolated(batch.id, i);
                   return (
                     <div key={i} className="flex flex-col">
@@ -139,6 +141,7 @@ export default function SectionTable({
                         allocation={allocation}
                         isUnfilled={isUnfilled}
                         unfilledReason={reason}
+                        requiredSubject={requiredSubject}
                         isViolated={isViolated}
                         violationReason={violationReason}
                         facultyName={getFacultyName(allocation?.facultyId || '')}
@@ -203,7 +206,7 @@ export default function SectionTable({
                     const allocation = allocations.find(
                       a => a.batchId === batch.id && a.periodIndex === i
                     );
-                    const { isUnfilled, reason } = isSlotUnfilled(batch.id, i);
+                    const { isUnfilled, reason, requiredSubject } = isSlotUnfilled(batch.id, i);
                     const { isViolated, reason: violationReason } = isSlotViolated(batch.id, i);
                     return (
                       <td key={i} className="p-2 border-l border-[#E5E0D8] align-top bg-white group-hover:bg-[#FAF7F2]/60 transition-colors">
@@ -212,6 +215,7 @@ export default function SectionTable({
                           allocation={allocation}
                           isUnfilled={isUnfilled}
                           unfilledReason={reason}
+                          requiredSubject={requiredSubject}
                           isViolated={isViolated}
                           violationReason={violationReason}
                           facultyName={getFacultyName(allocation?.facultyId || '')}

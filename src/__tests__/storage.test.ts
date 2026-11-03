@@ -328,13 +328,15 @@ describe('Storage & Data Integrity', () => {
       const faculties = storage.getFaculty();
       expect(faculties.some(f => f.id === testFaculty.id)).toBe(false);
 
-      // Verify timetable preserved slot with vacatedFacultyId and vacatedFacultyName
+      // Verify timetable turned affected slot into unfilled shortage slot (H6)
       const mondayTT = storage.getTimetableForDay('Monday');
       const alloc = mondayTT?.allocations.find(a => a.batchId === 'batch_test');
-      expect(alloc).toBeDefined();
-      expect(alloc?.facultyId).toBe('');
-      expect(alloc?.vacatedFacultyId).toBe(testFaculty.id);
-      expect(alloc?.vacatedFacultyName).toBe('Prof. Marie Curie');
+      expect(alloc).toBeUndefined();
+      const unfilled = mondayTT?.unfilledSlots?.find(u => u.batchId === 'batch_test');
+      expect(unfilled).toBeDefined();
+      expect(unfilled?.reason).toBe('NO_QUALIFIED_TEACHER');
+      expect(unfilled?.requiredSubject).toBe('Physics');
+      expect(unfilled?.periodIndex).toBe(0);
     });
 
     it('cascades batch deletion to faculty locks and allocations', () => {

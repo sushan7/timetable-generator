@@ -7,6 +7,7 @@ export default function AllocationCell({
   facultyName,
   isUnfilled,
   unfilledReason,
+  requiredSubject,
   isViolated,
   violationReason,
   onToggleFreeze,
@@ -17,6 +18,7 @@ export default function AllocationCell({
   facultyName: string;
   isUnfilled?: boolean;
   unfilledReason?: string;
+  requiredSubject?: string;
   isViolated?: boolean;
   violationReason?: string;
   onToggleFreeze: () => void;
@@ -155,9 +157,9 @@ export default function AllocationCell({
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#C2410C]" />
             <span className="truncate">Unfilled: {unfilledReason || 'Shortage'}</span>
           </div>
-          {allocation?.subject && (
+          {(allocation?.subject || requiredSubject) && (
             <div className="text-[10px] text-[#A16207] truncate font-medium mt-0.5">
-              {allocation.subject}
+              {allocation?.subject || requiredSubject}
             </div>
           )}
         </div>

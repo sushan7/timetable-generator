@@ -18,6 +18,7 @@ import type { Faculty, Batch, DayOfWeek } from '../types';
 import { WEEKDAYS } from '../types';
 import { storage } from '../utils/storage';
 import { isFacultyAbsent } from '../utils/constraints';
+import { validateFacultyRecord } from '../utils/validation';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -58,12 +59,20 @@ export default function FacultyManager() {
   const [subjectInput, setSubjectInput] = useState('');
   const [batchSearch, setBatchSearch] = useState('');
 
-  // Delete Confirmation State
+  // Delete Confirmation State (H6)
   const [deletingFaculty, setDeletingFaculty] = useState<Faculty | null>(null);
 
   // Import Preview State (H7)
   const [importPreview, setImportPreview] = useState<ImportValidationResult | null>(null);
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge');
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
+
+  // Add Faculty Duplicate Warning State (M8)
+  const [duplicateAddWarning, setDuplicateAddWarning] = useState<{
+    existing: Faculty;
+    pendingName: string;
+    pendingSubjects: string[];
+  } | null>(null);
 
   // Mark All Present Modal
   const [showMarkAllPresentConfirm, setShowMarkAllPresentConfirm] = useState(false);
@@ -130,7 +139,25 @@ export default function FacultyManager() {
 
   const handleSaveFaculty = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentFaculty.name?.trim()) return;
+    const trimmedName = currentFaculty.name?.trim();
+    if (!trimmedName) return;
+
+    // Detect case-insensitive duplicate names on Add / Edit (M8)
+    const existingDupe = faculties.find(
+      f => f.name.trim().toLowerCase() === trimmedName.toLowerCase() && f.id !== currentFaculty.id
+    );
+
+    if (existingDupe && !duplicateAddWarning) {
+      setDuplicateAddWarning({
+        existing: existingDupe,
+        pendingName: trimmedName,
+        pendingSubjects:
+          currentFaculty.subjects && currentFaculty.subjects.length > 0
+            ? currentFaculty.subjects
+            : ['General Studies'],
+      });
+      return;
+    }
 
     if (currentFaculty.id) {
       saveToStorage(
@@ -143,8 +170,11 @@ export default function FacultyManager() {
     } else {
       const newFaculty: Faculty = {
         id: `fac_${crypto.randomUUID()}`,
-        name: currentFaculty.name.trim(),
-        subjects: currentFaculty.subjects && currentFaculty.subjects.length > 0 ? currentFaculty.subjects : ['General Studies'],
+        name: trimmedName,
+        subjects:
+          currentFaculty.subjects && currentFaculty.subjects.length > 0
+            ? currentFaculty.subjects
+            : ['General Studies'],
         maxPeriodsPerDay: currentFaculty.maxPeriodsPerDay || 4,
         isAbsent: false,
         absentDays: currentFaculty.absentDays || [],
@@ -167,7 +197,7 @@ export default function FacultyManager() {
     setDeletingFaculty(null);
     setFeedback({
       type: 'success',
-      text: `Removed ${deletingFaculty.name}. Vacated ${res.allocationsAffected} timetable slots.`,
+      text: `Removed ${deletingFaculty.name}. Turned ${res.allocationsAffected} timetable slot(s) into unfilled shortage slots.`,
     });
     setTimeout(() => setFeedback(null), 4000);
   };
@@ -213,7 +243,7 @@ export default function FacultyManager() {
     setCurrentFaculty({ ...currentFaculty, assignedBatches: updated });
   };
 
-  // Validated File Upload (H7)
+  // Validated File Upload with Hand-written Schema (H7)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -229,8 +259,11 @@ export default function FacultyManager() {
       try {
         const json = JSON.parse(event.target?.result as string);
         if (!Array.isArray(json)) {
-          setFeedback({ type: 'error', text: 'JSON structure error: Expected an array of faculty objects.' });
-          setTimeout(() => setFeedback(null), 4000);
+          setFeedback({
+            type: 'error',
+            text: `JSON structure error: Expected a JSON array of faculty objects. Received: ${typeof json}.`,
+          });
+          setTimeout(() => setFeedback(null), 5000);
           return;
         }
 
@@ -241,43 +274,18 @@ export default function FacultyManager() {
         const existingNames = new Map(faculties.map(f => [f.name.trim().toLowerCase(), f.id]));
 
         json.forEach((item, idx) => {
-          if (!item || typeof item !== 'object') {
-            invalid.push({ record: item, reason: `Item #${idx + 1} is not an object` });
+          const res = validateFacultyRecord(item, idx);
+          if (!res.valid) {
+            invalid.push({ record: item, reason: res.reason });
             return;
           }
 
-          const raw = item as Record<string, unknown>;
-          if (!raw.name || typeof raw.name !== 'string' || !raw.name.trim()) {
-            invalid.push({ record: item, reason: `Item #${idx + 1} is missing a valid 'name'` });
-            return;
-          }
-
-          if (!Array.isArray(raw.subjects) || raw.subjects.length === 0) {
-            invalid.push({ record: item, reason: `Faculty "${raw.name}" must have at least one subject in 'subjects'` });
-            return;
-          }
-
-          const normName = raw.name.trim().toLowerCase();
+          const faculty = res.faculty;
+          const normName = faculty.name.trim().toLowerCase();
           if (existingNames.has(normName)) {
-            duplicates.push({ name: raw.name.trim(), existingId: existingNames.get(normName)! });
+            duplicates.push({ name: faculty.name, existingId: existingNames.get(normName)! });
           }
-
-          const rawAbsentDays = Array.isArray(raw.absentDays)
-            ? ((raw.absentDays as string[]).filter(d => (WEEKDAYS as readonly string[]).includes(d)) as DayOfWeek[])
-            : raw.isAbsent
-              ? [...WEEKDAYS]
-              : [];
-
-          const validatedFaculty: Faculty = {
-            id: typeof raw.id === 'string' && raw.id ? raw.id : `fac_${Date.now()}_${idx}`,
-            name: raw.name.trim(),
-            subjects: raw.subjects.map(s => String(s).trim()),
-            maxPeriodsPerDay: typeof raw.maxPeriodsPerDay === 'number' && raw.maxPeriodsPerDay > 0 ? raw.maxPeriodsPerDay : 4,
-            isAbsent: rawAbsentDays.length > 0,
-            absentDays: rawAbsentDays,
-            assignedBatches: Array.isArray(raw.assignedBatches) ? raw.assignedBatches.map(b => String(b)) : [],
-          };
-          valid.push(validatedFaculty);
+          valid.push(faculty);
         });
 
         setImportPreview({
@@ -287,7 +295,7 @@ export default function FacultyManager() {
           duplicates,
         });
       } catch (err) {
-        setFeedback({ type: 'error', text: `Failed to parse JSON: ${err}` });
+        setFeedback({ type: 'error', text: `Failed to parse JSON file: ${err}` });
         setTimeout(() => setFeedback(null), 4000);
       }
     };
@@ -298,16 +306,43 @@ export default function FacultyManager() {
   const handleApplyImport = () => {
     if (!importPreview) return;
     if (importMode === 'replace') {
-      saveToStorage(importPreview.valid);
-      setFeedback({ type: 'success', text: `Replaced directory with ${importPreview.valid.length} faculty profiles.` });
-    } else {
-      // Merge mode
-      const map = new Map(faculties.map(f => [f.id, f]));
-      importPreview.valid.forEach(f => map.set(f.id, f));
-      const merged = Array.from(map.values());
-      saveToStorage(merged);
-      setFeedback({ type: 'success', text: `Merged ${importPreview.valid.length} imported profiles with existing faculty.` });
+      setShowReplaceConfirm(true);
+      return;
     }
+
+    // Merge mode: match by id or case-insensitive name (H7)
+    const updated = [...faculties];
+    importPreview.valid.forEach(imported => {
+      const matchIndex = updated.findIndex(
+        f => f.id === imported.id || f.name.trim().toLowerCase() === imported.name.trim().toLowerCase()
+      );
+      if (matchIndex >= 0) {
+        const existing = updated[matchIndex];
+        const combinedSubjects = Array.from(new Set([...existing.subjects, ...imported.subjects]));
+        const combinedBatches = Array.from(
+          new Set([...(existing.assignedBatches || []), ...(imported.assignedBatches || [])])
+        );
+        updated[matchIndex] = {
+          ...existing,
+          subjects: combinedSubjects,
+          assignedBatches: combinedBatches,
+          maxPeriodsPerDay: imported.maxPeriodsPerDay ?? existing.maxPeriodsPerDay,
+          isAbsent: imported.isAbsent ?? existing.isAbsent,
+          absentDays:
+            imported.absentDays && imported.absentDays.length > 0
+              ? imported.absentDays
+              : existing.absentDays,
+        };
+      } else {
+        updated.push(imported);
+      }
+    });
+
+    saveToStorage(updated);
+    setFeedback({
+      type: 'success',
+      text: `Merged ${importPreview.valid.length} imported profiles with existing faculty directory.`,
+    });
     setImportPreview(null);
     setTimeout(() => setFeedback(null), 4000);
   };
@@ -324,37 +359,37 @@ export default function FacultyManager() {
     return Array.from(map.entries()).filter(([, list]) => list.length > 1);
   }, [faculties]);
 
+  const handleMergeSingleGroup = (dupes: Faculty[]) => {
+    if (dupes.length < 2) return;
+    const primary = dupes[0];
+    const secondaries = dupes.slice(1).map(d => d.id);
+    const res = storage.mergeFaculty(primary.id, secondaries);
+    if (res.success) {
+      setFaculties(storage.getFaculty());
+      setFeedback({
+        type: 'success',
+        text: `Merged duplicate profiles for "${primary.name}" into unified record.`,
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  };
+
   const handleMergeDuplicates = () => {
-    const mergedList: Faculty[] = [];
-    const processedNames = new Set<string>();
-
-    faculties.forEach(f => {
-      const norm = f.name.trim().toLowerCase();
-      if (processedNames.has(norm)) return;
-
-      const dupes = faculties.filter(item => item.name.trim().toLowerCase() === norm);
-      if (dupes.length === 1) {
-        mergedList.push(dupes[0]);
-      } else {
-        // Merge multiple profiles for same person
-        const combinedSubjects = Array.from(new Set(dupes.flatMap(d => d.subjects)));
-        const combinedBatches = Array.from(new Set(dupes.flatMap(d => d.assignedBatches || [])));
+    let totalMerged = 0;
+    duplicateGroups.forEach(([, dupes]) => {
+      if (dupes.length >= 2) {
         const primary = dupes[0];
-
-        mergedList.push({
-          ...primary,
-          subjects: combinedSubjects,
-          assignedBatches: combinedBatches,
-        });
+        const secondaries = dupes.slice(1).map(d => d.id);
+        const res = storage.mergeFaculty(primary.id, secondaries);
+        if (res.success) totalMerged++;
       }
-      processedNames.add(norm);
     });
 
-    saveToStorage(mergedList);
+    setFaculties(storage.getFaculty());
     setShowDuplicateResolutionModal(false);
     setFeedback({
       type: 'success',
-      text: `Successfully merged ${duplicateGroups.length} duplicate faculty profiles into unified records.`,
+      text: `Successfully merged ${totalMerged} duplicate faculty group(s) into unified records.`,
     });
     setTimeout(() => setFeedback(null), 4000);
   };
@@ -444,12 +479,12 @@ export default function FacultyManager() {
             <GitMerge className="w-4 h-4 text-[#B08D57] shrink-0 mt-0.5" />
             <div>
               <strong className="font-bold text-[#7A5B28]">
-                {duplicateGroups.length} Duplicate Teacher Profiles Detected:
+                Possible duplicates ({duplicateGroups.length})
               </strong>
               <p className="text-[#7A5B28]/90 mt-0.5 leading-relaxed">
                 Found identical names split across subjects (e.g.{' '}
-                {duplicateGroups.slice(0, 3).map(([name]) => name).join(', ')}).
-                Merging combines their subject qualifications into single unified profiles.
+                {duplicateGroups.slice(0, 3).map(([name]) => name.toUpperCase()).join(', ')}).
+                Review and merge to combine their qualified subjects into single master profiles.
               </p>
             </div>
           </div>
@@ -939,10 +974,20 @@ export default function FacultyManager() {
           <p className="text-sm text-[#252326] leading-relaxed">
             Are you sure you want to permanently remove <strong>{deletingFaculty?.name}</strong> from the faculty directory?
           </p>
-          <div className="p-3 bg-[#FDF2F2] border border-[#F6CECE] rounded text-xs text-[#A63232] space-y-1">
-            <strong>Data Integrity Notice:</strong>
-            <p>
-              Deleting this faculty member will safely clean up all batch restrictions and convert their current timetable assignments into flagged vacant slots.
+          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-2">
+            <div className="flex items-center gap-1.5 font-bold">
+              <Trash2 className="w-4 h-4 text-[#6B2638] shrink-0" />
+              <span>Data Integrity Warning</span>
+            </div>
+            <p className="text-[#252326]">
+              This faculty member is assigned to{' '}
+              <strong>
+                {deletingFaculty ? storage.countFacultyAllocations(deletingFaculty.id) : 0} timetable slot(s)
+              </strong>{' '}
+              across stored days.
+            </p>
+            <p className="text-[#5E5B61]">
+              Deleting them will safely turn all those allocations into <strong>unfilled shortage slots</strong> across all stored weekly timetables (preventing orphaned &quot;Unknown&quot; references).
             </p>
           </div>
         </div>
@@ -1028,7 +1073,7 @@ export default function FacultyManager() {
                     checked={importMode === 'merge'}
                     onChange={() => setImportMode('merge')}
                   />
-                  <span><strong>Merge:</strong> Add new faculty and update existing matching records</span>
+                  <span><strong>Merge:</strong> Add new faculty and update existing matching records by ID or name</span>
                 </label>
                 <label className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
                   <input
@@ -1057,6 +1102,131 @@ export default function FacultyManager() {
         )}
       </Modal>
 
+      {/* Replace Confirmation Modal (H7) */}
+      <Modal
+        isOpen={showReplaceConfirm}
+        onClose={() => setShowReplaceConfirm(false)}
+        title="Confirm Directory Replacement"
+        maxWidth="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowReplaceConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Trash2 className="w-4 h-4" />}
+              onClick={() => {
+                if (!importPreview) return;
+                saveToStorage(importPreview.valid);
+                setShowReplaceConfirm(false);
+                setImportPreview(null);
+                setFeedback({
+                  type: 'success',
+                  text: `Replaced faculty directory with ${importPreview.valid.length} imported profiles.`,
+                });
+                setTimeout(() => setFeedback(null), 4000);
+              }}
+            >
+              Confirm &amp; Replace Directory
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-[#252326] leading-relaxed">
+            Are you sure you want to completely <strong>replace</strong> the entire faculty directory with the{' '}
+            <strong>{importPreview?.valid.length || 0}</strong> imported profiles?
+          </p>
+          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-1">
+            <strong>Warning: Destructive Action</strong>
+            <p>
+              Existing faculty profiles will be overwritten. Any timetable allocations for teachers not present in the new import will become unfilled shortage slots.
+            </p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Duplicate Faculty Name Detected on Add Modal (M8) */}
+      <Modal
+        isOpen={Boolean(duplicateAddWarning)}
+        onClose={() => setDuplicateAddWarning(null)}
+        title="Duplicate Faculty Name Detected"
+        maxWidth="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDuplicateAddWarning(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!duplicateAddWarning) return;
+                const newFaculty: Faculty = {
+                  id: `fac_${crypto.randomUUID()}`,
+                  name: duplicateAddWarning.pendingName,
+                  subjects: duplicateAddWarning.pendingSubjects,
+                  maxPeriodsPerDay: currentFaculty.maxPeriodsPerDay || 4,
+                  isAbsent: false,
+                  absentDays: currentFaculty.absentDays || [],
+                  assignedBatches: currentFaculty.assignedBatches || [],
+                };
+                saveToStorage([...faculties, newFaculty]);
+                storage.logAuditAction('FACULTY_CREATE', {
+                  reason: `Created separate duplicate faculty profile for ${newFaculty.name}.`,
+                });
+                setFeedback({ type: 'success', text: `Added ${newFaculty.name} as a separate profile.` });
+                setDuplicateAddWarning(null);
+                handleCloseModal();
+                setTimeout(() => setFeedback(null), 3000);
+              }}
+            >
+              Create Separate Profile
+            </Button>
+            <Button
+              variant="gold"
+              icon={<GitMerge className="w-4 h-4" />}
+              onClick={() => {
+                if (!duplicateAddWarning) return;
+                const { existing, pendingSubjects } = duplicateAddWarning;
+                const combinedSubjects = Array.from(new Set([...existing.subjects, ...pendingSubjects]));
+                const updated = faculties.map(f => (f.id === existing.id ? { ...f, subjects: combinedSubjects } : f));
+                saveToStorage(updated);
+                storage.logAuditAction('FACULTY_UPDATE', {
+                  reason: `Merged subjects (${pendingSubjects.join(', ')}) into existing profile for ${existing.name}.`,
+                });
+                setFeedback({
+                  type: 'success',
+                  text: `Merged subjects into existing ${existing.name} profile (${combinedSubjects.join(', ')}).`,
+                });
+                setDuplicateAddWarning(null);
+                handleCloseModal();
+                setTimeout(() => setFeedback(null), 3000);
+              }}
+            >
+              Merge with Existing
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-[#252326]">
+            A faculty member named <strong>&ldquo;{duplicateAddWarning?.existing.name}&rdquo;</strong> already exists in the directory.
+          </p>
+          <div className="p-3 bg-[#F8F3EA] border border-[#E7D7BD] rounded text-xs text-[#7A5B28] space-y-1.5">
+            <div>
+              <strong>Existing Profile:</strong> {duplicateAddWarning?.existing.name} (Subjects: {duplicateAddWarning?.existing.subjects.join(', ')})
+            </div>
+            <div>
+              <strong>New Subjects:</strong> {duplicateAddWarning?.pendingSubjects.join(', ')}
+            </div>
+            <p className="text-[#5E5B61] pt-1">
+              Would you like to merge these new subjects into the existing profile, or create a separate duplicate record?
+            </p>
+          </div>
+        </div>
+      </Modal>
+
       {/* Duplicate Faculty Profiles Merge Modal (M8) */}
       <Modal
         isOpen={showDuplicateResolutionModal}
@@ -1070,7 +1240,7 @@ export default function FacultyManager() {
               Cancel
             </Button>
             <Button variant="gold" icon={<GitMerge className="w-4 h-4" />} onClick={handleMergeDuplicates}>
-              Confirm Merge Profiles
+              Merge All Duplicates
             </Button>
           </>
         }
@@ -1079,16 +1249,28 @@ export default function FacultyManager() {
           <p className="text-xs text-[#5E5B61] leading-relaxed">
             The following instructors have multiple entries across different departments. Merging will combine their qualified subject lists into single master records:
           </p>
-          <div className="max-h-56 overflow-y-auto border border-[#E5E0D8] rounded divide-y divide-[#E5E0D8]">
+          <div className="max-h-64 overflow-y-auto border border-[#E5E0D8] rounded divide-y divide-[#E5E0D8]">
             {duplicateGroups.map(([name, dupes]) => (
-              <div key={name} className="p-3 text-xs flex justify-between items-center">
-                <div>
-                  <span className="font-bold text-[#252326] text-sm">{dupes[0].name}</span>
-                  <div className="text-[#5E5B61] mt-0.5">
-                    Found {dupes.length} separate entries ({dupes.flatMap(d => d.subjects).join(', ')})
+              <div key={name} className="p-3 text-xs flex justify-between items-center gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-[#252326] text-sm">{dupes[0].name}</span>
+                    <Badge tone="gold">{dupes.length} entries</Badge>
+                  </div>
+                  <div className="text-[#5E5B61] mt-0.5 truncate">
+                    Departments: {dupes.flatMap(d => d.subjects).join(', ')}
                   </div>
                 </div>
-                <Badge tone="gold">Will Combine</Badge>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={<GitMerge className="w-3.5 h-3.5 text-[#B08D57]" />}
+                  onClick={() => handleMergeSingleGroup(dupes)}
+                  title={`Merge duplicate entries for ${dupes[0].name}`}
+                  className="shrink-0"
+                >
+                  Merge This Instructor
+                </Button>
               </div>
             ))}
           </div>

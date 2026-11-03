@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import type { Batch, PeriodTiming, BatchSubject } from '../types';
 import { storage } from '../utils/storage';
-import { parseTimeMinutesStrict } from '../utils/validation';
+import { parseTimeMinutesStrict, checkTimetableOverlaps, type TimetableOverlapConflict } from '../utils/validation';
 import { inferSubjectCategory } from '../utils/seedData';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -74,6 +74,9 @@ export default function Batches() {
 
   // Delete confirmation modal state
   const [batchToDelete, setBatchToDelete] = useState<Batch | null>(null);
+
+  // Timing Overlap Report State (H6)
+  const [timingOverlapReport, setTimingOverlapReport] = useState<TimetableOverlapConflict[] | null>(null);
 
   const saveToStorage = (updatedBatches: Batch[]) => {
     storage.setBatches(updatedBatches);
@@ -183,6 +186,16 @@ export default function Batches() {
     }
 
     if (editingBatchId) {
+      // Check if period timings changed (H6)
+      const oldBatch = batches.find(b => b.id === editingBatchId);
+      const timingsChanged =
+        oldBatch &&
+        (oldBatch.periods.length !== paddedPeriods.length ||
+          oldBatch.periods.some(
+            (p, idx) =>
+              p.startTime !== paddedPeriods[idx]?.startTime || p.endTime !== paddedPeriods[idx]?.endTime
+          ));
+
       // Update existing
       const updated = batches.map(b => {
         if (b.id !== editingBatchId) return b;
@@ -197,7 +210,27 @@ export default function Batches() {
         };
       });
       saveToStorage(updated);
-      setSuccessMsg(`Batch "${trimmedName}" updated successfully.`);
+
+      if (timingsChanged) {
+        // Re-validate stored allocations across all stored days for teacher overlaps (H6)
+        const overlaps = checkTimetableOverlaps(
+          storage.getWeekTimetables(),
+          updated,
+          storage.getFaculty()
+        );
+        if (overlaps.length > 0) {
+          setTimingOverlapReport(overlaps);
+          setSuccessMsg(
+            `Batch "${trimmedName}" updated. WARNING: Timing modification caused ${overlaps.length} teacher schedule clash(es).`
+          );
+        } else {
+          setSuccessMsg(
+            `Batch "${trimmedName}" updated. Timetable allocations re-validated: 0 teacher overlaps.`
+          );
+        }
+      } else {
+        setSuccessMsg(`Batch "${trimmedName}" updated successfully.`);
+      }
     } else {
       // Create new
       const newBatch: Batch = {
@@ -892,6 +925,47 @@ export default function Batches() {
             </p>
           </div>
         )}
+      </Modal>
+
+      {/* Timing Overlap Report Modal (H6) */}
+      <Modal
+        isOpen={Boolean(timingOverlapReport)}
+        onClose={() => setTimingOverlapReport(null)}
+        title="Teacher Schedule Overlaps Detected"
+        subtitle="Batch timing modifications conflict with existing timetable allocations"
+        maxWidth="lg"
+        footer={
+          <Button variant="secondary" onClick={() => setTimingOverlapReport(null)}>
+            Dismiss Report
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <strong>Timing Modification Conflict Alert:</strong>
+              <p className="mt-0.5 text-[#252326]">
+                The updated period timings conflict with scheduled teacher assignments on the following days. Please regenerate or manually adjust these slots on the Timetable page.
+              </p>
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto border border-[#E5E0D8] rounded divide-y divide-[#E5E0D8]">
+            {timingOverlapReport?.map((conflict, idx) => (
+              <div key={idx} className="p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#252326]">{conflict.facultyName}</span>
+                  <Badge tone="danger">{conflict.day}</Badge>
+                </div>
+                <div className="text-[#5E5B61]">
+                  <strong>{conflict.batch1Name}</strong> (P{conflict.period1 + 1}: {conflict.timing1}) overlaps with{' '}
+                  <strong>{conflict.batch2Name}</strong> (P{conflict.period2 + 1}: {conflict.timing2})
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </Modal>
     </div>
   );

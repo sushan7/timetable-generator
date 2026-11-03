@@ -1,4 +1,5 @@
 import type { Batch, Allocation, Faculty, ConflictCheckResult, SchedulerSettings, DayOfWeek } from '../types';
+import { WEEKDAYS } from '../types';
 import { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent } from './constraints';
 
 export { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent };
@@ -146,4 +147,180 @@ export const checkFacultyConflict = (
     conflictingBatchName: result.conflictingBatchName,
     conflictingPeriod: result.conflictingPeriod,
   };
+};
+
+/**
+ * Hand-written Schema Validator for Faculty Import (Requirement H7)
+ * Validates each imported record against strict criteria without external libraries.
+ */
+export type FacultyRecordValidation =
+  | { valid: true; faculty: Faculty }
+  | { valid: false; reason: string; record: unknown };
+
+export const validateFacultyRecord = (
+  raw: unknown,
+  index = 0
+): FacultyRecordValidation => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { valid: false, reason: `Item #${index + 1} is not a valid object`, record: raw };
+  }
+
+  const rec = raw as Record<string, unknown>;
+
+  // 1. name: non-empty string
+  if (typeof rec.name !== 'string' || !rec.name.trim()) {
+    return { valid: false, reason: `Item #${index + 1} is missing a required non-empty 'name'`, record: raw };
+  }
+
+  // 2. subjects: string[] (must be array of strings, at least one non-empty string)
+  if (
+    !Array.isArray(rec.subjects) ||
+    rec.subjects.length === 0 ||
+    !rec.subjects.every(s => typeof s === 'string' && s.trim().length > 0)
+  ) {
+    return {
+      valid: false,
+      reason: `Faculty "${rec.name}" must have a non-empty array of strings in 'subjects'`,
+      record: raw,
+    };
+  }
+
+  // 3. maxPeriodsPerDay: positive integer if present
+  if (rec.maxPeriodsPerDay !== undefined && rec.maxPeriodsPerDay !== null) {
+    if (
+      typeof rec.maxPeriodsPerDay !== 'number' ||
+      !Number.isInteger(rec.maxPeriodsPerDay) ||
+      rec.maxPeriodsPerDay <= 0
+    ) {
+      return {
+        valid: false,
+        reason: `Faculty "${rec.name}" has invalid 'maxPeriodsPerDay'. Must be a positive integer if present.`,
+        record: raw,
+      };
+    }
+  }
+
+  // 4. assignedBatches: string[] if present
+  if (rec.assignedBatches !== undefined && rec.assignedBatches !== null) {
+    if (
+      !Array.isArray(rec.assignedBatches) ||
+      !rec.assignedBatches.every(b => typeof b === 'string')
+    ) {
+      return {
+        valid: false,
+        reason: `Faculty "${rec.name}" has invalid 'assignedBatches'. Must be an array of strings if present.`,
+        record: raw,
+      };
+    }
+  }
+
+  // 5. isAbsent: boolean if present
+  if (rec.isAbsent !== undefined && rec.isAbsent !== null) {
+    if (typeof rec.isAbsent !== 'boolean') {
+      return {
+        valid: false,
+        reason: `Faculty "${rec.name}" has invalid 'isAbsent'. Must be a boolean if present.`,
+        record: raw,
+      };
+    }
+  }
+
+  // Generate an id if missing or empty
+  const id =
+    typeof rec.id === 'string' && rec.id.trim()
+      ? rec.id.trim()
+      : `fac_${Date.now()}_${index}_${Math.random().toString(36).substring(2, 7)}`;
+
+  const absentDays: DayOfWeek[] = Array.isArray(rec.absentDays)
+    ? ((rec.absentDays as string[]).filter(d => (WEEKDAYS as readonly string[]).includes(d as DayOfWeek)) as DayOfWeek[])
+    : rec.isAbsent === true
+      ? [...WEEKDAYS]
+      : [];
+
+  const faculty: Faculty = {
+    id,
+    name: (rec.name as string).trim(),
+    subjects: (rec.subjects as string[]).map(s => s.trim()),
+    maxPeriodsPerDay: typeof rec.maxPeriodsPerDay === 'number' ? rec.maxPeriodsPerDay : 4,
+    isAbsent: Boolean(rec.isAbsent || absentDays.length > 0),
+    absentDays,
+    assignedBatches: Array.isArray(rec.assignedBatches) ? (rec.assignedBatches as string[]).map(b => b.trim()) : [],
+  };
+
+  return { valid: true, faculty };
+};
+
+/**
+ * Re-validate stored week timetable allocations for teacher overlaps when batch timings change (Requirement H6).
+ */
+export interface TimetableOverlapConflict {
+  day: DayOfWeek;
+  facultyId: string;
+  facultyName: string;
+  batch1Id: string;
+  batch1Name: string;
+  period1: number;
+  timing1: string;
+  batch2Id: string;
+  batch2Name: string;
+  period2: number;
+  timing2: string;
+}
+
+export const checkTimetableOverlaps = (
+  week: Record<string, { allocations: Allocation[] } | undefined>,
+  batches: Batch[],
+  faculties: Faculty[]
+): TimetableOverlapConflict[] => {
+  const conflicts: TimetableOverlapConflict[] = [];
+  const batchMap = new Map(batches.map(b => [b.id, b]));
+  const facultyMap = new Map(faculties.map(f => [f.id, f]));
+
+  (WEEKDAYS as readonly DayOfWeek[]).forEach(day => {
+    const tt = week[day];
+    if (!tt?.allocations) return;
+
+    // Group active allocations by facultyId
+    const facultyAllocations = new Map<string, Allocation[]>();
+    tt.allocations.forEach(a => {
+      if (!a.facultyId) return;
+      const list = facultyAllocations.get(a.facultyId) || [];
+      list.push(a);
+      facultyAllocations.set(a.facultyId, list);
+    });
+
+    facultyAllocations.forEach((allocs, facId) => {
+      if (allocs.length < 2) return;
+      for (let i = 0; i < allocs.length; i++) {
+        for (let j = i + 1; j < allocs.length; j++) {
+          const a1 = allocs[i];
+          const a2 = allocs[j];
+          const b1 = batchMap.get(a1.batchId);
+          const b2 = batchMap.get(a2.batchId);
+          const t1 = b1?.periods?.[a1.periodIndex];
+          const t2 = b2?.periods?.[a2.periodIndex];
+
+          if (t1?.startTime && t1?.endTime && t2?.startTime && t2?.endTime) {
+            if (isOverlapping(t1.startTime, t1.endTime, t2.startTime, t2.endTime)) {
+              conflicts.push({
+                day,
+                facultyId: facId,
+                facultyName: facultyMap.get(facId)?.name || facId,
+                batch1Id: a1.batchId,
+                batch1Name: b1?.name || a1.batchId,
+                period1: a1.periodIndex,
+                timing1: `${t1.startTime} - ${t1.endTime}`,
+                batch2Id: a2.batchId,
+                batch2Name: b2?.name || a2.batchId,
+                period2: a2.periodIndex,
+                timing2: `${t2.startTime} - ${t2.endTime}`,
+              });
+            }
+          }
+        }
+      }
+    });
+  });
+
+  return conflicts;
 };

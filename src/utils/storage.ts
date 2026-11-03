@@ -9,6 +9,7 @@ import type {
   Allocation,
   TimetableStatus,
   BackupData,
+  UnfilledSlot,
 } from '../types';
 import { WEEKDAYS } from '../types';
 import { initialFaculty, initialBatches, inferSubjectCategory } from './seedData';
@@ -320,30 +321,124 @@ export const storage = {
     storage.setFaculty(updated);
   },
 
+  countFacultyAllocations: (facultyId: string): number => {
+    const week = storage.getWeekTimetables();
+    let count = 0;
+    (Object.keys(week) as DayOfWeek[]).forEach(day => {
+      const tt = week[day];
+      if (tt?.allocations) {
+        count += tt.allocations.filter(a => a.facultyId === facultyId).length;
+      }
+    });
+    return count;
+  },
+
   deleteFaculty: (facultyId: string): { success: boolean; allocationsAffected: number } => {
     try {
       const facultyList = storage.getFaculty();
+      const oldFac = facultyList.find(f => f.id === facultyId);
       const remaining = facultyList.filter(f => f.id !== facultyId);
       storage.setFaculty(remaining);
 
-      // Clean up references in week timetables
+      const batches = storage.getBatches();
+      const batchMap = new Map(batches.map(b => [b.id, b]));
+
+      // Clean up references in week timetables: turn allocations into unfilled shortage slots (H6)
       let allocationsAffected = 0;
       const week = storage.getWeekTimetables();
       const updatedWeek: WeekTimetables = {};
       (Object.keys(week) as DayOfWeek[]).forEach(day => {
         const tt = week[day];
         if (tt) {
+          const affectedAllocations = tt.allocations.filter(a => a.facultyId === facultyId);
+          allocationsAffected += affectedAllocations.length;
+
+          // Remove affected allocations from active allocations
+          const remainingAllocations = tt.allocations.filter(a => a.facultyId !== facultyId);
+
+          // Convert each affected allocation to an unfilled shortage slot
+          const existingUnfilled = tt.unfilledSlots || [];
+          const newUnfilled: UnfilledSlot[] = affectedAllocations.map(a => {
+            const batch = batchMap.get(a.batchId);
+            return {
+              batchId: a.batchId,
+              batchName: batch?.name || a.batchId,
+              periodIndex: a.periodIndex,
+              requiredSubject: a.subject,
+              reason: 'NO_QUALIFIED_TEACHER',
+              candidateIssue: `Assigned teacher (${oldFac?.name || facultyId}) was removed from directory`,
+            };
+          });
+
+          // Deduplicate unfilled slots
+          const mergedUnfilled = [
+            ...existingUnfilled.filter(
+              u => !newUnfilled.some(nu => nu.batchId === u.batchId && nu.periodIndex === u.periodIndex)
+            ),
+            ...newUnfilled,
+          ];
+
+          updatedWeek[day] = {
+            ...tt,
+            allocations: remainingAllocations,
+            unfilledSlots: mergedUnfilled,
+          };
+        }
+      });
+      storage.setWeekTimetables(updatedWeek);
+
+      storage.logAuditAction('FACULTY_DELETE', {
+        reason: `Removed faculty member (${oldFac?.name || facultyId}). Converted ${allocationsAffected} timetable slot(s) into unfilled shortage slots.`,
+      });
+
+      return { success: true, allocationsAffected };
+    } catch (e) {
+      console.error('deleteFaculty failed:', e);
+      return { success: false, allocationsAffected: 0 };
+    }
+  },
+
+  mergeFaculty: (primaryId: string, secondaryIds: string[]): { success: boolean; mergedFaculty: Faculty | null } => {
+    try {
+      const facultyList = storage.getFaculty();
+      const primary = facultyList.find(f => f.id === primaryId);
+      if (!primary) return { success: false, mergedFaculty: null };
+
+      const secondaries = facultyList.filter(f => secondaryIds.includes(f.id));
+      const secIdSet = new Set(secondaryIds);
+
+      // Union subjects and assignedBatches
+      const combinedSubjects = Array.from(
+        new Set([...primary.subjects, ...secondaries.flatMap(s => s.subjects)])
+      );
+      const combinedBatches = Array.from(
+        new Set([...(primary.assignedBatches || []), ...secondaries.flatMap(s => s.assignedBatches || [])])
+      );
+
+      const updatedPrimary: Faculty = {
+        ...primary,
+        subjects: combinedSubjects,
+        assignedBatches: combinedBatches,
+      };
+
+      // Keep updated primary and all faculty not in secondaryIds
+      const updatedList = facultyList
+        .filter(f => !secIdSet.has(f.id))
+        .map(f => (f.id === primaryId ? updatedPrimary : f));
+
+      storage.setFaculty(updatedList);
+
+      // Re-link stored allocations in all days from secondaryIds to primaryId
+      let slotsReassigned = 0;
+      const week = storage.getWeekTimetables();
+      const updatedWeek: WeekTimetables = {};
+      (Object.keys(week) as DayOfWeek[]).forEach(day => {
+        const tt = week[day];
+        if (tt) {
           const updatedAllocations = tt.allocations.map(a => {
-            if (a.facultyId === facultyId) {
-              allocationsAffected++;
-              const oldFac = facultyList.find(f => f.id === facultyId);
-              return {
-                ...a,
-                facultyId: '',
-                vacatedFacultyId: facultyId,
-                vacatedFacultyName: oldFac?.name || 'Deleted Teacher',
-                explanation: [...(a.explanation || []), 'Assigned teacher was removed from directory.'],
-              };
+            if (secIdSet.has(a.facultyId)) {
+              slotsReassigned++;
+              return { ...a, facultyId: primaryId };
             }
             return a;
           });
@@ -352,14 +447,14 @@ export const storage = {
       });
       storage.setWeekTimetables(updatedWeek);
 
-      storage.logAuditAction('FACULTY_DELETE', {
-        reason: `Removed faculty member (${facultyId}). Affected ${allocationsAffected} timetable slots.`,
+      storage.logAuditAction('FACULTY_MERGE', {
+        reason: `Merged faculty profiles for "${primary.name}" (${secondaryIds.join(', ')} into ${primaryId}). Updated ${slotsReassigned} allocations.`,
       });
 
-      return { success: true, allocationsAffected };
+      return { success: true, mergedFaculty: updatedPrimary };
     } catch (e) {
-      console.error('deleteFaculty failed:', e);
-      return { success: false, allocationsAffected: 0 };
+      console.error('mergeFaculty failed:', e);
+      return { success: false, mergedFaculty: null };
     }
   },
 
