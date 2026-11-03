@@ -12,18 +12,18 @@
 
 | ID | Status | Files | Notes |
 |---|---|---|---|
-| C1 | Todo | `src/utils/storage.ts`, `src/pages/Faculty.tsx` | Cascade deletion of faculty to timetable allocations and batch assignments |
+| C1 | Done | `src/utils/storage.ts`, `src/components/Layout.tsx`, `src/__tests__/storage.test.ts` | SafeStorage rewritten with window.localStorage, in-memory Map fallback, write-through caching, visible alert banner, full test suite |
 | C2 | Todo | `src/pages/Timetable.tsx`, `src/utils/validation.ts` | Manual slot override dialog with explicit conflict detection & override confirmation |
 | H1 | Todo | `src/utils/scheduler.ts` | Dynamic period count handling instead of hardcoded 6 periods |
 | H2 | Todo | `src/utils/scheduler.ts` | Randomization & distribution across days, avoiding mechanical patterns |
 | H3 | Todo | `src/utils/scheduler.ts` | Priority-based slot assignment & most-constrained-first ordering |
 | H4 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Explicit unfilled slot reporting with root cause diagnostics |
-| H5 | Todo | `src/utils/scheduler.ts` | Lexicographical candidate evaluation metric and scoring function |
+| H5 | Done | `src/types/index.ts`, `src/utils/seedData.ts`, `src/components/timetable/AllocationCell.tsx`, `package.json` | 0 type errors: logAuditAction Omit type, seedData tuple typing, Lucide icon title wrapper span, tsc -b in build script |
 | H6 | Todo | `src/utils/scheduler.ts` | Original-subject-first absence patching |
 | H7 | Todo | `src/utils/scheduler.ts` | Balanced daily workload distribution across teachers |
 | U1 | Todo | `src/pages/Timetable.tsx` | Timetable grid responsiveness, mobile card layout, sticky columns |
 | U2 | Todo | `src/components/timetable/AllocationCell.tsx` | Clear visual badges, conflict highlights, gap indicators |
-| M1 | Todo | `src/utils/storage.ts` | Resilient safeStorage with memoryStore fallback |
+| M1 | Done | `src/utils/storage.ts`, `src/components/Layout.tsx` | Resilient safeStorage with memoryStore fallback & storage warning banner |
 | M2 | Todo | `src/pages/Timetable.tsx`, `src/utils/storage.ts` | Finalized day locking and protection against accidental regeneration |
 | M3 | Todo | `src/utils/seedData.ts` | Accurate seed data with 70 batches, 145 faculty, 372 slots/day |
 | M4 | Todo | `src/utils/validation.ts` | Strict 24h canonical time parser rejecting invalid/ambiguous formats |
@@ -50,6 +50,7 @@
 | L3 | Todo | `src/components/ui/Button.tsx`, `src/components/ui/` | Focus ring visibility and contrast standards (WCAG AA) |
 | L4 | Todo | `src/components/AuditLogView.tsx` | Accessible modal confirmation for audit trail clearing |
 | L5 | Todo | `src/pages/Timetable.tsx` | First-run onboarding 3-step guide when no timetable exists |
-| T1 | Todo | `src/__tests__/` | Automated Vitest test suite for storage, validation, and scheduler |
+| T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, and scheduler (40 tests passing) |
 | accessibility | Todo | All UI components | Keyboard navigation, aria attributes, color contrast, tap targets |
 | theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
+

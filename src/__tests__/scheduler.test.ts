@@ -7,6 +7,7 @@ import {
   getRankedSubstitutes,
   PCMB_SUBJECTS,
 } from '../utils/scheduler';
+import { initialBatches, initialFaculty } from '../utils/seedData';
 import { isOverlapping } from '../utils/validation';
 import type { Batch, Faculty, Allocation } from '../types';
 
@@ -227,5 +228,21 @@ describe('Timetable Scheduler Algorithm', () => {
       expect(res.newAllocation?.subject).toBe('Physics');
       expect(['f_phy_1', 'f_phy_2']).toContain(res.newAllocation?.facultyId);
     });
+  });
+
+  describe('Full Seed Data Allocation', () => {
+    it('successfully generates all 372 slots across 70 batches with 145 faculty members', () => {
+      const activeSlotCount = initialBatches.reduce(
+        (sum, b) => sum + b.periods.filter(p => p.startTime && p.endTime).length,
+        0
+      );
+      expect(initialBatches.length).toBe(70);
+      expect(initialFaculty.length).toBe(145);
+      expect(activeSlotCount).toBe(372);
+
+      const result = generateTimetableV2(initialBatches, initialFaculty, [], [], { numCandidates: 1 });
+      expect(result.allocations.length).toBe(372);
+      expect(result.unfilled.length).toBe(0);
+    }, 30000);
   });
 });

@@ -339,14 +339,32 @@ export const evaluateTimetableCandidate = (
 ): number => {
   let score = 10000 - unfilledCount * 1000;
 
-  // Track teacher overlaps (hard constraint: -50000 each)
-  for (let i = 0; i < allocations.length; i++) {
-    for (let j = i + 1; j < allocations.length; j++) {
-      const a1 = allocations[i];
-      const a2 = allocations[j];
-      if (a1.facultyId && a1.facultyId === a2.facultyId) {
-        const b1 = batches.find(b => b.id === a1.batchId);
-        const b2 = batches.find(b => b.id === a2.batchId);
+  // Track teacher overlaps (hard constraint: -50000 each) using fast grouped index
+  const batchMap = new Map<string, Batch>();
+  for (const b of batches) {
+    batchMap.set(b.id, b);
+  }
+
+  const facultyAllocations = new Map<string, Allocation[]>();
+  for (const a of allocations) {
+    if (a.facultyId) {
+      let list = facultyAllocations.get(a.facultyId);
+      if (!list) {
+        list = [];
+        facultyAllocations.set(a.facultyId, list);
+      }
+      list.push(a);
+    }
+  }
+
+  for (const list of facultyAllocations.values()) {
+    if (list.length <= 1) continue;
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a1 = list[i];
+        const a2 = list[j];
+        const b1 = batchMap.get(a1.batchId);
+        const b2 = batchMap.get(a2.batchId);
         const t1 = b1?.periods[a1.periodIndex];
         const t2 = b2?.periods[a2.periodIndex];
         if (t1 && t2 && isOverlapping(t1.startTime, t1.endTime, t2.startTime, t2.endTime)) {
@@ -357,8 +375,18 @@ export const evaluateTimetableCandidate = (
   }
 
   // Soft penalties: Period 1 language, consecutive repetitions
-  batches.forEach(b => {
-    const bAllocs = allocations.filter(a => a.batchId === b.id);
+  const batchAllocations = new Map<string, Allocation[]>();
+  for (const a of allocations) {
+    let list = batchAllocations.get(a.batchId);
+    if (!list) {
+      list = [];
+      batchAllocations.set(a.batchId, list);
+    }
+    list.push(a);
+  }
+
+  for (const b of batches) {
+    const bAllocs = batchAllocations.get(b.id) || [];
     bAllocs.sort((a, b) => a.periodIndex - b.periodIndex);
 
     // Period 1 language penalty
@@ -376,7 +404,7 @@ export const evaluateTimetableCandidate = (
         score -= 200;
       }
     }
-  });
+  }
 
   return score;
 };
@@ -633,7 +661,7 @@ export const generateTimetableV2 = (
   const khsClusterMap = buildKHSClusterScheduleMap(batches, existingDraft, rng);
 
   // Multi-candidate search: Generate N candidates and evaluate lexicographically (H5)
-  const NUM_CANDIDATES = options?.numCandidates ?? 6;
+  const NUM_CANDIDATES = options?.numCandidates ?? 3;
   let bestCandidateResult: {
     allocations: Allocation[];
     unfilled: UnfilledSlot[];

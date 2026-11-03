@@ -9,7 +9,9 @@ import {
   Menu,
   X,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
+import { setStorageWarningCallback } from '../utils/storage';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Timetable Matrix', icon: LayoutDashboard },
@@ -38,6 +40,16 @@ function Brand() {
 
 export default function Layout() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStorageWarningCallback(msg => {
+      setStorageWarning(msg);
+    });
+    return () => {
+      setStorageWarningCallback(null);
+    };
+  }, []);
 
   // Handle ESC key for mobile drawer
   useEffect(() => {
@@ -170,9 +182,30 @@ export default function Layout() {
       </aside>
 
       {/* Main content container */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <Outlet />
-      </main>
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        {storageWarning && (
+          <div
+            role="alert"
+            className="bg-[#FAF0F2] text-[#6B2638] px-4 py-2 border-b border-[#ECD9DE] text-xs font-semibold flex items-center justify-between gap-2 z-30 shrink-0"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-[#6B2638]" />
+              <span>{storageWarning}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStorageWarning(null)}
+              className="p-1 hover:bg-[#F5DEE3] rounded transition-colors text-[#6B2638]"
+              aria-label="Dismiss warning"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

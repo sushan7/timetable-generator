@@ -95,6 +95,27 @@ export const getDailyLimit = (
 const memoryStore = new Map<string, string>();
 
 let isLocalStorageAvailable: boolean | null = null;
+let hasWarnedStorageUnavailable = false;
+let storageWarningCallback: ((message: string) => void) | null = null;
+let pendingStorageWarning: string | null = null;
+
+export const setStorageWarningCallback = (cb: ((message: string) => void) | null) => {
+  storageWarningCallback = cb;
+  if (cb && pendingStorageWarning) {
+    cb(pendingStorageWarning);
+    pendingStorageWarning = null;
+  }
+};
+
+export const triggerStorageWarning = (message: string) => {
+  if (hasWarnedStorageUnavailable) return;
+  hasWarnedStorageUnavailable = true;
+  if (storageWarningCallback) {
+    storageWarningCallback(message);
+  } else {
+    pendingStorageWarning = message;
+  }
+};
 
 const testLocalStorage = (): boolean => {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -105,9 +126,13 @@ const testLocalStorage = (): boolean => {
     window.localStorage.setItem(testKey, testKey);
     const result = window.localStorage.getItem(testKey) === testKey;
     window.localStorage.removeItem(testKey);
+    if (!result) {
+      triggerStorageWarning('Persistent storage is not functioning properly. Operating in session memory mode.');
+    }
     return result;
   } catch (e) {
     console.warn('localStorage is unavailable or blocked, falling back to memory store:', e);
+    triggerStorageWarning('Persistent storage is unavailable (e.g. private mode or restricted permissions). Operating in session memory mode.');
     return false;
   }
 };
@@ -123,6 +148,7 @@ export const safeStorage = {
         if (item !== null) return item;
       } catch (e) {
         console.warn(`safeStorage: read failed for key "${key}", falling back to memory store:`, e);
+        triggerStorageWarning('Persistent storage read failed. Using session memory store.');
       }
     }
     return memoryStore.get(key) ?? null;
@@ -140,6 +166,7 @@ export const safeStorage = {
         window.localStorage.setItem(key, value);
       } catch (e) {
         console.warn(`safeStorage: write failed for key "${key}", retained in memory store:`, e);
+        triggerStorageWarning('Failed to write to persistent storage (storage may be full or restricted). Running in session memory mode.');
       }
     }
   },
@@ -161,6 +188,19 @@ export const safeStorage = {
 
   clearMemoryFallback: (): void => {
     memoryStore.clear();
+  },
+
+  resetAvailabilityCheck: (): void => {
+    isLocalStorageAvailable = null;
+    hasWarnedStorageUnavailable = false;
+    pendingStorageWarning = null;
+  },
+
+  isPersistent: (): boolean => {
+    if (isLocalStorageAvailable === null) {
+      isLocalStorageAvailable = testLocalStorage();
+    }
+    return isLocalStorageAvailable;
   },
 };
 

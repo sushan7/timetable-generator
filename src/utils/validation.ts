@@ -213,13 +213,20 @@ export const checkFacultyConflict = (
     }
   }
 
-  // 5. Room conflict check (Phase 5E)
-  if (targetBatch.roomNumber && targetBatch.roomNumber.trim()) {
+  // 5. Room conflict check (within the same campus building)
+  if (
+    targetBatch.roomNumber &&
+    targetBatch.roomNumber.trim() &&
+    targetBatch.roomNumber.trim() !== '-'
+  ) {
     for (const alloc of allocations) {
-      if (!(alloc.batchId === targetBatchId && alloc.periodIndex === targetPeriodIndex)) {
+      if (alloc.batchId !== targetBatchId) {
         const otherBatch = batches.find(b => b.id === alloc.batchId);
         if (
           otherBatch &&
+          otherBatch.building &&
+          targetBatch.building &&
+          otherBatch.building.trim().toLowerCase() === targetBatch.building.trim().toLowerCase() &&
           otherBatch.roomNumber &&
           otherBatch.roomNumber.trim().toLowerCase() === targetBatch.roomNumber.trim().toLowerCase()
         ) {
@@ -239,7 +246,7 @@ export const checkFacultyConflict = (
               severity: 'soft_warning',
               conflictingBatchName: otherBatch.name,
               conflictingPeriod: alloc.periodIndex + 1,
-              message: `Room conflict: Room ${targetBatch.roomNumber} is simultaneously scheduled for "${otherBatch.name}" (${otherTiming.startTime} - ${otherTiming.endTime}).`,
+              message: `Room conflict: Room ${targetBatch.roomNumber} in ${targetBatch.building} is simultaneously scheduled for "${otherBatch.name}" (${otherTiming.startTime} - ${otherTiming.endTime}).`,
             };
           }
         }
