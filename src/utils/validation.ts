@@ -1,5 +1,7 @@
 import type { Batch, Allocation, Faculty, ConflictCheckResult, SchedulerSettings } from '../types';
-import { getDailyLimit } from './storage';
+import { canAssign, getDailyLimit, validateFrozenAllocations } from './constraints';
+
+export { canAssign, getDailyLimit, validateFrozenAllocations };
 
 /**
  * Strict time parser (Requirement M4)
@@ -111,13 +113,8 @@ export const isOverlapping = (
 };
 
 /**
- * Centralised Assignment Validator (canAssign / checkFacultyConflict)
- * Enforces hard constraints:
- * 1. Absence (legacy isAbsent and date-specific unavailableDates)
- * 2. Assigned-batch restriction (exclusive batch lock)
- * 3. Daily workload cap (maxPeriodsPerDay)
- * 4. Time clash (teacher teaching other batch at same wall-clock time)
- * 5. Room clash (another batch using same roomNumber at same wall-clock time)
+ * Centralised Assignment Validator (checkFacultyConflict)
+ * Delegates to canAssign (M5 Single source of truth)
  */
 export const checkFacultyConflict = (
   faculty: Faculty,
@@ -128,183 +125,24 @@ export const checkFacultyConflict = (
   settings?: SchedulerSettings,
   options?: { dateKey?: string }
 ): ConflictCheckResult => {
-  // 1. Absence check
-  const dateKey = options?.dateKey;
-  const isAbsent = Boolean(
-    faculty.isAbsent ||
-    (dateKey && faculty.unavailableDates && faculty.unavailableDates.includes(dateKey))
-  );
-
-  if (isAbsent) {
-    return {
-      hasConflict: true,
-      type: 'ABSENT',
-      severity: 'hard_error',
-      message: `Faculty ${faculty.name} is marked as absent${dateKey ? ` on ${dateKey}` : ''}.`,
-    };
-  }
-
-  // 2. Batch restrictions
-  if (faculty.assignedBatches && faculty.assignedBatches.length > 0) {
-    if (!faculty.assignedBatches.includes(targetBatchId)) {
-      return {
-        hasConflict: true,
-        type: 'BATCH_RESTRICTION',
-        severity: 'hard_error',
-        message: `Faculty ${faculty.name} is restricted to specific batches.`,
-      };
-    }
-  }
-
   const targetBatch = batches.find(b => b.id === targetBatchId);
   if (!targetBatch) return { hasConflict: false, message: null };
 
-  const targetTiming = targetBatch.periods[targetPeriodIndex];
-  if (!targetTiming || !targetTiming.startTime || !targetTiming.endTime) {
-    return { hasConflict: false, message: null };
-  }
-
-  // 3. Workload cap
-  const effectiveSettings = settings || { maxDailyPeriods: 4, pcmbWeight: 60, languageWeight: 40, weekStartDay: 'Monday', enableGapOptimization: true, enableConsecutivePeriodAvoidance: true };
-  const dailyLimit = getDailyLimit(faculty, effectiveSettings);
-
-  const currentWorkload = allocations.filter(
-    a =>
-      a.facultyId === faculty.id &&
-      !(a.batchId === targetBatchId && a.periodIndex === targetPeriodIndex)
-  ).length;
-
-  if (currentWorkload >= dailyLimit) {
-    return {
-      hasConflict: true,
-      type: 'MAX_LOAD',
-      severity: 'hard_error',
-      message: `Faculty ${faculty.name} has reached their daily maximum limit (${currentWorkload}/${dailyLimit} periods).`,
-    };
-  }
-
-  // 4. Wall-clock Time overlap check across other batches
-  for (const alloc of allocations) {
-    if (
-      alloc.facultyId === faculty.id &&
-      !(alloc.batchId === targetBatchId && alloc.periodIndex === targetPeriodIndex)
-    ) {
-      const otherBatch = batches.find(b => b.id === alloc.batchId);
-      if (!otherBatch) continue;
-      const otherTiming = otherBatch.periods[alloc.periodIndex];
-      if (
-        otherTiming &&
-        isOverlapping(
-          targetTiming.startTime,
-          targetTiming.endTime,
-          otherTiming.startTime,
-          otherTiming.endTime
-        )
-      ) {
-        return {
-          hasConflict: true,
-          type: 'TIME_OVERLAP',
-          severity: 'hard_error',
-          conflictingBatchName: otherBatch.name,
-          conflictingPeriod: alloc.periodIndex + 1,
-          message: `Time clash: already teaching "${otherBatch.name}" during ${otherTiming.startTime} - ${otherTiming.endTime}.`,
-        };
-      }
-    }
-  }
-
-  // 5. Room conflict check (within the same campus building)
-  if (
-    targetBatch.roomNumber &&
-    targetBatch.roomNumber.trim() &&
-    targetBatch.roomNumber.trim() !== '-'
-  ) {
-    for (const alloc of allocations) {
-      if (alloc.batchId !== targetBatchId) {
-        const otherBatch = batches.find(b => b.id === alloc.batchId);
-        if (
-          otherBatch &&
-          otherBatch.building &&
-          targetBatch.building &&
-          otherBatch.building.trim().toLowerCase() === targetBatch.building.trim().toLowerCase() &&
-          otherBatch.roomNumber &&
-          otherBatch.roomNumber.trim().toLowerCase() === targetBatch.roomNumber.trim().toLowerCase()
-        ) {
-          const otherTiming = otherBatch.periods[alloc.periodIndex];
-          if (
-            otherTiming &&
-            isOverlapping(
-              targetTiming.startTime,
-              targetTiming.endTime,
-              otherTiming.startTime,
-              otherTiming.endTime
-            )
-          ) {
-            return {
-              hasConflict: true,
-              type: 'ROOM_OVERLAP',
-              severity: 'soft_warning',
-              conflictingBatchName: otherBatch.name,
-              conflictingPeriod: alloc.periodIndex + 1,
-              message: `Room conflict: Room ${targetBatch.roomNumber} in ${targetBatch.building} is simultaneously scheduled for "${otherBatch.name}" (${otherTiming.startTime} - ${otherTiming.endTime}).`,
-            };
-          }
-        }
-      }
-    }
-  }
-
-  return { hasConflict: false, message: null };
-};
-
-/**
- * Validates all frozen allocations before running automatic scheduling (C2)
- */
-export const validateFrozenAllocations = (
-  frozenAllocations: Allocation[],
-  batches: Batch[],
-  faculties: Faculty[],
-  settings?: SchedulerSettings,
-  dateKey?: string
-): { valid: boolean; invalidEntries: { allocation: Allocation; reason: string; type: string }[] } => {
-  const invalidEntries: { allocation: Allocation; reason: string; type: string }[] = [];
-
-  for (let i = 0; i < frozenAllocations.length; i++) {
-    const alloc = frozenAllocations[i];
-    if (!alloc.facultyId) continue;
-
-    const faculty = faculties.find(f => f.id === alloc.facultyId);
-    if (!faculty) {
-      invalidEntries.push({
-        allocation: alloc,
-        reason: 'Assigned faculty record no longer exists in faculty directory.',
-        type: 'FACULTY_NOT_FOUND',
-      });
-      continue;
-    }
-
-    const otherFrozen = frozenAllocations.filter((_, idx) => idx !== i);
-    const check = checkFacultyConflict(
-      faculty,
-      alloc.batchId,
-      alloc.periodIndex,
-      batches,
-      otherFrozen,
-      settings,
-      { dateKey }
-    );
-
-    if (check.hasConflict) {
-      invalidEntries.push({
-        allocation: alloc,
-        reason: check.message || 'Violates scheduling constraints.',
-        type: check.type || 'CONFLICT',
-      });
-    }
-  }
+  const result = canAssign(
+    faculty,
+    targetBatch,
+    targetPeriodIndex,
+    options?.dateKey ? { allocations, dateKey: options.dateKey } : allocations,
+    batches,
+    settings
+  );
 
   return {
-    valid: invalidEntries.length === 0,
-    invalidEntries,
+    hasConflict: !result.ok,
+    type: result.type as ConflictCheckResult['type'],
+    severity: result.severity,
+    message: result.reason || null,
+    conflictingBatchName: result.conflictingBatchName,
+    conflictingPeriod: result.conflictingPeriod,
   };
 };

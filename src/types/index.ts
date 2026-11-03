@@ -50,7 +50,17 @@ export interface Allocation {
   vacatedFacultyName?: string; // cached name, preserved if faculty is deleted
   updatedAt?: number;
   hasConflictOverride?: boolean; // true if saved despite a non-blocking or confirmed conflict
+  overridden?: boolean; // true if manual override bypassed hard constraints (C2)
   conflictNote?: string;
+}
+
+export interface FrozenViolation {
+  allocation: Allocation;
+  batchId: string;
+  periodIndex: number;
+  facultyId?: string;
+  reason: string;
+  type: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP';
 }
 
 export interface Timetable {
@@ -61,6 +71,7 @@ export interface Timetable {
   lastGeneratedAt?: number;
   unfilledSlots?: UnfilledSlot[];
   warnings?: ScheduleWarning[];
+  frozenViolations?: FrozenViolation[];
 }
 
 export interface SchedulerSettings {
@@ -137,6 +148,7 @@ export interface GenerationResult {
   allocations: Allocation[];
   unfilled: UnfilledSlot[];
   warnings: ScheduleWarning[];
+  frozenViolations?: FrozenViolation[];
   score?: number;
   seed?: number;
 }

@@ -9,8 +9,9 @@ import type {
   SubstituteCandidate,
   SubjectCapacityReport,
 } from '../types';
-import { storage, getDailyLimit } from './storage';
-import { isOverlapping, checkFacultyConflict, validateFrozenAllocations } from './validation';
+import { storage } from './storage';
+import { isOverlapping } from './validation';
+import { canAssign, getDailyLimit, validateFrozenAllocations } from './constraints';
 import { groupBatchesBySection } from './sections';
 
 export const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
@@ -514,23 +515,25 @@ const generateCandidateRun = (
       }
 
       for (const faculty of eligibleTeachers) {
-        const conflict = checkFacultyConflict(
+        const assignResult = canAssign(
           faculty,
-          batch.id,
+          batch,
           periodIndex,
-          batches,
           allocations,
+          batches,
           settings,
           { dateKey }
         );
 
-        if (conflict.hasConflict) {
-          if (conflict.type === 'TIME_OVERLAP') {
-            failureReasons.push(`${faculty.name} is teaching ${conflict.conflictingBatchName} at this time`);
-          } else if (conflict.type === 'MAX_LOAD') {
+        if (!assignResult.ok) {
+          if (assignResult.type === 'TIME_OVERLAP') {
+            failureReasons.push(`${faculty.name} is teaching ${assignResult.conflictingBatchName} at this time`);
+          } else if (assignResult.type === 'MAX_LOAD') {
             failureReasons.push(`${faculty.name} reached max daily limit`);
-          } else if (conflict.type === 'ABSENT') {
+          } else if (assignResult.type === 'ABSENT') {
             failureReasons.push(`${faculty.name} is absent`);
+          } else if (assignResult.type === 'BATCH_RESTRICTION') {
+            failureReasons.push(`${faculty.name} is restricted to other batches`);
           }
           continue;
         }
@@ -709,6 +712,7 @@ export const generateTimetableV2 = (
     allocations: finalAllocations,
     unfilled: finalUnfilled,
     warnings: finalWarnings,
+    frozenViolations: frozenValidation.invalidEntries,
     score: bestScore,
     seed,
   };
@@ -760,16 +764,16 @@ export const patchAbsences = (
     // Rank candidate substitutes
     const availableSubs = qualifiedTeachers.filter(candidate => {
       if (candidate.id === assignedFaculty.id) return false;
-      const conflict = checkFacultyConflict(
+      const assignCheck = canAssign(
         candidate,
-        alloc.batchId,
+        targetBatch,
         alloc.periodIndex,
-        batches,
         currentAllocations,
+        batches,
         activeSettings,
         { dateKey }
       );
-      return !conflict.hasConflict;
+      return assignCheck.ok;
     });
 
     if (availableSubs.length > 0) {
@@ -846,12 +850,12 @@ export const getRankedSubstitutes = (
   const candidates: SubstituteCandidate[] = [];
 
   qualifiedTeachers.forEach(faculty => {
-    const conflict = checkFacultyConflict(
+    const assignCheck = canAssign(
       faculty,
-      batchId,
+      targetBatch,
       periodIndex,
-      batches,
       allocations,
+      batches,
       activeSettings,
       { dateKey }
     );
@@ -864,9 +868,9 @@ export const getRankedSubstitutes = (
     const reasons: string[] = [];
     let score = 100;
 
-    if (conflict.hasConflict) {
+    if (!assignCheck.ok) {
       score = -500;
-      reasons.push(conflict.message || 'Constraint violation');
+      reasons.push(assignCheck.reason || 'Constraint violation');
     } else {
       reasons.push('Fully qualified and available for this time slot');
       score += (maxLimit - currentLoad) * 20;
@@ -884,7 +888,7 @@ export const getRankedSubstitutes = (
     candidates.push({
       faculty,
       score,
-      eligible: !conflict.hasConflict,
+      eligible: assignCheck.ok,
       reasons,
       currentDayLoad: currentLoad,
       maxDayLoad: maxLimit,

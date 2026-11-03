@@ -13,7 +13,7 @@
 | ID | Status | Files | Notes |
 |---|---|---|---|
 | C1 | Done | `src/utils/storage.ts`, `src/components/Layout.tsx`, `src/__tests__/storage.test.ts` | SafeStorage rewritten with window.localStorage, in-memory Map fallback, write-through caching, visible alert banner, full test suite |
-| C2 | Todo | `src/pages/Timetable.tsx`, `src/utils/validation.ts` | Manual slot override dialog with explicit conflict detection & override confirmation |
+| C2 | Done | `src/pages/Timetable.tsx`, `src/components/timetable/AllocationCell.tsx`, `src/components/timetable/SectionTable.tsx`, `src/utils/constraints.ts`, `src/__tests__/constraints.test.ts` | Pre-generation frozen validation with canAssign returning violations list, red cell edges and summary panel; "Override anyway" checkbox for hard conflicts with overridden: true and distinct cell styling |
 | H1 | Todo | `src/utils/scheduler.ts` | Dynamic period count handling instead of hardcoded 6 periods |
 | H2 | Todo | `src/utils/scheduler.ts` | Randomization & distribution across days, avoiding mechanical patterns |
 | H3 | Todo | `src/utils/scheduler.ts` | Priority-based slot assignment & most-constrained-first ordering |
@@ -27,7 +27,7 @@
 | M2 | Todo | `src/pages/Timetable.tsx`, `src/utils/storage.ts` | Finalized day locking and protection against accidental regeneration |
 | M3 | Todo | `src/utils/seedData.ts` | Accurate seed data with 70 batches, 145 faculty, 372 slots/day |
 | M4 | Todo | `src/utils/validation.ts` | Strict 24h canonical time parser rejecting invalid/ambiguous formats |
-| M5 | Todo | `src/utils/storage.ts` | Schema version 2 auto-migration |
+| M5 | Done | `src/utils/constraints.ts`, `src/utils/validation.ts`, `src/utils/scheduler.ts`, `src/utils/storage.ts`, `src/utils/seedData.ts` | Single source of truth for constraints (getDailyLimit, canAssign), removed duplicated logic, consistent default of 4 from settings |
 | M6 | Todo | `src/pages/Faculty.tsx` | Validated faculty JSON import preview modal |
 | M7 | Todo | `src/pages/Settings.tsx` | Scheduler parameter validation (PCMB/Language weights, limits) |
 | M8 | Todo | `src/pages/Faculty.tsx` | Duplicate faculty profile detection and merging |

@@ -7,6 +7,8 @@ export default function AllocationCell({
   facultyName,
   isUnfilled,
   unfilledReason,
+  isViolated,
+  violationReason,
   onToggleFreeze,
   onClickSlot,
 }: {
@@ -15,6 +17,8 @@ export default function AllocationCell({
   facultyName: string;
   isUnfilled?: boolean;
   unfilledReason?: string;
+  isViolated?: boolean;
+  violationReason?: string;
   onToggleFreeze: () => void;
   onClickSlot?: () => void;
 }) {
@@ -32,6 +36,12 @@ export default function AllocationCell({
 
   // Surface tone classes based on allocation state
   const getCellTone = () => {
+    if (isViolated) {
+      return 'bg-[#FEF2F2] border-2 border-red-600 text-red-950 shadow-xs ring-1 ring-red-500';
+    }
+    if (allocation?.overridden) {
+      return 'bg-[#FFF7ED] border-2 border-[#EA580C] text-[#9A3412] shadow-xs';
+    }
     if (allocation?.hasConflictOverride) {
       return 'bg-[#FDF2F2] border-2 border-[#A63232] text-[#8F2424] shadow-xs';
     }
@@ -66,17 +76,55 @@ export default function AllocationCell({
       }}
       className={`group/cell relative flex flex-col justify-between h-18 p-2.5 rounded cursor-pointer transition-colors duration-120 select-none outline-none focus-visible:ring-2 focus-visible:ring-[#6B2638] focus-visible:ring-offset-1 ${getCellTone()}`}
       title={
-        allocation?.hasConflictOverride
-          ? `WARNING: Schedule conflict override!\n${allocation.conflictNote || ''}`
-          : isUnfilled
-            ? `UNFILLED SHORTAGE: ${unfilledReason || 'No teacher available'}`
-            : allocation?.explanation
-              ? allocation.explanation.join('\n')
-              : 'Click to assign or edit this slot'
+        isViolated
+          ? `LOCKED SLOT CONSTRAINT VIOLATION:\n${violationReason || 'Slot violates constraints'}`
+          : allocation?.overridden
+            ? `OVERRIDDEN MANUAL ASSIGNMENT:\n${allocation.conflictNote || 'Forced assignment bypassing constraints'}`
+            : allocation?.hasConflictOverride
+              ? `WARNING: Schedule conflict override!\n${allocation.conflictNote || ''}`
+              : isUnfilled
+                ? `UNFILLED SHORTAGE: ${unfilledReason || 'No teacher available'}`
+                : allocation?.explanation
+                  ? allocation.explanation.join('\n')
+                  : 'Click to assign or edit this slot'
       }
     >
       {/* Main slot content */}
-      {allocation?.hasConflictOverride ? (
+      {isViolated ? (
+        <div className="flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-bold text-xs text-red-900 truncate">
+              {allocation?.subject || 'Locked Slot'}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span title="Locked constraint violation" className="inline-flex items-center">
+                <Lock className="w-3 h-3 text-red-600" />
+              </span>
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+            </div>
+          </div>
+          <div className="text-[10px] text-red-700 font-medium truncate">
+            {facultyName}
+          </div>
+          <div className="text-[9px] text-red-600 truncate font-semibold uppercase">
+            Violation
+          </div>
+        </div>
+      ) : allocation?.overridden ? (
+        <div className="flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-bold text-xs text-[#9A3412] truncate">
+              {allocation.subject}
+            </span>
+            <span className="text-[9px] font-bold px-1 py-0.5 bg-[#FFEDD5] text-[#C2410C] rounded border border-[#FDBA74]">
+              OVERRIDDEN
+            </span>
+          </div>
+          <div className="text-[11px] text-[#9A3412] font-medium truncate">
+            {facultyName}
+          </div>
+        </div>
+      ) : allocation?.hasConflictOverride ? (
         <div className="flex flex-col justify-center h-full text-center">
           <div className="flex items-center justify-center gap-1 text-xs font-bold text-[#A63232]">
             <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-[#A63232]" />

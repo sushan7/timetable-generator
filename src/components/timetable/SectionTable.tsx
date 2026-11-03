@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Building2, Users, LayoutGrid, List } from 'lucide-react';
-import type { Batch, Allocation, UnfilledSlot } from '../../types';
+import type { Batch, Allocation, UnfilledSlot, FrozenViolation } from '../../types';
 import Badge from '../ui/Badge';
 import AllocationCell from './AllocationCell';
 
@@ -9,6 +9,7 @@ export default function SectionTable({
   batches,
   allocations,
   unfilledSlots = [],
+  frozenViolations = [],
   getFacultyName,
   onToggleFreeze,
   onCellClick,
@@ -17,6 +18,7 @@ export default function SectionTable({
   batches: Batch[];
   allocations: Allocation[];
   unfilledSlots?: UnfilledSlot[];
+  frozenViolations?: FrozenViolation[];
   getFacultyName: (id: string) => string;
   onToggleFreeze: (batchId: string, periodIndex: number) => void;
   onCellClick?: (batch: Batch, periodIndex: number) => void;
@@ -47,6 +49,11 @@ export default function SectionTable({
   const isSlotUnfilled = (batchId: string, pIndex: number) => {
     const found = unfilledSlots.find(u => u.batchId === batchId && u.periodIndex === pIndex);
     return found ? { isUnfilled: true, reason: found.reason } : { isUnfilled: false };
+  };
+
+  const isSlotViolated = (batchId: string, pIndex: number) => {
+    const found = frozenViolations.find(v => v.batchId === batchId && v.periodIndex === pIndex);
+    return found ? { isViolated: true, reason: found.reason } : { isViolated: false };
   };
 
   return (
@@ -121,6 +128,7 @@ export default function SectionTable({
                     a => a.batchId === batch.id && a.periodIndex === i
                   );
                   const { isUnfilled, reason } = isSlotUnfilled(batch.id, i);
+                  const { isViolated, reason: violationReason } = isSlotViolated(batch.id, i);
                   return (
                     <div key={i} className="flex flex-col">
                       <span className="text-[10px] font-semibold text-[#5E5B61] mb-0.5">
@@ -131,6 +139,8 @@ export default function SectionTable({
                         allocation={allocation}
                         isUnfilled={isUnfilled}
                         unfilledReason={reason}
+                        isViolated={isViolated}
+                        violationReason={violationReason}
                         facultyName={getFacultyName(allocation?.facultyId || '')}
                         onToggleFreeze={() => onToggleFreeze(batch.id, i)}
                         onClickSlot={() => onCellClick?.(batch, i)}
@@ -194,6 +204,7 @@ export default function SectionTable({
                       a => a.batchId === batch.id && a.periodIndex === i
                     );
                     const { isUnfilled, reason } = isSlotUnfilled(batch.id, i);
+                    const { isViolated, reason: violationReason } = isSlotViolated(batch.id, i);
                     return (
                       <td key={i} className="p-2 border-l border-[#E5E0D8] align-top bg-white group-hover:bg-[#FAF7F2]/60 transition-colors">
                         <AllocationCell
@@ -201,6 +212,8 @@ export default function SectionTable({
                           allocation={allocation}
                           isUnfilled={isUnfilled}
                           unfilledReason={reason}
+                          isViolated={isViolated}
+                          violationReason={violationReason}
                           facultyName={getFacultyName(allocation?.facultyId || '')}
                           onToggleFreeze={() => onToggleFreeze(batch.id, i)}
                           onClickSlot={() => onCellClick?.(batch, i)}

@@ -152,7 +152,7 @@ const createFaculty = (names: string[], subject: string): Faculty[] => {
     id: `f_${subject.substring(0, 3).toLowerCase()}_${index + 1}`,
     name,
     subjects: [subject],
-    maxPeriodsPerDay: 6 // Default max limit
+    // Defaults dynamically to settings.maxDailyPeriods (M5 single consistent default: 4)
   }));
 };
 

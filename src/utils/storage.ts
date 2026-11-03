@@ -70,20 +70,11 @@ export const normalizeTimetable = (tt: Timetable): Timetable => ({
   })),
   unfilledSlots: tt.unfilledSlots || [],
   warnings: tt.warnings || [],
+  frozenViolations: tt.frozenViolations || [],
 });
 
 // Centralized faculty daily limit helper (M5)
-export const getDailyLimit = (
-  faculty: Faculty | undefined | null,
-  settings: SchedulerSettings
-): number => {
-  if (!faculty) return settings.maxDailyPeriods || 4;
-  const val = faculty.maxPeriodsPerDay;
-  if (typeof val === 'number' && val > 0) {
-    return val;
-  }
-  return settings.maxDailyPeriods || 4;
-};
+export { getDailyLimit } from './constraints';
 
 // -------------------------------------------------------------
 // RELIABLE STORAGE ABSTRACTION (C1)
@@ -640,6 +631,7 @@ export const storage = {
     options?: {
       unfilledSlots?: Timetable['unfilledSlots'];
       warnings?: Timetable['warnings'];
+      frozenViolations?: Timetable['frozenViolations'];
       markGenerated?: boolean;
     }
   ) => {
@@ -660,6 +652,7 @@ export const storage = {
         lastGeneratedAt: options?.markGenerated ? now : existing?.lastGeneratedAt,
         unfilledSlots: options?.unfilledSlots ?? existing?.unfilledSlots ?? [],
         warnings: options?.warnings ?? existing?.warnings ?? [],
+        frozenViolations: options?.frozenViolations ?? existing?.frozenViolations ?? [],
       };
 
       week[day] = updatedTimetable;
