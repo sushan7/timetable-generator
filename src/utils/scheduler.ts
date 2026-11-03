@@ -10,10 +10,12 @@ import type {
   GenerationStats,
   SubstituteCandidate,
   SubjectCapacityReport,
+  DayOfWeek,
 } from '../types';
+import { WEEKDAYS } from '../types';
 import { storage } from './storage';
 import { isOverlapping } from './validation';
-import { canAssign, getDailyLimit, validateFrozenAllocations } from './constraints';
+import { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent } from './constraints';
 import { groupBatchesBySection } from './sections';
 
 export const PCMB_SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology'];
@@ -385,6 +387,7 @@ export interface AssignmentScoreContext {
   settings: SchedulerSettings;
   isKHSGroupSlot: boolean;
   dateKey?: string;
+  dayOfWeek?: DayOfWeek;
 }
 
 export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; reasons: string[] } => {
@@ -399,9 +402,11 @@ export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; r
     dailyWorkload,
     settings,
     isKHSGroupSlot,
+    dateKey,
+    dayOfWeek,
   } = ctx;
 
-  if (faculty.isAbsent) return { score: -Infinity, reasons: ['Teacher is absent'] };
+  if (isFacultyAbsent(faculty, dayOfWeek, dateKey)) return { score: -Infinity, reasons: ['Teacher is absent'] };
 
   const subjectChoice = scoreSubjectChoice(batch, periodIndex, subject, {
     todayAllocations,
@@ -578,7 +583,8 @@ export const diagnoseUnfilledReason = (
   allocations: Allocation[],
   batches: Batch[],
   settings: SchedulerSettings,
-  dateKey?: string
+  dateKey?: string,
+  dayOfWeek?: DayOfWeek
 ): { reason: UnfilledReason; detail: string } => {
   // 1. NO_SUBJECTS: Batch has no subjects configured
   if (!batch.subjects || batch.subjects.length === 0) {
@@ -605,8 +611,11 @@ export const diagnoseUnfilledReason = (
   }
 
   // 3. ALL_ABSENT: All qualified teachers are absent today
+  const effectiveDay =
+    dayOfWeek ||
+    (dateKey && (WEEKDAYS as readonly string[]).includes(dateKey) ? (dateKey as DayOfWeek) : undefined);
   const nonAbsentFaculty = qualifiedFaculty.filter(
-    f => !f.isAbsent && !(dateKey && f.unavailableDates?.includes(dateKey))
+    f => !isFacultyAbsent(f, effectiveDay, dateKey)
   );
 
   if (nonAbsentFaculty.length === 0) {
@@ -632,7 +641,7 @@ export const diagnoseUnfilledReason = (
       reachedDailyLimitCount++;
     } else {
       availableWithCapacityCount++;
-      const canResult = canAssign(f, batch, periodIndex, allocations, batches, settings, { dateKey });
+      const canResult = canAssign(f, batch, periodIndex, allocations, batches, settings, { dateKey, dayOfWeek: effectiveDay });
       if (!canResult.ok && canResult.type === 'TIME_OVERLAP') {
         busyWithTimeOverlapCount++;
       }
@@ -679,7 +688,8 @@ const generateCandidateRun = (
   khsClusterMap: Map<string, number>,
   weeklyQuotasMap: Map<string, Record<string, number>>,
   rng: () => number,
-  dateKey?: string
+  dateKey?: string,
+  dayOfWeek?: DayOfWeek
 ): { allocations: Allocation[]; unfilled: UnfilledSlot[]; warnings: ScheduleWarning[]; repairedCount: number } => {
   const allocations: Allocation[] = [...existingDraft.filter(a => a.frozen)];
   const dailyWorkload: Record<string, number> = {};
@@ -721,7 +731,7 @@ const generateCandidateRun = (
             ...batch.subjects.map(
               s =>
                 getEligibleFaculty(faculties, batch, s.subject).filter(
-                  f => !f.isAbsent && !(dateKey && f.unavailableDates?.includes(dateKey))
+                  f => !isFacultyAbsent(f, dayOfWeek, dateKey)
                 ).length
             )
           )
@@ -861,7 +871,7 @@ const generateCandidateRun = (
           allocations,
           batches,
           settings,
-          { dateKey }
+          { dateKey, dayOfWeek }
         );
 
         if (!assignResult.ok) continue;
@@ -998,7 +1008,7 @@ const generateCandidateRun = (
             allocations,
             batches,
             settings,
-            { dateKey }
+            { dateKey, dayOfWeek }
           );
 
           if (assignResult.ok) {
@@ -1051,7 +1061,7 @@ const generateCandidateRun = (
         if (qualifiedTeachers.length === 0) continue;
 
         for (const teacherT of qualifiedTeachers) {
-          if (teacherT.isAbsent || (dateKey && teacherT.unavailableDates?.includes(dateKey))) {
+          if (isFacultyAbsent(teacherT, dayOfWeek, dateKey)) {
             continue;
           }
 
@@ -1091,7 +1101,7 @@ const generateCandidateRun = (
                 const altTeachers = getEligibleFaculty(faculties, batchB, subjB);
                 for (const tAlt of altTeachers) {
                   if (tAlt.id === teacherT.id) continue;
-                  if (tAlt.isAbsent || (dateKey && tAlt.unavailableDates?.includes(dateKey))) continue;
+                  if (isFacultyAbsent(tAlt, dayOfWeek, dateKey)) continue;
 
                   const allocsWithoutConflicting = allocations.filter((_, idx) => idx !== conflictingAllocIdx);
                   const canAltAssign = canAssign(
@@ -1101,7 +1111,7 @@ const generateCandidateRun = (
                     allocsWithoutConflicting,
                     batches,
                     settings,
-                    { dateKey }
+                    { dateKey, dayOfWeek }
                   );
 
                   if (canAltAssign.ok) {
@@ -1121,7 +1131,7 @@ const generateCandidateRun = (
                       tempAllocs,
                       batches,
                       settings,
-                      { dateKey }
+                      { dateKey, dayOfWeek }
                     );
 
                     if (canTAssign.ok) {
@@ -1195,7 +1205,7 @@ const generateCandidateRun = (
                 const altTeachersQ = getEligibleFaculty(faculties, batchQ, subjQ);
                 for (const tAlt of altTeachersQ) {
                   if (tAlt.id === teacherT.id) continue;
-                  if (tAlt.isAbsent || (dateKey && tAlt.unavailableDates?.includes(dateKey))) continue;
+                  if (isFacultyAbsent(tAlt, dayOfWeek, dateKey)) continue;
 
                   const allocsWithoutQ = allocations.filter(a => a !== allocQ);
                   const canAltQ = canAssign(
@@ -1205,7 +1215,7 @@ const generateCandidateRun = (
                     allocsWithoutQ,
                     batches,
                     settings,
-                    { dateKey }
+                    { dateKey, dayOfWeek }
                   );
 
                   if (canAltQ.ok) {
@@ -1225,7 +1235,7 @@ const generateCandidateRun = (
                       tempAllocs,
                       batches,
                       settings,
-                      { dateKey }
+                      { dateKey, dayOfWeek }
                     );
 
                     if (canTAssignP.ok) {
@@ -1287,7 +1297,7 @@ const generateCandidateRun = (
             allocsWithoutOther,
             batches,
             settings,
-            { dateKey }
+            { dateKey, dayOfWeek }
           );
 
           if (canShift.ok) {
@@ -1300,7 +1310,7 @@ const generateCandidateRun = (
               const eligibleForFreed = getEligibleFaculty(faculties, batch, subjFreed);
               for (const tFreed of eligibleForFreed) {
                 if (tFreed.id === teacherOther.id) continue;
-                if (tFreed.isAbsent || (dateKey && tFreed.unavailableDates?.includes(dateKey))) continue;
+                if (isFacultyAbsent(tFreed, dayOfWeek, dateKey)) continue;
 
                 const canFillFreed = canAssign(
                   tFreed,
@@ -1309,7 +1319,7 @@ const generateCandidateRun = (
                   allocsWithoutOther,
                   batches,
                   settings,
-                  { dateKey }
+                  { dateKey, dayOfWeek }
                 );
 
                 if (canFillFreed.ok) {
@@ -1365,7 +1375,8 @@ const generateCandidateRun = (
       allocations,
       batches,
       settings,
-      dateKey
+      dateKey,
+      dayOfWeek
     );
 
     unfilled.push({
@@ -1392,6 +1403,7 @@ export const generateTimetableV2 = (
   options?: {
     seed?: number;
     dateKey?: string;
+    dayOfWeek?: DayOfWeek;
     numCandidates?: number;
     settings?: SchedulerSettings;
   }
@@ -1400,6 +1412,9 @@ export const generateTimetableV2 = (
   const seed = options?.seed ?? Math.floor(Math.random() * 1000000);
   const rng = createPRNG(seed);
   const dateKey = options?.dateKey;
+  const dayOfWeek =
+    options?.dayOfWeek ||
+    (dateKey && (WEEKDAYS as readonly string[]).includes(dateKey) ? (dateKey as DayOfWeek) : undefined);
 
   // C2: Validate existing frozen allocations
   const frozenList = existingDraft.filter(a => a.frozen);
@@ -1408,7 +1423,7 @@ export const generateTimetableV2 = (
     batches,
     faculties,
     settings,
-    dateKey
+    { dateKey, dayOfWeek }
   );
 
   const initialWarnings: ScheduleWarning[] = [];
@@ -1454,7 +1469,8 @@ export const generateTimetableV2 = (
       khsClusterMap,
       weeklyQuotasMap,
       candidateRng,
-      dateKey
+      dateKey,
+      dayOfWeek
     );
 
     const score = evaluateTimetableCandidate(
@@ -1513,114 +1529,247 @@ export const generateTimetableV2 = (
 };
 
 // -------------------------------------------------------------
-// ABSENCE PATCHING (H6: Original-Subject-First)
+// ABSENCE PATCHING (H4 & H6: Original-Subject-First)
 // -------------------------------------------------------------
 export const patchAbsences = (
   currentAllocations: Allocation[],
   batches: Batch[],
   faculties: Faculty[],
-  settings?: SchedulerSettings,
-  dateKey?: string
-): { updatedAllocations: Allocation[]; patchedCount: number; remainingGapsCount: number } => {
-  const activeSettings = settings || storage.getSettings();
+  settingsOrOptions?: SchedulerSettings | { settings?: SchedulerSettings; dateKey?: string; dayOfWeek?: DayOfWeek },
+  dateKey?: string,
+  dayOfWeek?: DayOfWeek
+): {
+  updatedAllocations: Allocation[];
+  patchedCount: number;
+  remainingGapsCount: number;
+  subjectChangedCount: number;
+} => {
+  const options = (settingsOrOptions && ('dayOfWeek' in settingsOrOptions || 'dateKey' in settingsOrOptions || 'settings' in settingsOrOptions))
+    ? (settingsOrOptions as { settings?: SchedulerSettings; dateKey?: string; dayOfWeek?: DayOfWeek })
+    : undefined;
+  const activeSettings = (options?.settings || (!options ? (settingsOrOptions as SchedulerSettings) : undefined)) || storage.getSettings();
+  const effectiveDateKey = options?.dateKey || dateKey;
+  const effectiveDay =
+    options?.dayOfWeek ||
+    dayOfWeek ||
+    (effectiveDateKey && (WEEKDAYS as readonly string[]).includes(effectiveDateKey) ? (effectiveDateKey as DayOfWeek) : undefined);
+
   let patchedCount = 0;
   let remainingGapsCount = 0;
+  let subjectChangedCount = 0;
+
+  // Clone currentAllocations to maintain working state across sequential slot patching
+  const updatedAllocations: Allocation[] = currentAllocations.map(a => ({ ...a }));
 
   const dailyWorkload: Record<string, number> = {};
-  currentAllocations.forEach(a => {
+  updatedAllocations.forEach(a => {
     if (a.facultyId) {
       dailyWorkload[a.facultyId] = (dailyWorkload[a.facultyId] || 0) + 1;
     }
   });
 
-  const updatedAllocations = currentAllocations.map(alloc => {
+  const affectedIndices: number[] = [];
+  for (let idx = 0; idx < updatedAllocations.length; idx++) {
+    const alloc = updatedAllocations[idx];
     if (!alloc.facultyId) {
       if (alloc.vacatedFacultyId) remainingGapsCount++;
-      return alloc;
+      continue;
     }
 
     const assignedFaculty = faculties.find(f => f.id === alloc.facultyId);
-    if (!assignedFaculty) return alloc;
+    if (!assignedFaculty) continue;
 
-    const isAbsent = Boolean(
-      assignedFaculty.isAbsent ||
-      (dateKey && assignedFaculty.unavailableDates && assignedFaculty.unavailableDates.includes(dateKey))
-    );
+    const isAbsent = isFacultyAbsent(assignedFaculty, effectiveDay, effectiveDateKey);
+    if (!isAbsent) continue;
 
-    if (!isAbsent) return alloc;
-
-    // Faculty is absent. Search for a replacement teacher of the SAME subject first (H6)
     const targetBatch = batches.find(b => b.id === alloc.batchId);
-    if (!targetBatch) return alloc;
+    if (!targetBatch) {
+      remainingGapsCount++;
+      continue;
+    }
 
-    const qualifiedTeachers = getEligibleFaculty(faculties, targetBatch, alloc.subject);
+    affectedIndices.push(idx);
+  }
 
-    // Rank candidate substitutes
-    const availableSubs = qualifiedTeachers.filter(candidate => {
+  // Most-constrained-first: slots with fewest eligible same-subject teachers patched first (H3 & H4 heuristic)
+  affectedIndices.sort((idxA, idxB) => {
+    const allocA = updatedAllocations[idxA];
+    const allocB = updatedAllocations[idxB];
+    const batchA = batches.find(b => b.id === allocA.batchId)!;
+    const batchB = batches.find(b => b.id === allocB.batchId)!;
+
+    const countA = getEligibleFaculty(faculties, batchA, allocA.subject).filter(
+      c => !isFacultyAbsent(c, effectiveDay, effectiveDateKey) && c.id !== allocA.facultyId
+    ).length;
+    const countB = getEligibleFaculty(faculties, batchB, allocB.subject).filter(
+      c => !isFacultyAbsent(c, effectiveDay, effectiveDateKey) && c.id !== allocB.facultyId
+    ).length;
+
+    return countA - countB;
+  });
+
+  for (const idx of affectedIndices) {
+    const alloc = updatedAllocations[idx];
+    const assignedFaculty = faculties.find(f => f.id === alloc.facultyId);
+    if (!assignedFaculty) continue;
+
+    const targetBatch = batches.find(b => b.id === alloc.batchId);
+    if (!targetBatch) continue;
+
+    const origSubject = alloc.subject;
+    let substituteAssigned = false;
+
+    // -----------------------------------------------------------------
+    // Step 1: Try the ORIGINAL SUBJECT first with eligible, non-absent, conflict-free teachers (H4)
+    // -----------------------------------------------------------------
+    const qualifiedSameSubjTeachers = getEligibleFaculty(faculties, targetBatch, origSubject);
+    const availableSameSubjTeachers = qualifiedSameSubjTeachers.filter(candidate => {
       if (candidate.id === assignedFaculty.id) return false;
+      if (isFacultyAbsent(candidate, effectiveDay, dateKey)) return false;
       const assignCheck = canAssign(
         candidate,
         targetBatch,
         alloc.periodIndex,
-        currentAllocations,
+        updatedAllocations,
         batches,
         activeSettings,
-        { dateKey }
+        { dateKey, dayOfWeek: effectiveDay }
       );
       return assignCheck.ok;
     });
 
-    if (availableSubs.length > 0) {
-      // Pick substitute with lowest daily load for fairness
-      availableSubs.sort(
+    if (availableSameSubjTeachers.length > 0) {
+      availableSameSubjTeachers.sort(
         (a, b) => (dailyWorkload[a.id] || 0) - (dailyWorkload[b.id] || 0)
       );
-      const chosenSub = availableSubs[0];
+      const chosenSub = availableSameSubjTeachers[0];
 
       patchedCount++;
       dailyWorkload[chosenSub.id] = (dailyWorkload[chosenSub.id] || 0) + 1;
+      dailyWorkload[assignedFaculty.id] = Math.max(0, (dailyWorkload[assignedFaculty.id] || 0) - 1);
 
       storage.logAuditAction('ABSENCE_SYNC', {
         batchId: alloc.batchId,
         periodIndex: alloc.periodIndex,
         previousFacultyId: assignedFaculty.id,
         newFacultyId: chosenSub.id,
-        reason: `Substituted ${chosenSub.name} for absent teacher ${assignedFaculty.name} (${alloc.subject}) in ${targetBatch.name}.`,
+        reason: `Substituted ${chosenSub.name} for absent teacher ${assignedFaculty.name} (${origSubject}) in ${targetBatch.name}.`,
       });
 
-      return {
+      updatedAllocations[idx] = {
         ...alloc,
         facultyId: chosenSub.id,
+        subjectChanged: false,
         vacatedFacultyId: assignedFaculty.id,
         vacatedFacultyName: assignedFaculty.name,
         explanation: [
           ...(alloc.explanation || []),
-          `Substituted for absent teacher ${assignedFaculty.name} on ${new Date().toLocaleDateString()}`,
+          `Substituted for absent teacher ${assignedFaculty.name} (${origSubject})`,
+        ],
+        updatedAt: Date.now(),
+      };
+      substituteAssigned = true;
+    }
+
+    // -----------------------------------------------------------------
+    // Step 2: Only if none is available, try other subjects (H4)
+    // -----------------------------------------------------------------
+    if (!substituteAssigned) {
+      const otherBatchSubjects = targetBatch.subjects
+        .map(s => normalizeSubj(s.subject))
+        .filter(s => s !== normalizeSubj(origSubject));
+
+      for (const altSubject of otherBatchSubjects) {
+        if (alloc.periodIndex === 0 && isLanguageSubject(altSubject)) {
+          const currentP1Lang = updatedAllocations.filter(
+            a => a.periodIndex === 0 && isLanguageSubject(a.subject)
+          ).length;
+          if (currentP1Lang >= 4) continue;
+        }
+
+        const qualifiedAltTeachers = getEligibleFaculty(faculties, targetBatch, altSubject);
+        const availableAltTeachers = qualifiedAltTeachers.filter(candidate => {
+          if (candidate.id === assignedFaculty.id) return false;
+          if (isFacultyAbsent(candidate, effectiveDay, dateKey)) return false;
+          const assignCheck = canAssign(
+            candidate,
+            targetBatch,
+            alloc.periodIndex,
+            updatedAllocations,
+            batches,
+            activeSettings,
+            { dateKey, dayOfWeek: effectiveDay }
+          );
+          return assignCheck.ok;
+        });
+
+        if (availableAltTeachers.length > 0) {
+          availableAltTeachers.sort(
+            (a, b) => (dailyWorkload[a.id] || 0) - (dailyWorkload[b.id] || 0)
+          );
+          const chosenAltSub = availableAltTeachers[0];
+
+          patchedCount++;
+          subjectChangedCount++;
+          dailyWorkload[chosenAltSub.id] = (dailyWorkload[chosenAltSub.id] || 0) + 1;
+          dailyWorkload[assignedFaculty.id] = Math.max(0, (dailyWorkload[assignedFaculty.id] || 0) - 1);
+
+          const changeExplanation = `Subject changed from ${origSubject} to ${altSubject} because no qualified substitute was available for ${origSubject}`;
+
+          storage.logAuditAction('ABSENCE_SYNC', {
+            batchId: alloc.batchId,
+            periodIndex: alloc.periodIndex,
+            previousFacultyId: assignedFaculty.id,
+            newFacultyId: chosenAltSub.id,
+            reason: `Substituted ${chosenAltSub.name} (${altSubject}) for absent teacher ${assignedFaculty.name}. ${changeExplanation}.`,
+          });
+
+          updatedAllocations[idx] = {
+            ...alloc,
+            facultyId: chosenAltSub.id,
+            subject: altSubject,
+            subjectChanged: true,
+            conflictNote: changeExplanation,
+            vacatedFacultyId: assignedFaculty.id,
+            vacatedFacultyName: assignedFaculty.name,
+            explanation: [
+              ...(alloc.explanation || []),
+              changeExplanation,
+            ],
+            updatedAt: Date.now(),
+          };
+          substituteAssigned = true;
+          break;
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Step 3: No substitute found for any subject: mark as explicit gap
+    // -----------------------------------------------------------------
+    if (!substituteAssigned) {
+      remainingGapsCount++;
+      dailyWorkload[assignedFaculty.id] = Math.max(0, (dailyWorkload[assignedFaculty.id] || 0) - 1);
+
+      updatedAllocations[idx] = {
+        ...alloc,
+        facultyId: '',
+        vacatedFacultyId: assignedFaculty.id,
+        vacatedFacultyName: assignedFaculty.name,
+        explanation: [
+          ...(alloc.explanation || []),
+          `Assigned teacher ${assignedFaculty.name} is absent${effectiveDay ? ` on ${effectiveDay}` : ''}. No replacement available without schedule conflicts.`,
         ],
         updatedAt: Date.now(),
       };
     }
-
-    // No substitute found: mark as an explicit gap
-    remainingGapsCount++;
-    return {
-      ...alloc,
-      facultyId: '',
-      vacatedFacultyId: assignedFaculty.id,
-      vacatedFacultyName: assignedFaculty.name,
-      explanation: [
-        ...(alloc.explanation || []),
-        `Assigned teacher ${assignedFaculty.name} is absent. No replacement available without schedule conflicts.`,
-      ],
-      updatedAt: Date.now(),
-    };
-  });
+  }
 
   storage.logAuditAction('ABSENCE_SYNC', {
-    reason: `Absence synchronization complete: ${patchedCount} slots covered by substitutes, ${remainingGapsCount} unresolved gaps.`,
+    reason: `Absence synchronization complete: ${patchedCount} slots covered by substitutes (${subjectChangedCount} subject changes), ${remainingGapsCount} unresolved gaps.`,
   });
 
-  return { updatedAllocations, patchedCount, remainingGapsCount };
+  return { updatedAllocations, patchedCount, remainingGapsCount, subjectChangedCount };
 };
 
 // -------------------------------------------------------------
@@ -1634,9 +1783,13 @@ export const getRankedSubstitutes = (
   batches: Batch[],
   faculties: Faculty[],
   settings?: SchedulerSettings,
-  dateKey?: string
+  dateKey?: string,
+  dayOfWeek?: DayOfWeek
 ): SubstituteCandidate[] => {
   const activeSettings = settings || storage.getSettings();
+  const effectiveDay =
+    dayOfWeek ||
+    (dateKey && (WEEKDAYS as readonly string[]).includes(dateKey) ? (dateKey as DayOfWeek) : undefined);
   const targetBatch = batches.find(b => b.id === batchId);
   if (!targetBatch) return [];
 
@@ -1651,7 +1804,7 @@ export const getRankedSubstitutes = (
       allocations,
       batches,
       activeSettings,
-      { dateKey }
+      { dateKey, dayOfWeek: effectiveDay }
     );
 
     const currentLoad = allocations.filter(
@@ -1703,7 +1856,8 @@ export const regenerateSingleSlot = (
   faculties: Faculty[],
   settings?: SchedulerSettings,
   preferredSubject?: string,
-  dateKey?: string
+  dateKey?: string,
+  dayOfWeek?: DayOfWeek
 ): { success: boolean; newAllocation: Allocation | null; reason?: string } => {
   const activeSettings = settings || storage.getSettings();
   const targetBatch = batches.find(b => b.id === batchId);
@@ -1723,7 +1877,8 @@ export const regenerateSingleSlot = (
     batches,
     faculties,
     activeSettings,
-    dateKey
+    dateKey,
+    dayOfWeek
   );
 
   const eligibleSubs = substitutes.filter(s => s.eligible);

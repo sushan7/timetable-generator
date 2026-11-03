@@ -12,9 +12,12 @@ import {
   CheckCheck,
   GitMerge,
   Save,
+  Calendar,
 } from 'lucide-react';
-import type { Faculty, Batch } from '../types';
+import type { Faculty, Batch, DayOfWeek } from '../types';
+import { WEEKDAYS } from '../types';
 import { storage } from '../utils/storage';
+import { isFacultyAbsent } from '../utils/constraints';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -36,6 +39,7 @@ export default function FacultyManager() {
     return storage.getFaculty();
   });
   const [allBatches] = useState<Batch[]>(() => storage.getBatches());
+  const [selectedDay, setSelectedDay] = useState<DayOfWeek>('Monday');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PRESENT' | 'ABSENT'>('ALL');
@@ -48,6 +52,7 @@ export default function FacultyManager() {
     subjects: [],
     maxPeriodsPerDay: 4,
     isAbsent: false,
+    absentDays: [],
     assignedBatches: [],
   });
   const [subjectInput, setSubjectInput] = useState('');
@@ -71,22 +76,55 @@ export default function FacultyManager() {
     storage.setFaculty(updated);
   };
 
-  const toggleAbsent = (id: string) => {
-    const updated = faculties.map(f => (f.id === id ? { ...f, isAbsent: !f.isAbsent } : f));
+  const toggleAbsent = (id: string, day: DayOfWeek = selectedDay) => {
+    const target = faculties.find(f => f.id === id);
+    if (!target) return;
+
+    const currentlyAbsent = isFacultyAbsent(target, day);
+    const existingDays = target.absentDays ? [...target.absentDays] : target.isAbsent ? [...WEEKDAYS] : [];
+    const nextDays = currentlyAbsent
+      ? existingDays.filter(d => d !== day)
+      : Array.from(new Set([...existingDays, day]));
+
+    const updated = faculties.map(f =>
+      f.id === id
+        ? {
+            ...f,
+            absentDays: nextDays,
+            isAbsent: nextDays.length > 0,
+          }
+        : f
+    );
     saveToStorage(updated);
-    const target = updated.find(f => f.id === id);
-    if (target) {
-      storage.logAuditAction('STATUS_CHANGE', {
-        reason: `Marked teacher ${target.name} as ${target.isAbsent ? 'Absent' : 'Present'}.`,
-      });
-    }
+    storage.logAuditAction('STATUS_CHANGE', {
+      reason: `Marked teacher ${target.name} as ${!currentlyAbsent ? 'Absent' : 'Present'} for ${day}.`,
+    });
   };
 
-  const handleConfirmMarkAllPresent = () => {
-    const updated = faculties.map(f => ({ ...f, isAbsent: false }));
+  const handleConfirmMarkAllPresent = (allDays = false) => {
+    const updated = faculties.map(f => {
+      if (allDays) {
+        return {
+          ...f,
+          absentDays: [],
+          isAbsent: false,
+        };
+      }
+      const remainingDays = (f.absentDays || (f.isAbsent ? [...WEEKDAYS] : [])).filter(d => d !== selectedDay);
+      return {
+        ...f,
+        absentDays: remainingDays,
+        isAbsent: remainingDays.length > 0,
+      };
+    });
     saveToStorage(updated);
     setShowMarkAllPresentConfirm(false);
-    setFeedback({ type: 'success', text: 'All faculty members marked as Present.' });
+    setFeedback({
+      type: 'success',
+      text: allDays
+        ? 'All faculty members marked as Present across all days.'
+        : `All faculty members marked as Present for ${selectedDay}.`,
+    });
     setTimeout(() => setFeedback(null), 3000);
   };
 
@@ -109,6 +147,7 @@ export default function FacultyManager() {
         subjects: currentFaculty.subjects && currentFaculty.subjects.length > 0 ? currentFaculty.subjects : ['General Studies'],
         maxPeriodsPerDay: currentFaculty.maxPeriodsPerDay || 4,
         isAbsent: false,
+        absentDays: currentFaculty.absentDays || [],
         assignedBatches: currentFaculty.assignedBatches || [],
       };
       saveToStorage([...faculties, newFaculty]);
@@ -136,8 +175,8 @@ export default function FacultyManager() {
   const handleOpenEdit = (faculty?: Faculty) => {
     setCurrentFaculty(
       faculty
-        ? { ...faculty, assignedBatches: faculty.assignedBatches || [] }
-        : { name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: [] }
+        ? { ...faculty, assignedBatches: faculty.assignedBatches || [], absentDays: faculty.absentDays || [] }
+        : { name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, absentDays: [], assignedBatches: [] }
     );
     setBatchSearch('');
     setIsEditing(true);
@@ -145,7 +184,7 @@ export default function FacultyManager() {
 
   const handleCloseModal = () => {
     setIsEditing(false);
-    setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, assignedBatches: [] });
+    setCurrentFaculty({ name: '', subjects: [], maxPeriodsPerDay: 4, isAbsent: false, absentDays: [], assignedBatches: [] });
     setSubjectInput('');
     setBatchSearch('');
   };
@@ -223,12 +262,19 @@ export default function FacultyManager() {
             duplicates.push({ name: raw.name.trim(), existingId: existingNames.get(normName)! });
           }
 
+          const rawAbsentDays = Array.isArray(raw.absentDays)
+            ? ((raw.absentDays as string[]).filter(d => (WEEKDAYS as readonly string[]).includes(d)) as DayOfWeek[])
+            : raw.isAbsent
+              ? [...WEEKDAYS]
+              : [];
+
           const validatedFaculty: Faculty = {
             id: typeof raw.id === 'string' && raw.id ? raw.id : `fac_${Date.now()}_${idx}`,
             name: raw.name.trim(),
             subjects: raw.subjects.map(s => String(s).trim()),
             maxPeriodsPerDay: typeof raw.maxPeriodsPerDay === 'number' && raw.maxPeriodsPerDay > 0 ? raw.maxPeriodsPerDay : 4,
-            isAbsent: Boolean(raw.isAbsent),
+            isAbsent: rawAbsentDays.length > 0,
+            absentDays: rawAbsentDays,
             assignedBatches: Array.isArray(raw.assignedBatches) ? raw.assignedBatches.map(b => String(b)) : [],
           };
           valid.push(validatedFaculty);
@@ -319,14 +365,15 @@ export default function FacultyManager() {
     return Array.from(set).sort();
   }, [faculties]);
 
-  const presentCount = faculties.filter(f => !f.isAbsent).length;
-  const absentCount = faculties.filter(f => f.isAbsent).length;
+  const presentCount = faculties.filter(f => !isFacultyAbsent(f, selectedDay)).length;
+  const absentCount = faculties.filter(f => isFacultyAbsent(f, selectedDay)).length;
   const lockedCount = faculties.filter(f => f.assignedBatches && f.assignedBatches.length > 0).length;
 
   const filteredFaculties = useMemo(() => {
     return faculties.filter(f => {
-      if (statusFilter === 'PRESENT' && f.isAbsent) return false;
-      if (statusFilter === 'ABSENT' && !f.isAbsent) return false;
+      const isAbsent = isFacultyAbsent(f, selectedDay);
+      if (statusFilter === 'PRESENT' && isAbsent) return false;
+      if (statusFilter === 'ABSENT' && !isAbsent) return false;
       if (selectedSubject !== 'ALL' && !f.subjects.includes(selectedSubject)) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -336,7 +383,7 @@ export default function FacultyManager() {
       }
       return true;
     });
-  }, [faculties, statusFilter, selectedSubject, searchQuery]);
+  }, [faculties, statusFilter, selectedSubject, searchQuery, selectedDay]);
 
   const filteredBatchOptions = allBatches.filter(
     b =>
@@ -418,6 +465,45 @@ export default function FacultyManager() {
         </div>
       )}
 
+      {/* M3: Per-Day Attendance Selector */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-white rounded-lg border border-[#E5E0D8] shadow-2xs">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-[#6B2638]" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-[#5E5B61]">Attendance Day:</span>
+          <span className="text-xs font-bold text-[#6B2638] bg-[#F5EBEE] px-2 py-0.5 rounded border border-[#E6D1D6]">{selectedDay}</span>
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-0.5">
+          {WEEKDAYS.map(day => {
+            const dayAbsentCount = faculties.filter(f => isFacultyAbsent(f, day)).length;
+            const isSelected = selectedDay === day;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => setSelectedDay(day)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 shrink-0 ${
+                  isSelected
+                    ? 'bg-[#6B2638] text-white shadow-xs font-semibold'
+                    : 'bg-[#FAF7F2] text-[#5E5B61] hover:bg-[#F3EBEF] hover:text-[#6B2638] border border-[#E5E0D8]'
+                }`}
+              >
+                <span>{day}</span>
+                {dayAbsentCount > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-[#FDF2F2] text-[#A63232] border border-[#F6CECE]'
+                    }`}
+                    title={`${dayAbsentCount} absent on ${day}`}
+                  >
+                    {dayAbsentCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card padding={false} className="p-4 border-[#E5E0D8]">
@@ -432,7 +518,7 @@ export default function FacultyManager() {
           onClick={() => setStatusFilter(prev => (prev === 'PRESENT' ? 'ALL' : 'PRESENT'))}
         >
           <div className="text-xs font-medium text-[#6B2638] flex items-center justify-between">
-            <span>Present Today</span>
+            <span>Present ({selectedDay.slice(0, 3)})</span>
             <UserCheck className="w-3.5 h-3.5 text-[#6B2638]" />
           </div>
           <div className="text-2xl font-bold text-[#252326] mt-1">{presentCount}</div>
@@ -445,7 +531,7 @@ export default function FacultyManager() {
           onClick={() => setStatusFilter(prev => (prev === 'ABSENT' ? 'ALL' : 'ABSENT'))}
         >
           <div className="text-xs font-medium text-[#A63232] flex items-center justify-between">
-            <span>Absent Today</span>
+            <span>Absent ({selectedDay.slice(0, 3)})</span>
             <UserMinus className="w-3.5 h-3.5 text-[#A63232]" />
           </div>
           <div className="text-2xl font-bold text-[#A63232] mt-1">{absentCount}</div>
@@ -558,7 +644,7 @@ export default function FacultyManager() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#FAF7F2] border-b border-[#E5E0D8] text-xs font-semibold text-[#5E5B61]">
-                <th className="p-3.5 w-32">Status</th>
+                <th className="p-3.5 w-36">Status ({selectedDay.slice(0, 3)})</th>
                 <th className="p-3.5">Faculty Name</th>
                 <th className="p-3.5">Qualified Subjects</th>
                 <th className="p-3.5 w-36 text-center">Daily Max Limit</th>
@@ -580,21 +666,22 @@ export default function FacultyManager() {
               ) : (
                 filteredFaculties.map(faculty => {
                   const isDupe = duplicateGroups.some(([name]) => name === faculty.name.trim().toLowerCase());
+                  const isAbsentToday = isFacultyAbsent(faculty, selectedDay);
                   return (
                     <tr
                       key={faculty.id}
                       className={`hover:bg-[#FAF7F2]/40 transition-colors ${
-                        faculty.isAbsent ? 'bg-[#FDF2F2]/40' : ''
+                        isAbsentToday ? 'bg-[#FDF2F2]/40' : ''
                       }`}
                     >
                       <td className="p-3.5 whitespace-nowrap">
                         <button
                           type="button"
-                          onClick={() => toggleAbsent(faculty.id)}
+                          onClick={() => toggleAbsent(faculty.id, selectedDay)}
                           className="outline-none"
-                          title="Click to toggle attendance status"
+                          title={`Click to mark ${isAbsentToday ? 'present' : 'absent'} on ${selectedDay}`}
                         >
-                          {faculty.isAbsent ? (
+                          {isAbsentToday ? (
                             <Badge tone="danger" icon={<UserMinus className="w-3 h-3" />}>
                               Absent
                             </Badge>
@@ -604,12 +691,34 @@ export default function FacultyManager() {
                             </Badge>
                           )}
                         </button>
+                        {faculty.absentDays && faculty.absentDays.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[140px]">
+                            {WEEKDAYS.map(day => {
+                              const isDayAbsent = isFacultyAbsent(faculty, day);
+                              if (!isDayAbsent) return null;
+                              return (
+                                <button
+                                  key={day}
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    toggleAbsent(faculty.id, day);
+                                  }}
+                                  className="text-[9px] px-1 py-0.2 rounded font-medium transition-colors bg-[#FDF2F2] text-[#A63232] border border-[#F6CECE] hover:bg-[#FCE7E7]"
+                                  title={`Absent on ${day}. Click to mark present.`}
+                                >
+                                  {day.slice(0, 3)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-1.5">
                           <span
                             className={`font-semibold ${
-                              faculty.isAbsent ? 'text-[#5E5B61] line-through' : 'text-[#252326]'
+                              isAbsentToday ? 'text-[#5E5B61] line-through' : 'text-[#252326]'
                             }`}
                           >
                             {faculty.name}
@@ -843,21 +952,25 @@ export default function FacultyManager() {
       <Modal
         isOpen={showMarkAllPresentConfirm}
         onClose={() => setShowMarkAllPresentConfirm(false)}
-        title="Mark All Faculty Present"
+        title="Mark Faculty Present"
         maxWidth="sm"
         footer={
-          <>
+          <div className="flex items-center justify-end gap-2 w-full flex-wrap">
             <Button variant="secondary" onClick={() => setShowMarkAllPresentConfirm(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleConfirmMarkAllPresent}>
-              Confirm
+            <Button variant="secondary" onClick={() => handleConfirmMarkAllPresent(true)}>
+              Mark Present (All Days)
             </Button>
-          </>
+            <Button variant="primary" onClick={() => handleConfirmMarkAllPresent(false)}>
+              Mark Present ({selectedDay})
+            </Button>
+          </div>
         }
       >
         <p className="text-sm text-[#5E5B61]">
-          Are you sure you want to reset attendance and mark all {absentCount} absent faculty members as Present?
+          Are you sure you want to mark all {absentCount} absent faculty members on{' '}
+          <strong className="text-[#252326] font-semibold">{selectedDay}</strong> as Present?
         </p>
       </Modal>
 

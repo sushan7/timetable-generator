@@ -1,4 +1,5 @@
-import type { Faculty, Batch, Allocation, SchedulerSettings } from '../types';
+import type { Faculty, Batch, Allocation, SchedulerSettings, DayOfWeek } from '../types';
+import { WEEKDAYS } from '../types';
 import { isOverlapping } from './validation';
 
 export const DEFAULT_MAX_DAILY_PERIODS = 4;
@@ -49,11 +50,56 @@ export const getDailyLimit = (
   return fallback;
 };
 
+/**
+ * Resolves whether a faculty member is absent on a specific day/date (M3)
+ * Evaluates per-day absentDays list, legacy isAbsent, and unavailableDates.
+ */
+export const isFacultyAbsent = (
+  faculty?: Partial<Faculty> | null,
+  dayOfWeek?: DayOfWeek,
+  dateKey?: string
+): boolean => {
+  if (!faculty) return false;
+
+  let effectiveDay = dayOfWeek;
+  if (!effectiveDay && dateKey && (WEEKDAYS as readonly string[]).includes(dateKey)) {
+    effectiveDay = dateKey as DayOfWeek;
+  }
+
+  // 1. Per-day absences (M3)
+  if (faculty.absentDays && Array.isArray(faculty.absentDays)) {
+    if (effectiveDay) {
+      if (faculty.absentDays.includes(effectiveDay)) return true;
+    }
+  }
+
+  // 2. Legacy global flag fallback
+  if (faculty.isAbsent) {
+    if (effectiveDay) {
+      if (faculty.absentDays && Array.isArray(faculty.absentDays)) {
+        if (faculty.absentDays.includes(effectiveDay)) return true;
+      } else {
+        return true;
+      }
+    } else {
+      return true;
+    }
+  }
+
+  // 3. Date-specific unavailableDates
+  if (dateKey && faculty.unavailableDates && faculty.unavailableDates.includes(dateKey)) {
+    return true;
+  }
+
+  return false;
+};
+
 export type DayState =
   | Allocation[]
   | {
       allocations: Allocation[];
       dateKey?: string;
+      dayOfWeek?: DayOfWeek;
     };
 
 /**
@@ -67,12 +113,16 @@ export const canAssign = (
   dayState: DayState,
   batches: Batch[],
   settings?: SchedulerSettings,
-  options?: { dateKey?: string }
+  options?: { dateKey?: string; dayOfWeek?: DayOfWeek }
 ): CanAssignResult => {
   const allocations = Array.isArray(dayState) ? dayState : dayState?.allocations || [];
   const dateKey =
     (typeof dayState === 'object' && !Array.isArray(dayState) ? dayState.dateKey : undefined) ||
     options?.dateKey;
+  const dayOfWeek =
+    (typeof dayState === 'object' && !Array.isArray(dayState) ? dayState.dayOfWeek : undefined) ||
+    options?.dayOfWeek ||
+    (dateKey && (WEEKDAYS as readonly string[]).includes(dateKey) ? (dateKey as DayOfWeek) : undefined);
 
   // 1. Faculty existence check
   if (!faculty) {
@@ -84,16 +134,14 @@ export const canAssign = (
     };
   }
 
-  // 2. Absence check (isAbsent flag or date-specific unavailableDates)
-  const isAbsent = Boolean(
-    faculty.isAbsent ||
-      (dateKey && faculty.unavailableDates && faculty.unavailableDates.includes(dateKey))
-  );
+  // 2. Absence check (M3: per-day absentDays, global isAbsent, or unavailableDates)
+  const isAbsent = isFacultyAbsent(faculty, dayOfWeek, dateKey);
 
   if (isAbsent) {
+    const dayLabel = dayOfWeek ? ` on ${dayOfWeek}` : dateKey ? ` on ${dateKey}` : '';
     return {
       ok: false,
-      reason: `Faculty ${faculty.name} is marked as absent${dateKey ? ` on ${dateKey}` : ''}.`,
+      reason: `Faculty ${faculty.name} is marked as absent${dayLabel}.`,
       type: 'ABSENT',
       severity: 'hard_error',
     };
@@ -220,9 +268,11 @@ export const validateFrozenAllocations = (
   batches: Batch[],
   faculties: Faculty[],
   settings?: SchedulerSettings,
-  dateKey?: string
+  options?: { dateKey?: string; dayOfWeek?: DayOfWeek } | string
 ): { valid: boolean; invalidEntries: FrozenViolation[] } => {
   const invalidEntries: FrozenViolation[] = [];
+  const dateKey = typeof options === 'string' ? options : options?.dateKey;
+  const dayOfWeek = typeof options === 'object' ? options.dayOfWeek : undefined;
 
   for (let i = 0; i < frozenAllocations.length; i++) {
     const alloc = frozenAllocations[i];
@@ -262,7 +312,7 @@ export const validateFrozenAllocations = (
       otherFrozen,
       batches,
       settings,
-      { dateKey }
+      { dateKey, dayOfWeek }
     );
 
     if (!result.ok) {

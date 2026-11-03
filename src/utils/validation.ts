@@ -1,7 +1,7 @@
-import type { Batch, Allocation, Faculty, ConflictCheckResult, SchedulerSettings } from '../types';
-import { canAssign, getDailyLimit, validateFrozenAllocations } from './constraints';
+import type { Batch, Allocation, Faculty, ConflictCheckResult, SchedulerSettings, DayOfWeek } from '../types';
+import { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent } from './constraints';
 
-export { canAssign, getDailyLimit, validateFrozenAllocations };
+export { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent };
 
 /**
  * Strict time parser (Requirement M4)
@@ -123,7 +123,7 @@ export const checkFacultyConflict = (
   batches: Batch[],
   allocations: Allocation[],
   settings?: SchedulerSettings,
-  options?: { dateKey?: string }
+  options?: { dateKey?: string; dayOfWeek?: DayOfWeek }
 ): ConflictCheckResult => {
   const targetBatch = batches.find(b => b.id === targetBatchId);
   if (!targetBatch) return { hasConflict: false, message: null };
@@ -132,9 +132,10 @@ export const checkFacultyConflict = (
     faculty,
     targetBatch,
     targetPeriodIndex,
-    options?.dateKey ? { allocations, dateKey: options.dateKey } : allocations,
+    options?.dateKey || options?.dayOfWeek ? { allocations, dateKey: options.dateKey, dayOfWeek: options.dayOfWeek } : allocations,
     batches,
-    settings
+    settings,
+    options
   );
 
   return {

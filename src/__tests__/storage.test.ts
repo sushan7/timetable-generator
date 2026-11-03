@@ -254,6 +254,51 @@ describe('Storage & Data Integrity', () => {
       storage.migrateSchema(1);
       expect(Number(safeStorage.getItem('sdtg_schema_version'))).toBe(SCHEMA_VERSION);
     });
+
+    it('migrates legacy isAbsent: true to all weekdays in schema version 3 (M3)', () => {
+      const legacyFaculty = [
+        {
+          id: 'fac_legacy_absent',
+          name: 'Prof. Legacy Absent',
+          subjects: ['Physics'],
+          maxPeriodsPerDay: 4,
+          isAbsent: true,
+        },
+        {
+          id: 'fac_legacy_present',
+          name: 'Prof. Legacy Present',
+          subjects: ['Chemistry'],
+          maxPeriodsPerDay: 4,
+          isAbsent: false,
+        },
+      ];
+
+      safeStorage.setItem(KEYS.FACULTY, JSON.stringify(legacyFaculty));
+      safeStorage.setItem('sdtg_schema_version', '2');
+
+      storage.migrateSchema(2);
+
+      expect(Number(safeStorage.getItem('sdtg_schema_version'))).toBe(SCHEMA_VERSION);
+
+      const faculties = storage.getFaculty();
+      const absentProf = faculties.find(f => f.id === 'fac_legacy_absent');
+      const presentProf = faculties.find(f => f.id === 'fac_legacy_present');
+
+      expect(absentProf).toBeDefined();
+      expect(absentProf?.isAbsent).toBe(true);
+      expect(absentProf?.absentDays).toEqual([
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+      ]);
+
+      expect(presentProf).toBeDefined();
+      expect(presentProf?.isAbsent).toBe(false);
+      expect(presentProf?.absentDays).toEqual([]);
+    });
   });
 
   describe('Cascading Deletions', () => {

@@ -244,6 +244,8 @@ export default function Timetable() {
       const weekContext = storage.getWeekAllocationsExcluding(currentDay);
       const result = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext, {
         seed: seedToUse,
+        dayOfWeek: currentDay,
+        dateKey: currentDay,
       });
 
       pushState(result.allocations);
@@ -266,7 +268,7 @@ export default function Timetable() {
     }, 250);
   };
 
-  // Sync Absences (Phase 3)
+  // Sync Absences (Phase 3 & H4/M3)
   const handleSyncAbsences = () => {
     if (currentStatus === 'Finalized') return;
     setIsSyncing(true);
@@ -274,7 +276,10 @@ export default function Timetable() {
       const freshFaculties = storage.getFaculty();
       setFaculties(freshFaculties);
 
-      const result = patchAbsences(allocations, batches, freshFaculties);
+      const result = patchAbsences(allocations, batches, freshFaculties, {
+        dateKey: currentDay,
+        dayOfWeek: currentDay,
+      });
       pushState(result.updatedAllocations);
       persistDay(currentDay, result.updatedAllocations);
       setIsSyncing(false);
@@ -337,9 +342,10 @@ export default function Timetable() {
       editingSlot.periodIndex,
       allocations,
       batches,
-      settings
+      settings,
+      { dayOfWeek: currentDay, dateKey: currentDay }
     );
-  }, [editingSlot, faculties, batches, allocations]);
+  }, [editingSlot, faculties, batches, allocations, currentDay]);
 
   const isHardConflict = Boolean(
     conflictEvaluation &&
@@ -360,7 +366,9 @@ export default function Timetable() {
       allocations,
       batches,
       faculties,
-      settings
+      settings,
+      currentDay,
+      currentDay
     );
     setSubstituteCandidates(ranked);
   };
@@ -376,7 +384,9 @@ export default function Timetable() {
       batches,
       faculties,
       settings,
-      editingSlot.subject
+      editingSlot.subject,
+      currentDay,
+      currentDay
     );
 
     if (result.success && result.newAllocation) {
@@ -493,7 +503,8 @@ export default function Timetable() {
         a.periodIndex,
         batches,
         allocations.filter(x => x !== a),
-        settings
+        settings,
+        { dateKey: currentDay, dayOfWeek: currentDay }
       );
 
       if (conflict.hasConflict) {
@@ -531,7 +542,7 @@ export default function Timetable() {
     });
 
     return issues;
-  }, [allocations, faculties, batches, warnings, unfilledSlots]);
+  }, [allocations, faculties, batches, warnings, unfilledSlots, currentDay]);
 
   const getFacultyName = useCallback(
     (id: string): string => {

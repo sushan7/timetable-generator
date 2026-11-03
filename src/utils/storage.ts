@@ -10,9 +10,10 @@ import type {
   TimetableStatus,
   BackupData,
 } from '../types';
+import { WEEKDAYS } from '../types';
 import { initialFaculty, initialBatches, inferSubjectCategory } from './seedData';
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const KEYS = {
   VERSION: 'sdtg_schema_version',
@@ -44,13 +45,27 @@ export const normalizeSubjectName = (subj: string): string =>
   subj === 'Second Language' ? 'K/H/S' : subj;
 
 export const normalizeFaculty = (list: Faculty[]): Faculty[] =>
-  (list || []).map(f => ({
-    ...f,
-    subjects: (f.subjects || []).map(normalizeSubjectName),
-    assignedBatches: f.assignedBatches || [],
-    unavailableDates: f.unavailableDates || [],
-    unavailablePeriods: f.unavailablePeriods || [],
-  }));
+  (list || []).map(f => {
+    // M3: Per-day absence migration: migrate legacy isAbsent: true to all days
+    let absentDays = f.absentDays;
+    if (!absentDays) {
+      if (f.isAbsent) {
+        absentDays = [...WEEKDAYS];
+      } else {
+        absentDays = [];
+      }
+    }
+
+    return {
+      ...f,
+      subjects: (f.subjects || []).map(normalizeSubjectName),
+      assignedBatches: f.assignedBatches || [],
+      unavailableDates: f.unavailableDates || [],
+      unavailablePeriods: f.unavailablePeriods || [],
+      absentDays,
+      isAbsent: Boolean(f.isAbsent || (absentDays && absentDays.length > 0)),
+    };
+  });
 
 export const normalizeBatches = (list: Batch[]): Batch[] =>
   (list || []).map(b => ({

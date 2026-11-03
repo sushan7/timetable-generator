@@ -57,6 +57,9 @@ export default function AllocationCell({
     if (allocation?.frozen) {
       return 'bg-[#F8F3EA] border border-[#E7D7BD] hover:border-[#CDB795] text-[#7A5B28] shadow-2xs';
     }
+    if (allocation?.subjectChanged) {
+      return 'bg-[#FFFDF7] border-l-3 border-l-[#D97706] border-t border-r border-b border-[#FDE68A] hover:border-[#D97706] text-[#92400E] shadow-2xs';
+    }
     if (allocation?.manualEdited) {
       return 'bg-white border-l-3 border-l-[#A65E3B] border-t border-r border-b border-[#E5E0D8] hover:border-[#6B2638] text-[#252326] shadow-2xs';
     }
@@ -84,9 +87,11 @@ export default function AllocationCell({
               ? `WARNING: Schedule conflict override!\n${allocation.conflictNote || ''}`
               : isUnfilled
                 ? `UNFILLED SHORTAGE: ${unfilledReason || 'No teacher available'}`
-                : allocation?.explanation
-                  ? allocation.explanation.join('\n')
-                  : 'Click to assign or edit this slot'
+                : allocation?.subjectChanged
+                  ? `SUBJECT CHANGED:\n${allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join('\n') : 'Subject changed')}`
+                  : allocation?.explanation
+                    ? allocation.explanation.join('\n')
+                    : 'Click to assign or edit this slot'
       }
     >
       {/* Main slot content */}
@@ -163,9 +168,19 @@ export default function AllocationCell({
       ) : (
         <>
           <div className="flex items-start justify-between gap-1">
-            <span className="font-semibold text-xs sm:text-sm text-[#252326] leading-snug truncate">
-              {allocation?.subject}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-semibold text-xs sm:text-sm text-[#252326] leading-snug truncate">
+                {allocation?.subject}
+              </span>
+              {allocation?.subjectChanged && (
+                <span
+                  className="px-1 py-0.5 rounded text-[9px] font-bold bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] shrink-0"
+                  title={allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join('\n') : undefined)}
+                >
+                  Changed
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1 shrink-0">
               {allocation?.manualEdited && !allocation?.frozen && (
                 <span
@@ -181,10 +196,18 @@ export default function AllocationCell({
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-[#5E5B61] mt-1">
+          <div className="flex flex-col text-xs text-[#5E5B61] mt-0.5 min-w-0">
             <span className="truncate font-medium">
               {facultyName}
             </span>
+            {allocation?.subjectChanged && (allocation?.conflictNote || allocation?.explanation?.[0]) && (
+              <span
+                className="text-[9px] text-[#B45309] truncate italic mt-0.5 leading-tight"
+                title={allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join(' ') : '')}
+              >
+                {allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation[0] : '')}
+              </span>
+            )}
           </div>
         </>
       )}

@@ -8,9 +8,12 @@ import {
   diagnoseUnfilledReason,
   PCMB_SUBJECTS,
   normalizeSubj,
+  createPRNG,
+  shuffleWithPRNG,
 } from '../utils/scheduler';
 import { initialBatches, initialFaculty } from '../utils/seedData';
 import { isOverlapping } from '../utils/validation';
+import { canAssign } from '../utils/constraints';
 import { WEEKDAYS, type Batch, type Faculty, type Allocation, type SchedulerSettings } from '../types';
 
 describe('Timetable Scheduler Algorithm', () => {
@@ -574,5 +577,147 @@ describe('Timetable Scheduler Algorithm', () => {
       expect(p5Filled).toBeGreaterThan(24);
       expect(p6Filled).toBeGreaterThan(7);
     }, 60000);
+  });
+
+  describe('Absence Patching & Subject Preservation (H4) and Per-Day Absence (M3)', () => {
+    it('preserves original subjects during absence patching and maintains 0 teacher overlaps', () => {
+      // 1. Generate full seed timetable (372 slots)
+      const baseRun = generateTimetableV2(initialBatches, initialFaculty, [], [], {
+        seed: 42,
+        numCandidates: 1,
+        settings: { ...baseTestSettings, maxDailyPeriods: 6 },
+        dayOfWeek: 'Monday',
+      });
+      expect(baseRun.allocations.length).toBe(372);
+
+      // 2. Select 29 distinct absent teachers and isolate 29 replaced slots (matching the baseline benchmark: 29 absent teachers, 29 replaced slots)
+      const prng = createPRNG(42);
+      const shuffled = shuffleWithPRNG(initialFaculty, prng);
+      const sample29 = shuffled.slice(0, 29);
+      const absentIds = new Set(sample29.map(f => f.id));
+      expect(absentIds.size).toBe(29);
+
+      const facultiesWith29Absent = initialFaculty.map(f => ({
+        ...f,
+        isAbsent: absentIds.has(f.id),
+        absentDays: absentIds.has(f.id) ? (['Monday' as const]) : [],
+      }));
+
+      // In the baseline benchmark, 29 slots from 29 absent teachers are replaced:
+      // For each of the 29 absent teachers, take 1 of their allocated slots to be patched
+      const slotsToPatch: Allocation[] = [];
+      const visitedAbsentFac = new Set<string>();
+      const testAllocations = baseRun.allocations.map(a => {
+        if (a.facultyId && absentIds.has(a.facultyId)) {
+          if (!visitedAbsentFac.has(a.facultyId)) {
+            visitedAbsentFac.add(a.facultyId);
+            slotsToPatch.push(a);
+            return a; // This slot remains assigned to the absent teacher and will be patched
+          } else {
+            // For other slots beyond the 1st, assign a unique placeholder ID so exactly 29 slots are vacated
+            return {
+              ...a,
+              facultyId: `f_holder_${a.batchId}_${a.periodIndex}`,
+            };
+          }
+        }
+        return a;
+      });
+
+      expect(slotsToPatch.length).toBe(29);
+
+      // 3. Patch absences
+      const patchResult = patchAbsences(
+        testAllocations,
+        initialBatches,
+        facultiesWith29Absent,
+        {
+          settings: { ...baseTestSettings, maxDailyPeriods: 6 },
+          dayOfWeek: 'Monday',
+        }
+      );
+
+      console.log(
+        `[H4 Test Result] Patched slots=${patchResult.patchedCount}, Subject changes=${patchResult.subjectChangedCount}, Remaining gaps=${patchResult.remainingGapsCount}`
+      );
+
+      // H4 Requirement: with 29 absent teachers on seed data, subject changes must be fewer than 29; report the number.
+      expect(patchResult.patchedCount).toBe(29);
+      expect(patchResult.subjectChangedCount).toBeLessThan(29);
+
+      // Verify each changed slot has subjectChanged: true and explanation
+      const changedSlots = patchResult.updatedAllocations.filter(a => a.subjectChanged);
+      expect(changedSlots.length).toBe(patchResult.subjectChangedCount);
+      changedSlots.forEach(slot => {
+        expect(slot.conflictNote).toBeDefined();
+        expect(slot.conflictNote).toContain('Subject changed from');
+      });
+
+      // H4 Requirement: Overlaps after patching must stay 0
+      let overlapCount = 0;
+      const batchesMap = new Map(initialBatches.map(b => [b.id, b]));
+      for (let i = 0; i < patchResult.updatedAllocations.length; i++) {
+        for (let j = i + 1; j < patchResult.updatedAllocations.length; j++) {
+          const a1 = patchResult.updatedAllocations[i];
+          const a2 = patchResult.updatedAllocations[j];
+          if (!a1.facultyId || !a2.facultyId || a1.facultyId !== a2.facultyId) continue;
+          const b1 = batchesMap.get(a1.batchId);
+          const b2 = batchesMap.get(a2.batchId);
+          if (!b1 || !b2) continue;
+          const p1 = b1.periods[a1.periodIndex];
+          const p2 = b2.periods[a2.periodIndex];
+          if (p1 && p2 && isOverlapping(p1.startTime, p1.endTime, p2.startTime, p2.endTime)) {
+            overlapCount++;
+          }
+        }
+      }
+      expect(overlapCount).toBe(0);
+    }, 30000);
+
+    it('supports per-day absences (M3)', () => {
+      // Teacher absent on Tuesday but present on Monday
+      const testFaculty: Faculty = {
+        id: 'f_tue_absent',
+        name: 'Dr. Tuesday Off',
+        subjects: ['Physics'],
+        absentDays: ['Tuesday'],
+        isAbsent: true,
+      };
+
+      const testBatch: Batch = {
+        id: 'batch_simple',
+        building: 'Building 1',
+        yearCategory: 'First PU',
+        name: 'Batch Simple',
+        roomNumber: '101',
+        periods: [{ startTime: '08:30', endTime: '10:00' }],
+        subjects: [{ subject: 'Physics', count: 1 }],
+      };
+
+      // Check on Monday: should be assignable
+      const resMonday = canAssign(
+        testFaculty,
+        testBatch,
+        0,
+        [],
+        [testBatch],
+        baseTestSettings,
+        { dayOfWeek: 'Monday' }
+      );
+      expect(resMonday.ok).toBe(true);
+
+      // Check on Tuesday: should be blocked with ABSENT
+      const resTuesday = canAssign(
+        testFaculty,
+        testBatch,
+        0,
+        [],
+        [testBatch],
+        baseTestSettings,
+        { dayOfWeek: 'Tuesday' }
+      );
+      expect(resTuesday.ok).toBe(false);
+      expect(resTuesday.type).toBe('ABSENT');
+    });
   });
 });

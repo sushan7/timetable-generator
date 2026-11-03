@@ -17,6 +17,7 @@ export interface Faculty {
   subjects: string[];
   maxPeriodsPerDay?: number;
   isAbsent?: boolean; // Legacy global flag for backward compatibility
+  absentDays?: DayOfWeek[]; // Per-day absence list (M3)
   assignedBatches?: string[]; // Exclusive batch IDs; empty/undefined = unrestricted
   unavailableDates?: string[]; // Date-specific unavailability (YYYY-MM-DD or DayOfWeek)
   unavailablePeriods?: { day?: DayOfWeek; date?: string; periodIndex: number }[];
@@ -48,6 +49,7 @@ export interface Allocation {
   explanation?: string[];
   vacatedFacultyId?: string;   // set when the original faculty went absent after generation
   vacatedFacultyName?: string; // cached name, preserved if faculty is deleted
+  subjectChanged?: boolean;    // H4: true when absence patching changed subject from original
   updatedAt?: number;
   hasConflictOverride?: boolean; // true if saved despite a non-blocking or confirmed conflict
   overridden?: boolean; // true if manual override bypassed hard constraints (C2)
