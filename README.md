@@ -7,7 +7,7 @@ Timetable Pro is an enterprise-grade academic timetable generator and constraint
 ## 1. System Purpose & Architecture
 
 - **Framework**: React 19 + TypeScript (strict mode) + Vite
-- **Styling**: Tailwind CSS 4 with bespoke editorial design tokens (Warm Minimalism / Swiss Design)
+- **Styling**: Tailwind CSS 4 with bespoke editorial design tokens (Deep Charcoal, Warm Beige/Taupe, Brushed Gold/Cognac; Swiss Design rigor)
 - **Persistence**: Zero-backend architecture using `safeStorage` (LocalStorage with write-through memory cache, quota resilience, and Schema Version 4 auto-migration)
 - **Async Engine**: Multi-threaded execution in a Web Worker (Vite worker import) with progress reporting and immediate main-thread fallback (zero artificial delays)
 - **Offline Fonts**: Self-hosted `@fontsource/inter` and `@fontsource/dm-sans` (no external Google Fonts requests)
