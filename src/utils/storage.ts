@@ -39,6 +39,7 @@ export const defaultSettings: SchedulerSettings = {
   respectDailyLimits: true,
   allowSameSubjectConsecutive: false,
   subjectCategories: { ...DEFAULT_SUBJECT_CATEGORIES },
+  minTravelGapMinutes: 0,
 };
 
 export type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
@@ -65,6 +66,7 @@ export const normalizeFaculty = (list: Faculty[]): Faculty[] =>
       assignedBatches: f.assignedBatches || [],
       unavailableDates: f.unavailableDates || [],
       unavailablePeriods: f.unavailablePeriods || [],
+      unavailable: f.unavailable || [],
       absentDays,
       isAbsent: Boolean(f.isAbsent || (absentDays && absentDays.length > 0)),
     };

@@ -182,17 +182,22 @@ export const generateDayValidationReport = (
   });
 
   // -------------------------------------------------------------
-  // 5. ROOM CLASHES CHECK (Double booked rooms)
+  // 5. ROOM CLASHES CHECK (N5: Building + Room Overlap)
   // -------------------------------------------------------------
   const reportedRoomClashes = new Set<string>();
-  const batchesWithRooms = batches.filter(b => b.roomNumber && b.roomNumber.trim());
+  const batchesWithRooms = batches.filter(
+    b => b.roomNumber && b.roomNumber.trim() && b.roomNumber.trim() !== '-' && b.building && b.building.trim()
+  );
 
   for (let i = 0; i < batchesWithRooms.length; i++) {
     for (let j = i + 1; j < batchesWithRooms.length; j++) {
       const b1 = batchesWithRooms[i];
       const b2 = batchesWithRooms[j];
 
-      if (b1.roomNumber?.trim().toLowerCase() === b2.roomNumber?.trim().toLowerCase()) {
+      const sameBuilding = b1.building.trim().toLowerCase() === b2.building.trim().toLowerCase();
+      const sameRoom = b1.roomNumber.trim().toLowerCase() === b2.roomNumber.trim().toLowerCase();
+
+      if (sameBuilding && sameRoom) {
         b1.periods.forEach((t1, p1) => {
           if (!t1 || !t1.startTime || !t1.endTime) return;
           b2.periods.forEach((t2, p2) => {
@@ -203,22 +208,21 @@ export const generateDayValidationReport = (
               const alloc1 = allocations.find(a => a.batchId === b1.id && a.periodIndex === p1 && a.facultyId);
               const alloc2 = allocations.find(a => a.batchId === b2.id && a.periodIndex === p2 && a.facultyId);
 
-              if (alloc1 && alloc2) {
-                const clashKey = [b1.id, p1, b2.id, p2].sort().join(':');
-                if (!reportedRoomClashes.has(clashKey)) {
-                  reportedRoomClashes.add(clashKey);
-                  violations.push({
-                    id: `room-${b1.roomNumber}-${b1.id}-${p1}-${b2.id}-${p2}`,
-                    type: 'room_clash',
-                    severity: 'error',
-                    batchId: b1.id,
-                    batchName: b1.name,
-                    periodIndex: p1,
-                    periodTime: `${t1.startTime} - ${t1.endTime}`,
-                    roomNumber: b1.roomNumber,
-                    description: `Room clash: Room ${b1.roomNumber} is simultaneously booked for ${b1.name} (P${p1 + 1}: ${t1.startTime}-${t1.endTime}) and ${b2.name} (P${p2 + 1}: ${t2.startTime}-${t2.endTime}).`,
-                  });
-                }
+              const clashKey = [b1.id, p1, b2.id, p2].sort().join(':');
+              if (!reportedRoomClashes.has(clashKey)) {
+                reportedRoomClashes.add(clashKey);
+                const hasBothAllocated = Boolean(alloc1 && alloc2);
+                violations.push({
+                  id: `room-${b1.building}-${b1.roomNumber}-${b1.id}-${p1}-${b2.id}-${p2}`,
+                  type: 'room_clash',
+                  severity: hasBothAllocated ? 'error' : 'warning',
+                  batchId: b1.id,
+                  batchName: b1.name,
+                  periodIndex: p1,
+                  periodTime: `${t1.startTime} - ${t1.endTime}`,
+                  roomNumber: b1.roomNumber,
+                  description: `Room clash: Room ${b1.roomNumber} is simultaneously booked for ${b1.name} (P${p1 + 1}: ${t1.startTime}-${t1.endTime}) and ${b2.name} (P${p2 + 1}: ${t2.startTime}-${t2.endTime}) in ${b1.building}.`,
+                });
               }
             }
           });

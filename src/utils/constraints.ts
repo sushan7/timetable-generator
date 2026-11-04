@@ -7,7 +7,7 @@ export const DEFAULT_MAX_DAILY_PERIODS = 4;
 export interface CanAssignResult {
   ok: boolean;
   reason?: string;
-  type?: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND';
+  type?: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND' | 'UNAVAILABLE';
   severity?: 'hard_error' | 'soft_warning';
   conflictingBatchName?: string;
   conflictingPeriod?: number;
@@ -19,7 +19,7 @@ export interface FrozenViolation {
   periodIndex: number;
   facultyId?: string;
   reason: string;
-  type: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP';
+  type: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'UNAVAILABLE';
 }
 
 /**
@@ -145,6 +145,35 @@ export const canAssign = (
       type: 'ABSENT',
       severity: 'hard_error',
     };
+  }
+
+  // 2b. Teacher availability check (N6: unavailable per day/periods)
+  if (faculty.unavailable && dayOfWeek) {
+    const unavailEntry = faculty.unavailable.find(u => u.day === dayOfWeek);
+    if (unavailEntry && unavailEntry.periods.includes(periodIndex)) {
+      return {
+        ok: false,
+        reason: `Faculty ${faculty.name} is unavailable on ${dayOfWeek} during Period ${periodIndex + 1}.`,
+        type: 'UNAVAILABLE',
+        severity: 'hard_error',
+      };
+    }
+  }
+
+  if (faculty.unavailablePeriods) {
+    const isPeriodBlocked = faculty.unavailablePeriods.some(
+      up =>
+        (up.day === dayOfWeek || (dateKey && up.date === dateKey)) &&
+        up.periodIndex === periodIndex
+    );
+    if (isPeriodBlocked) {
+      return {
+        ok: false,
+        reason: `Faculty ${faculty.name} is unavailable during Period ${periodIndex + 1}.`,
+        type: 'UNAVAILABLE',
+        severity: 'hard_error',
+      };
+    }
   }
 
   // 3. Batch restriction check

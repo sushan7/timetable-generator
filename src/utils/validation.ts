@@ -345,3 +345,66 @@ export const checkTimetableOverlaps = (
 
   return conflicts;
 };
+
+export interface BatchRoomClashWarning {
+  otherBatchId: string;
+  otherBatchName: string;
+  building: string;
+  roomNumber: string;
+  period1: number;
+  timing1: string;
+  period2: number;
+  timing2: string;
+}
+
+/**
+ * Checks if a batch shares the same building and room with any other batch
+ * and has overlapping period timings (N5).
+ */
+export const checkBatchRoomClashes = (
+  targetBatch: Batch,
+  allBatches: Batch[]
+): BatchRoomClashWarning[] => {
+  const warnings: BatchRoomClashWarning[] = [];
+  if (!targetBatch.roomNumber || !targetBatch.roomNumber.trim() || targetBatch.roomNumber.trim() === '-') {
+    return warnings;
+  }
+  if (!targetBatch.building || !targetBatch.building.trim()) {
+    return warnings;
+  }
+
+  const normTargetRoom = targetBatch.roomNumber.trim().toLowerCase();
+  const normTargetBuilding = targetBatch.building.trim().toLowerCase();
+
+  for (const other of allBatches) {
+    if (other.id === targetBatch.id) continue;
+    if (!other.roomNumber || !other.building) continue;
+
+    if (
+      other.roomNumber.trim().toLowerCase() === normTargetRoom &&
+      other.building.trim().toLowerCase() === normTargetBuilding
+    ) {
+      targetBatch.periods.forEach((t1, p1) => {
+        if (!t1?.startTime || !t1?.endTime) return;
+        other.periods.forEach((t2, p2) => {
+          if (!t2?.startTime || !t2?.endTime) return;
+          if (isOverlapping(t1.startTime, t1.endTime, t2.startTime, t2.endTime)) {
+            warnings.push({
+              otherBatchId: other.id,
+              otherBatchName: other.name,
+              building: targetBatch.building,
+              roomNumber: targetBatch.roomNumber,
+              period1: p1,
+              timing1: `${t1.startTime} - ${t1.endTime}`,
+              period2: p2,
+              timing2: `${t2.startTime} - ${t2.endTime}`,
+            });
+          }
+        });
+      });
+    }
+  }
+
+  return warnings;
+};
+

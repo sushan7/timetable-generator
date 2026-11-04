@@ -21,6 +21,7 @@ export interface Faculty {
   assignedBatches?: string[]; // Exclusive batch IDs; empty/undefined = unrestricted
   unavailableDates?: string[]; // Date-specific unavailability (YYYY-MM-DD or DayOfWeek)
   unavailablePeriods?: { day?: DayOfWeek; date?: string; periodIndex: number }[];
+  unavailable?: { day: DayOfWeek; periods: number[] }[]; // N6: Teacher availability per day/periods
 }
 
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
@@ -65,7 +66,7 @@ export interface FrozenViolation {
   periodIndex: number;
   facultyId?: string;
   reason: string;
-  type: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP';
+  type: 'ABSENT' | 'TIME_OVERLAP' | 'MAX_LOAD' | 'FACULTY_NOT_FOUND' | 'BATCH_NOT_FOUND' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'UNAVAILABLE';
 }
 
 export interface Timetable {
@@ -95,6 +96,7 @@ export interface SchedulerSettings {
   allowSameSubjectConsecutive?: boolean;
   randomSeed?: number;
   subjectCategories?: Record<string, SubjectCategory>;
+  minTravelGapMinutes?: number; // N5: minimum gap in minutes when moving between Building 1 and Building 2
 }
 
 export type AuditLogAction =
@@ -102,6 +104,7 @@ export type AuditLogAction =
   | 'FREEZE_TOGGLE'
   | 'STATUS_CHANGE'
   | 'TIMETABLE_GENERATE'
+  | 'WEEK_GENERATE'
   | 'ABSENCE_SYNC'
   | 'SLOT_REGENERATE'
   | 'BATCH_REGENERATE'
@@ -253,11 +256,36 @@ export interface DayValidationReport {
 
 export interface ConflictCheckResult {
   hasConflict: boolean;
-  type?: 'TIME_OVERLAP' | 'MAX_LOAD' | 'ABSENT' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'DATE_UNAVAILABLE';
+  type?: 'TIME_OVERLAP' | 'MAX_LOAD' | 'ABSENT' | 'BATCH_RESTRICTION' | 'ROOM_OVERLAP' | 'DATE_UNAVAILABLE' | 'UNAVAILABLE';
   message: string | null;
   severity?: 'hard_error' | 'soft_warning';
   conflictingBatchName?: string;
   conflictingPeriod?: number;
+}
+
+export interface BatchSubjectFit {
+  subject: string;
+  target: number;
+  allocated: number;
+  delta: number;
+}
+
+export interface BatchQuotaFit {
+  batchId: string;
+  batchName: string;
+  totalTarget: number;
+  totalAllocated: number;
+  subjectFits: BatchSubjectFit[];
+  isFit: boolean;
+  isPerfectFit: boolean;
+}
+
+export interface WeekQuotaFitReport {
+  totalBatches: number;
+  batchesWithFit: number;
+  batchesWithPerfectFit: number;
+  fitPercentage: number;
+  batchFits: BatchQuotaFit[];
 }
 
 export interface BackupData {

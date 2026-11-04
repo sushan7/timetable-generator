@@ -126,6 +126,14 @@ export default function SettingsView() {
       return;
     }
 
+    if (
+      settings.minTravelGapMinutes !== undefined &&
+      (!Number.isInteger(settings.minTravelGapMinutes) || settings.minTravelGapMinutes < 0 || settings.minTravelGapMinutes > 120)
+    ) {
+      setValidationError('Inter-building travel gap must be an integer between 0 and 120 minutes.');
+      return;
+    }
+
     storage.setSettings(settings);
     setStatusMessage('Scheduler parameters saved successfully.');
     setTimeout(() => {
@@ -448,7 +456,7 @@ export default function SettingsView() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-1">
                   <label htmlFor="settings-max-daily-periods" className="text-xs font-semibold text-[#252326]">
                     Maximum Daily Periods per Faculty (1–8)
@@ -463,7 +471,25 @@ export default function SettingsView() {
                     className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
                   />
                   <p className="text-xs text-[#252326]/60">
-                    Global daily teaching ceiling per instructor (1–8 periods, overridden by individual faculty limits).
+                    Global daily teaching ceiling per instructor (1–8 periods).
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="settings-min-travel-gap" className="text-xs font-semibold text-[#252326]">
+                    Inter-Building Travel Gap (Minutes)
+                  </label>
+                  <input
+                    id="settings-min-travel-gap"
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={settings.minTravelGapMinutes ?? 0}
+                    onChange={e => handleChange('minTravelGapMinutes', Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                  />
+                  <p className="text-xs text-[#252326]/60">
+                    Min gap when moving between Building 1 and 2 (soft penalty).
                   </p>
                 </div>
 

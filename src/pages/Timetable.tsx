@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   Calendar,
   Image as ImageIcon,
@@ -21,6 +21,7 @@ import {
   Printer,
   FileCheck,
   BarChart2,
+  Layers,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type {
@@ -37,7 +38,11 @@ import {
   generateTimetableV2,
   patchAbsences,
   calculateDetailedCapacityAnalysis,
+  generateWeekTimetables,
+  regenerateBatchDay,
+  calculateWeekQuotaFit,
 } from '../utils/scheduler';
+import type { WeekQuotaFitReport } from '../types';
 import { storage } from '../utils/storage';
 import { SECTIONS, groupBatchesBySection } from '../utils/sections';
 import { isFacultyAbsent } from '../utils/validation';
@@ -54,6 +59,7 @@ import SlotEditModal, {
 } from '../components/timetable/SlotEditModal';
 import { ValidationReportModal } from '../components/timetable/ValidationReportModal';
 import { CapacityPreCheckModal } from '../components/timetable/CapacityPreCheckModal';
+import { WeekQuotaFitModal } from '../components/timetable/WeekQuotaFitModal';
 import { TeacherScheduleView } from '../components/timetable/TeacherScheduleView';
 import { RoomScheduleView } from '../components/timetable/RoomScheduleView';
 import PageHeader from '../components/ui/PageHeader';
@@ -121,6 +127,7 @@ export default function Timetable() {
   // Export & generation states
   const [isExporting, setIsExporting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingWeek, setIsGeneratingWeek] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [activeSectionFilter, setActiveSectionFilter] = useState<string>('ALL');
@@ -132,6 +139,8 @@ export default function Timetable() {
   const [isUnfilledModalOpen, setIsUnfilledModalOpen] = useState(false);
   const [isUnfilledPanelExpanded, setIsUnfilledPanelExpanded] = useState(true);
   const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
+  const [isQuotaReportModalOpen, setIsQuotaReportModalOpen] = useState(false);
+  const [weekQuotaReport, setWeekQuotaReport] = useState<WeekQuotaFitReport | null>(null);
 
   // Settings & Week timetables cache
   const settings = useMemo(() => storage.getSettings(), []);
@@ -141,33 +150,88 @@ export default function Timetable() {
   const pageRef = useRef<HTMLDivElement>(null);
   const exportViewRef = useRef<HTMLDivElement>(null);
 
-  // Helper to push history
+  const persistDay = useCallback(
+    (
+      day: DayOfWeek,
+      newAllocations: Allocation[],
+      status: TimetableStatus = currentStatus,
+      unfilled: UnfilledSlot[] = unfilledSlots,
+      warns: ScheduleWarning[] = warnings,
+      violations: FrozenViolation[] = frozenViolations,
+      seedToSave: number | undefined = currentSeed,
+      markGenerated: boolean = false
+    ) => {
+      storage.saveTimetableForDay(day, newAllocations, status, {
+        unfilledSlots: unfilled,
+        warnings: warns,
+        frozenViolations: violations,
+        markGenerated,
+        seed: seedToSave,
+      });
+    },
+    [currentStatus, unfilledSlots, warnings, frozenViolations, currentSeed]
+  );
+
+  // Helper to push history: capped at the last 20 states per day (N7)
   const pushState = useCallback(
     (newAllocations: Allocation[]) => {
-      setHistory(prev => [...prev.slice(-20), allocations]);
+      setHistory(prev => [...prev.slice(-19), allocations]);
       setFuture([]);
       setAllocations(newAllocations);
     },
     [allocations]
   );
 
-  const handleUndo = () => {
-    if (history.length === 0) return;
+  const handleUndo = useCallback(() => {
+    if (history.length === 0 || currentStatus === 'Finalized') return;
     const previous = history[history.length - 1];
     setFuture(prev => [allocations, ...prev]);
     setHistory(prev => prev.slice(0, prev.length - 1));
     setAllocations(previous);
     persistDay(currentDay, previous);
-  };
+  }, [history, currentStatus, allocations, currentDay, persistDay]);
 
-  const handleRedo = () => {
-    if (future.length === 0) return;
+  const handleRedo = useCallback(() => {
+    if (future.length === 0 || currentStatus === 'Finalized') return;
     const next = future[0];
-    setHistory(prev => [...prev, allocations]);
+    setHistory(prev => [...prev.slice(-19), allocations]);
     setFuture(prev => prev.slice(1));
     setAllocations(next);
     persistDay(currentDay, next);
-  };
+  }, [future, currentStatus, allocations, currentDay, persistDay]);
+
+  // Keyboard shortcuts for Undo (Ctrl/Cmd+Z) and Redo (Ctrl+Y / Ctrl/Cmd+Shift+Z) (N7)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   // Switch Day Tab
   const handleSelectDay = (day: DayOfWeek) => {
@@ -185,25 +249,6 @@ export default function Timetable() {
     setHasGenerated(!!existing);
     setHistory([]);
     setFuture([]);
-  };
-
-  const persistDay = (
-    day: DayOfWeek,
-    newAllocations: Allocation[],
-    status: TimetableStatus = currentStatus,
-    unfilled: UnfilledSlot[] = unfilledSlots,
-    warns: ScheduleWarning[] = warnings,
-    violations: FrozenViolation[] = frozenViolations,
-    seedToSave: number | undefined = currentSeed,
-    markGenerated: boolean = false
-  ) => {
-    storage.saveTimetableForDay(day, newAllocations, status, {
-      unfilledSlots: unfilled,
-      warnings: warns,
-      frozenViolations: violations,
-      markGenerated,
-      seed: seedToSave,
-    });
   };
 
   const handleStatusChange = (newStatus: TimetableStatus) => {
@@ -266,6 +311,61 @@ export default function Timetable() {
       );
       setIsGenerating(false);
     }, 250);
+  };
+
+  // Generate entire week order-independently (N9)
+  const handleGenerateWeek = () => {
+    setIsGeneratingWeek(true);
+    setTimeout(() => {
+      const freshFaculties = storage.getFaculty();
+      const freshBatches = storage.getBatches();
+      setFaculties(freshFaculties);
+      setBatches(freshBatches);
+
+      const parsedSeed = manualSeedInput.trim() ? parseInt(manualSeedInput.trim(), 10) : undefined;
+      const seedToUse = !isNaN(parsedSeed as number) ? parsedSeed : undefined;
+
+      const existingWeek = storage.getWeekTimetables();
+      const result = generateWeekTimetables(
+        freshBatches,
+        freshFaculties,
+        existingWeek,
+        settings,
+        { seed: seedToUse }
+      );
+
+      storage.setWeekTimetables(result.weekTimetables);
+
+      // Update current day display
+      const currentDayTT = result.weekTimetables[currentDay];
+      if (currentDayTT) {
+        pushState(currentDayTT.allocations);
+        setAllocations(currentDayTT.allocations);
+        setUnfilledSlots(currentDayTT.unfilledSlots || []);
+        setWarnings(currentDayTT.warnings || []);
+        setFrozenViolations(currentDayTT.frozenViolations || []);
+        setCurrentSeed(currentDayTT.seed);
+        setHasGenerated(true);
+        setCurrentStatus('Draft');
+      }
+
+      setWeekQuotaReport(result.quotaReport);
+      setIsQuotaReportModalOpen(true);
+      setIsGeneratingWeek(false);
+    }, 300);
+  };
+
+  // Regenerate one batch's day (N8)
+  const handleRegenerateBatch = (batchId: string) => {
+    if (currentStatus === 'Finalized') return;
+    const result = regenerateBatchDay(batchId, allocations, batches, faculties, settings, {
+      dayOfWeek: currentDay,
+      dateKey: currentDay,
+    });
+    if (result.success) {
+      pushState(result.allocations);
+      persistDay(currentDay, result.allocations);
+    }
   };
 
   // Sync Absences (Phase 3 & H4/M3)
@@ -542,6 +642,25 @@ export default function Timetable() {
   const menuItems: DropdownItem[] = useMemo(
     () => [
       {
+        id: 'generate-week',
+        label: 'Generate Full Week (N9)',
+        description: 'Plan quotas across all days together, preserving frozen slots',
+        icon: <Sparkles className="w-4 h-4 text-[#B08D57]" />,
+        onClick: handleGenerateWeek,
+        disabled: currentStatus === 'Finalized' || isGeneratingWeek,
+      },
+      {
+        id: 'quota-report',
+        label: 'Weekly Quota Report (N9)',
+        description: 'View batch curriculum quota fit and deviations across the week',
+        icon: <Layers className="w-4 h-4 text-[#6B2638]" />,
+        onClick: () => {
+          const report = calculateWeekQuotaFit(batches, storage.getWeekTimetables());
+          setWeekQuotaReport(report);
+          setIsQuotaReportModalOpen(true);
+        },
+      },
+      {
         id: 'validation-report',
         label: `Check timetable (${dayValidationReport.summary.totalIssues} issues)`,
         description: 'Verify teacher overlaps, daily limits, absences, and room clashes',
@@ -692,7 +811,7 @@ export default function Timetable() {
               )}
             </Button>
 
-            {/* Primary Action: Generate */}
+            {/* Primary Action: Generate Day */}
             <Button
               variant="primary"
               icon={<Play className="w-4 h-4" />}
@@ -701,6 +820,18 @@ export default function Timetable() {
               disabled={currentStatus === 'Finalized'}
             >
               Generate {currentDay}
+            </Button>
+
+            {/* Global Action: Generate Week (N9) */}
+            <Button
+              variant="secondary"
+              icon={<Sparkles className="w-4 h-4 text-[#B08D57]" />}
+              loading={isGeneratingWeek}
+              onClick={handleGenerateWeek}
+              disabled={currentStatus === 'Finalized'}
+              title="Plan and generate 6-day week schedules together, preserving locked slots and reporting quota fit (N9)"
+            >
+              Generate Week
             </Button>
 
             {/* Menu Action: Grouped Export, Status, Audit (Requirement U2) */}
@@ -1164,6 +1295,7 @@ export default function Timetable() {
                         isFacultyAbsent={checkIsFacultyAbsent}
                         onToggleFreeze={toggleFreeze}
                         onCellClick={handleCellClick}
+                        onRegenerateBatch={handleRegenerateBatch}
                       />
                     </div>
                   );
@@ -1316,6 +1448,13 @@ export default function Timetable() {
           </p>
         </div>
       </Modal>
+
+      {/* Week Quota Fit Report Modal (N9) */}
+      <WeekQuotaFitModal
+        isOpen={isQuotaReportModalOpen}
+        onClose={() => setIsQuotaReportModalOpen(false)}
+        report={weekQuotaReport}
+      />
     </div>
   );
 }

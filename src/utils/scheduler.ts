@@ -14,10 +14,15 @@ import type {
   DetailedCapacityAnalysis,
   SubjectCategory,
   DayOfWeek,
+  WeekQuotaFitReport,
+  BatchQuotaFit,
+  BatchSubjectFit,
+  WeekTimetables,
+  Timetable,
 } from '../types';
 import { WEEKDAYS } from '../types';
 import { storage } from './storage';
-import { isOverlapping } from './validation';
+import { isOverlapping, parseTimeMinutesStrict } from './validation';
 import { canAssign, getDailyLimit, validateFrozenAllocations, isFacultyAbsent } from './constraints';
 import { groupBatchesBySection } from './sections';
 import { inferSubjectCategory } from './seedData';
@@ -473,6 +478,7 @@ export interface AssignmentScoreContext {
   isKHSGroupSlot: boolean;
   dateKey?: string;
   dayOfWeek?: DayOfWeek;
+  batches?: Batch[];
 }
 
 export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; reasons: string[] } => {
@@ -535,6 +541,47 @@ export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; r
     const weeklyPenalty = priorWeeklyLoad * 8;
     score -= weeklyPenalty;
     reasons.push(`Weekly load fairness penalty: -${weeklyPenalty} (${priorWeeklyLoad} prior periods)`);
+  }
+
+  // N5: Travel gap soft penalty when moving between Building 1 and Building 2
+  const minTravelGap = settings.minTravelGapMinutes ?? 0;
+  if (minTravelGap > 0 && batch.building && ctx.batches) {
+    const currentTiming = batch.periods[periodIndex];
+    if (currentTiming?.startTime && currentTiming?.endTime) {
+      const curStart = parseTimeMinutesStrict(currentTiming.startTime);
+      const curEnd = parseTimeMinutesStrict(currentTiming.endTime);
+
+      if (curStart !== null && curEnd !== null) {
+        for (const alloc of todayAllocations) {
+          if (alloc.facultyId === faculty.id && alloc.batchId !== batch.id) {
+            const otherBatch = ctx.batches.find(b => b.id === alloc.batchId);
+            if (
+              otherBatch &&
+              otherBatch.building &&
+              otherBatch.building.trim().toLowerCase() !== batch.building.trim().toLowerCase()
+            ) {
+              const otherTiming = otherBatch.periods[alloc.periodIndex];
+              if (otherTiming?.startTime && otherTiming?.endTime) {
+                const otherStart = parseTimeMinutesStrict(otherTiming.startTime);
+                const otherEnd = parseTimeMinutesStrict(otherTiming.endTime);
+                if (otherStart !== null && otherEnd !== null) {
+                  let gap = -1;
+                  if (curStart >= otherEnd) gap = curStart - otherEnd;
+                  else if (otherStart >= curEnd) gap = otherStart - curEnd;
+                  if (gap >= 0 && gap < minTravelGap) {
+                    score -= 50;
+                    reasons.push(
+                      `Travel gap penalty: -50 (${gap}m between ${otherBatch.building} and ${batch.building}, min required: ${minTravelGap}m)`
+                    );
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   return { score, reasons };
@@ -1009,6 +1056,46 @@ const generateCandidateRun = (
         if (faculty.assignedBatches && faculty.assignedBatches.includes(batch.id)) {
           teacherScore += 40;
           teacherReasons.push('Assigned batch lock preference: +40');
+        }
+
+        // N5: Travel gap soft penalty when moving between Building 1 and Building 2
+        const minTravelGap = settings.minTravelGapMinutes ?? 0;
+        if (minTravelGap > 0 && batch.building && batch.building.trim()) {
+          const currentTiming = batch.periods[periodIndex];
+          if (currentTiming?.startTime && currentTiming?.endTime) {
+            const curStart = parseTimeMinutesStrict(currentTiming.startTime);
+            const curEnd = parseTimeMinutesStrict(currentTiming.endTime);
+
+            if (curStart !== null && curEnd !== null) {
+              const facultyTodayAllocs = allocations.filter(a => a.facultyId === faculty.id && a.batchId !== batch.id);
+              for (const alloc of facultyTodayAllocs) {
+                const otherBatch = batches.find(b => b.id === alloc.batchId);
+                if (
+                  otherBatch &&
+                  otherBatch.building &&
+                  otherBatch.building.trim().toLowerCase() !== batch.building.trim().toLowerCase()
+                ) {
+                  const otherTiming = otherBatch.periods[alloc.periodIndex];
+                  if (otherTiming?.startTime && otherTiming?.endTime) {
+                    const otherStart = parseTimeMinutesStrict(otherTiming.startTime);
+                    const otherEnd = parseTimeMinutesStrict(otherTiming.endTime);
+                    if (otherStart !== null && otherEnd !== null) {
+                      let gap = -1;
+                      if (curStart >= otherEnd) gap = curStart - otherEnd;
+                      else if (otherStart >= curEnd) gap = otherStart - curEnd;
+                      if (gap >= 0 && gap < minTravelGap) {
+                        teacherScore -= 50;
+                        teacherReasons.push(
+                          `Travel gap penalty: -50 (${gap}m between ${otherBatch.building} and ${batch.building}, min required: ${minTravelGap}m)`
+                        );
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
 
         const teacherJitter = (rng() - 0.5) * 4;
@@ -2014,8 +2101,10 @@ export const regenerateSingleSlot = (
     };
   }
 
-  // Pick top ranked substitute
-  const winner = eligibleSubs[0];
+  // Pick top ranked substitute: prefer alternative if slot already has a faculty (re-roll)
+  const currentFacultyId = currentSlot?.facultyId;
+  const otherEligible = eligibleSubs.filter(s => s.faculty.id !== currentFacultyId);
+  const winner = otherEligible.length > 0 ? otherEligible[0] : eligibleSubs[0];
   const newAllocation: Allocation = {
     batchId,
     periodIndex,
@@ -2036,4 +2125,261 @@ export const regenerateSingleSlot = (
   });
 
   return { success: true, newAllocation };
+};
+
+// -------------------------------------------------------------
+// BATCH-DAY REGENERATION (N8: Regenerate one batch's day)
+// -------------------------------------------------------------
+export const regenerateBatchDay = (
+  batchId: string,
+  allocations: Allocation[],
+  batches: Batch[],
+  faculties: Faculty[],
+  settings?: SchedulerSettings,
+  options?: { dateKey?: string; dayOfWeek?: DayOfWeek; seed?: number }
+): {
+  success: boolean;
+  allocations: Allocation[];
+  regeneratedCount: number;
+  unfilledCount: number;
+  reason?: string;
+} => {
+  const activeSettings = settings || storage.getSettings();
+  const targetBatch = batches.find(b => b.id === batchId);
+  if (!targetBatch) {
+    return { success: false, allocations, regeneratedCount: 0, unfilledCount: 0, reason: 'Batch not found' };
+  }
+
+  const effectiveDay =
+    options?.dayOfWeek ||
+    (options?.dateKey && (WEEKDAYS as readonly string[]).includes(options.dateKey) ? (options.dateKey as DayOfWeek) : undefined);
+
+  // Keep all allocations for other batches untouched
+  const otherBatchAllocations = allocations.filter(a => a.batchId !== batchId);
+
+  // For target batch: preserve frozen slots
+  const frozenTargetAllocations = allocations.filter(a => a.batchId === batchId && a.frozen);
+
+  const currentDayAllocs = [...otherBatchAllocations, ...frozenTargetAllocations];
+  let regeneratedCount = 0;
+  let unfilledCount = 0;
+
+  targetBatch.periods.forEach((timing, pIdx) => {
+    if (!timing?.startTime || !timing?.endTime) return;
+    const isFrozen = frozenTargetAllocations.some(a => a.periodIndex === pIdx);
+    if (isFrozen) return;
+
+    const existingSlot = allocations.find(a => a.batchId === batchId && a.periodIndex === pIdx);
+    const preferredSubject =
+      existingSlot?.subject ||
+      targetBatch.subjects[pIdx % targetBatch.subjects.length]?.subject ||
+      'Physics';
+
+    const slotResult = regenerateSingleSlot(
+      batchId,
+      pIdx,
+      currentDayAllocs,
+      batches,
+      faculties,
+      activeSettings,
+      preferredSubject,
+      options?.dateKey,
+      effectiveDay
+    );
+
+    if (slotResult.success && slotResult.newAllocation) {
+      currentDayAllocs.push(slotResult.newAllocation);
+      regeneratedCount++;
+    } else {
+      let foundAlt = false;
+      for (const subjObj of targetBatch.subjects) {
+        if (subjObj.subject === preferredSubject) continue;
+        const altResult = regenerateSingleSlot(
+          batchId,
+          pIdx,
+          currentDayAllocs,
+          batches,
+          faculties,
+          activeSettings,
+          subjObj.subject,
+          options?.dateKey,
+          effectiveDay
+        );
+        if (altResult.success && altResult.newAllocation) {
+          currentDayAllocs.push(altResult.newAllocation);
+          regeneratedCount++;
+          foundAlt = true;
+          break;
+        }
+      }
+      if (!foundAlt) {
+        unfilledCount++;
+      }
+    }
+  });
+
+  storage.logAuditAction('BATCH_REGENERATE', {
+    batchId,
+    day: effectiveDay,
+    reason: `Regenerated day for batch ${targetBatch.name}: ${regeneratedCount} periods allocated, ${unfilledCount} unfilled.`,
+  });
+
+  return {
+    success: true,
+    allocations: currentDayAllocs,
+    regeneratedCount,
+    unfilledCount,
+  };
+};
+
+// -------------------------------------------------------------
+// WEEKLY QUOTA FIT CALCULATION & REPORTING (N9)
+// -------------------------------------------------------------
+export const calculateWeekQuotaFit = (
+  batches: Batch[],
+  weekTimetables: WeekTimetables,
+  teachingDays: readonly DayOfWeek[] = WEEKDAYS
+): WeekQuotaFitReport => {
+  const batchFits: BatchQuotaFit[] = [];
+  let batchesWithFit = 0;
+  let batchesWithPerfectFit = 0;
+
+  batches.forEach(batch => {
+    const weeklyQuotas = calculateWeeklyQuotas(batch, teachingDays.length);
+    const weekAllocations: Allocation[] = [];
+    teachingDays.forEach(day => {
+      const tt = weekTimetables[day];
+      if (tt?.allocations) {
+        const batchAllocs = tt.allocations.filter(a => a.batchId === batch.id && a.facultyId);
+        weekAllocations.push(...batchAllocs);
+      }
+    });
+
+    const subjectCounts: Record<string, number> = {};
+    weekAllocations.forEach(a => {
+      const norm = normalizeSubj(a.subject);
+      subjectCounts[norm] = (subjectCounts[norm] || 0) + 1;
+    });
+
+    const subjectFits: BatchSubjectFit[] = [];
+    let isFit = true;
+    let isPerfectFit = true;
+    let totalTarget = 0;
+    let totalAllocated = 0;
+
+    for (const [subj, target] of Object.entries(weeklyQuotas)) {
+      const allocated = subjectCounts[subj] || 0;
+      const delta = allocated - target;
+      totalTarget += target;
+      totalAllocated += allocated;
+
+      if (Math.abs(delta) > 1) {
+        isFit = false;
+      }
+      if (delta !== 0) {
+        isPerfectFit = false;
+      }
+
+      subjectFits.push({
+        subject: subj,
+        target,
+        allocated,
+        delta,
+      });
+    }
+
+    if (isFit) batchesWithFit++;
+    if (isPerfectFit) batchesWithPerfectFit++;
+
+    batchFits.push({
+      batchId: batch.id,
+      batchName: batch.name,
+      totalTarget,
+      totalAllocated,
+      subjectFits,
+      isFit,
+      isPerfectFit,
+    });
+  });
+
+  const totalBatches = batches.length;
+  const fitPercentage = totalBatches > 0 ? Math.round((batchesWithFit / totalBatches) * 100) : 100;
+
+  return {
+    totalBatches,
+    batchesWithFit,
+    batchesWithPerfectFit,
+    fitPercentage,
+    batchFits,
+  };
+};
+
+// -------------------------------------------------------------
+// "GENERATE WEEK" GLOBAL PLANNING (N9)
+// -------------------------------------------------------------
+export const generateWeekTimetables = (
+  batches: Batch[],
+  faculties: Faculty[],
+  existingWeek: WeekTimetables = {},
+  settings?: SchedulerSettings,
+  options?: { seed?: number; numCandidates?: number }
+): {
+  weekTimetables: WeekTimetables;
+  quotaReport: WeekQuotaFitReport;
+  seed: number;
+} => {
+  const activeSettings = settings || storage.getSettings();
+  const seed = options?.seed ?? Math.floor(Math.random() * 1000000);
+  const updatedWeek: WeekTimetables = {};
+
+  let cumulativeWeekAllocations: Allocation[] = [];
+
+  // Plan all 6 days together, preserving frozen slots and pacing quotas
+  WEEKDAYS.forEach((day, dayIndex) => {
+    const existingDraft = existingWeek[day]?.allocations || [];
+    const daySeed = (seed + dayIndex * 997) >>> 0;
+
+    const dayResult = generateTimetableV2(
+      batches,
+      faculties,
+      existingDraft,
+      cumulativeWeekAllocations,
+      {
+        settings: activeSettings,
+        seed: daySeed,
+        dayOfWeek: day,
+        dateKey: day,
+        numCandidates: options?.numCandidates ?? 3,
+      }
+    );
+
+    const dayTimetable: Timetable = {
+      id: `tt_${day}_${Date.now()}`,
+      date: day,
+      status: 'Draft',
+      allocations: dayResult.allocations,
+      unfilledSlots: dayResult.unfilled,
+      warnings: dayResult.warnings,
+      frozenViolations: dayResult.frozenViolations,
+      stats: dayResult.stats,
+      seed: dayResult.seed,
+      lastGeneratedAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    updatedWeek[day] = dayTimetable;
+    cumulativeWeekAllocations = [...cumulativeWeekAllocations, ...dayResult.allocations];
+  });
+
+  const quotaReport = calculateWeekQuotaFit(batches, updatedWeek, WEEKDAYS);
+
+  storage.logAuditAction('WEEK_GENERATE', {
+    reason: `Generated full week schedule: ${quotaReport.batchesWithFit}/${quotaReport.totalBatches} batches fit weekly quotas within ±1. (Seed: ${seed})`,
+  });
+
+  return {
+    weekTimetables: updatedWeek,
+    quotaReport,
+    seed,
+  };
 };

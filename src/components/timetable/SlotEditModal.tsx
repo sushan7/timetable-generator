@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Lock,
   AlertTriangle,
@@ -66,7 +66,24 @@ export default function SlotEditModal({
   onRegenerateSlotSuccess,
 }: SlotEditModalProps) {
   const [slotState, setSlotState] = useState<SlotEditState>(editingSlot);
-  const [substituteCandidates, setSubstituteCandidates] = useState<SubstituteCandidate[]>([]);
+  // Auto-load substitute recommendations for gap or unfilled cells on mount (N8)
+  const [substituteCandidates, setSubstituteCandidates] = useState<SubstituteCandidate[]>(() => {
+    if (!editingSlot.facultyId || editingSlot.currentAllocation?.vacatedFacultyId) {
+      const settings = storage.getSettings();
+      return getRankedSubstitutes(
+        editingSlot.batch.id,
+        editingSlot.periodIndex,
+        editingSlot.subject,
+        allocations,
+        batches,
+        faculties,
+        settings,
+        currentDay,
+        currentDay
+      );
+    }
+    return [];
+  });
 
   // Conflict evaluation against current timetable allocations (C2, M5)
   const conflictEvaluation = useMemo(() => {
@@ -94,8 +111,8 @@ export default function SlotEditModal({
       )
   );
 
-  // Load ranked substitutes (Phase 5I / N11)
-  const handleLoadSubstitutes = () => {
+  // Load ranked substitutes (Phase 5I / N8)
+  const handleLoadSubstitutes = useCallback(() => {
     const settings = storage.getSettings();
     const ranked = getRankedSubstitutes(
       slotState.batch.id,
@@ -109,7 +126,7 @@ export default function SlotEditModal({
       currentDay
     );
     setSubstituteCandidates(ranked);
-  };
+  }, [slotState.batch.id, slotState.periodIndex, slotState.subject, allocations, batches, faculties, currentDay]);
 
   // Regenerate single slot (Phase 5H / N10)
   const handleRegenerateSlot = () => {
@@ -247,8 +264,30 @@ export default function SlotEditModal({
                   key={c.faculty.id}
                   className="flex items-center justify-between p-2 rounded bg-[#FAF7F2] border border-[#E5E0D8] text-xs"
                 >
-                  <div>
-                    <span className="font-bold text-[#252326]">{c.faculty.name}</span>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-[#252326]">{c.faculty.name}</span>
+                      {c.currentDayLoad === 0 && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Free
+                        </span>
+                      )}
+                      {c.currentDayLoad > 0 && c.currentDayLoad <= 2 && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                          Light load
+                        </span>
+                      )}
+                      {c.faculty.assignedBatches && c.faculty.assignedBatches.includes(slotState.batch.id) && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#FAF2E6] text-[#6B2638] border border-[#6B2638]/30">
+                          Batch owner
+                        </span>
+                      )}
+                      {!c.eligible && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">
+                          Conflict
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-[#5E5B61]">
                       {c.faculty.subjects.join(', ')} · Daily load: {c.currentDayLoad}
                     </div>

@@ -3,7 +3,7 @@
 ## Baseline Verification
 - **Baseline Typecheck (`npx tsc -b`)**: 0 errors
 - **Baseline Lint (`npx eslint .`)**: 0 errors, 0 warnings
-- **Baseline Test Suite (`npm test`)**: 8 test files, 86 tests passing
+- **Baseline Test Suite (`npm test`)**: 9 test files, 99 tests passing
 - **Baseline Build (`npm run build`)**: Passing with zero errors
 
 ---
@@ -38,14 +38,17 @@
 | N2 | Done | `src/utils/scheduler.ts`, `src/pages/Settings.tsx`, `src/pages/Timetable.tsx`, `src/components/timetable/CapacityPreCheckModal.tsx`, `src/__tests__/n1_n4_features.test.ts` | Capacity pre-check: per-subject demand vs supply table flagging shortages and overloaded teachers; weekly-load fairness penalty (priorWeeklyPeriods * 8) in candidate teacher selection and substitute ranking to balance workload and alternate teachers |
 | N3 | Done | `src/utils/validationReport.ts`, `src/components/timetable/ValidationReportModal.tsx`, `src/pages/Timetable.tsx`, `src/components/timetable/SectionTable.tsx`, `src/__tests__/n1_n4_features.test.ts` | Validation report: "Check timetable" action evaluating all 5 violation types (overlaps, over limit, absent, room clashes, unfilled) with category filters, badges, and click-to-jump to cell scrolling & pulsing |
 | N4 | Done | `src/components/timetable/TeacherScheduleView.tsx`, `src/components/timetable/RoomScheduleView.tsx`, `src/pages/Timetable.tsx`, `src/index.css` | Teacher-wise and room-wise views: dedicated 6-day week grids for any teacher or classroom with daily period totals, vacancy/clash indicators, and printable formatting (window.print() with @media print) |
+| N5 | Done | `src/utils/validation.ts`, `src/pages/Batches.tsx`, `src/utils/validationReport.ts`, `src/utils/scheduler.ts`, `src/pages/Settings.tsx`, `src/__tests__/n5_n9_features.test.ts` | Room and travel constraints: checkBatchRoomClashes warns on add/edit when batches share building+room with overlapping timings; room_clash reported in validation report; minTravelGapMinutes setting in Settings and scheduler soft penalty (-50) for rapid transitions between Building 1 and Building 2 |
+| N6 | Done | `src/types/index.ts`, `src/utils/constraints.ts`, `src/utils/storage.ts`, `src/utils/scheduler.ts`, `src/__tests__/n5_n9_features.test.ts` | Teacher availability: optional per-teacher unavailable days/periods (unavailable?: { day: DayOfWeek; periods: number[] }[]) enforced as a strict hard constraint through canAssign (returning UNAVAILABLE) and scheduler auto-assignment |
+| N7 | Done | `src/pages/Timetable.tsx`, `src/__tests__/n5_n9_features.test.ts` | Undo/redo: history stack capped at 20 states per day; keyboard shortcuts (Ctrl/Cmd+Z, Ctrl+Y, Ctrl/Cmd+Shift+Z) for manual edits, freeze toggles, and regenerations with persistDay restoration |
+| N8 | Done | `src/utils/scheduler.ts`, `src/components/timetable/SlotEditModal.tsx`, `src/components/timetable/SectionTable.tsx`, `src/pages/Timetable.tsx`, `src/__tests__/n5_n9_features.test.ts` | Per-slot re-roll and substitute suggestions: regenerateSingleSlot prefers alternative eligible teacher; regenerateBatchDay regenerates unfrozen slots of target batch; SlotEditModal auto-loads and displays ranked eligible substitutes with Free, Light load, and Batch owner reason badges |
+| N9 | Done | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx`, `src/components/timetable/WeekQuotaFitModal.tsx`, `src/__tests__/n5_n9_features.test.ts` | "Generate Week": order-independent multi-day generation planning quotas across all 6 days together, preserving frozen slots across all days, and reporting weekly quota fit per batch via calculateWeekQuotaFit and WeekQuotaFitModal |
 | L1 | Done | `src/components/timetable/DayTabs.tsx` | Keyboard arrow navigation across weekday tabs with roving tabindex and focus transfer |
 | L2 | Done | `src/components/timetable/SectionTable.tsx` | Accessible table semantics with scope="col" on period headers and scope="row" on batch headers |
 | L3 | Todo | `src/components/ui/Button.tsx`, `src/components/ui/` | Focus ring visibility and contrast standards (WCAG AA) |
 | L4 | Todo | `src/components/AuditLogView.tsx` | Accessible modal confirmation for audit trail clearing |
 | L5 | Done | `src/pages/Timetable.tsx`, `src/components/timetable/SlotEditModal.tsx`, `src/hooks/useTimetableQuota.ts`, `src/utils/export.ts` | Split Timetable.tsx: extracted SlotEditModal component (~270 lines), extracted quota and balance metrics into useTimetableQuota hook, and moved export code into src/utils/export.ts with 0 behavior change |
-| T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, scheduler, export, and N1-N4 features (86 tests passing across 8 files) |
-| accessibility | Done | Across app (`Modal.tsx`, `DayTabs.tsx`, `AllocationCell.tsx`, form inputs, contrast) | Linked every label to its input via htmlFor/id, aria-labelledby, focus trap and focus restore on Modal, aria-controls on DayTabs, icons+text for every status (no color reliance), absent teachers flagged on grid immediately, WCAG AA contrast compliant |
-| theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
+| T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, scheduler, export, and N1-N9 features (99 tests passing across 9 files) |
 | accessibility | Done | Across app (`Modal.tsx`, `DayTabs.tsx`, `AllocationCell.tsx`, form inputs, contrast) | Linked every label to its input via htmlFor/id, aria-labelledby, focus trap and focus restore on Modal, aria-controls on DayTabs, icons+text for every status (no color reliance), absent teachers flagged on grid immediately, WCAG AA contrast compliant |
 | theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
 

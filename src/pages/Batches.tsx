@@ -17,7 +17,13 @@ import {
 } from 'lucide-react';
 import type { Batch, PeriodTiming, BatchSubject } from '../types';
 import { storage } from '../utils/storage';
-import { parseTimeMinutesStrict, normalizeTimeToHHmm, checkTimetableOverlaps, type TimetableOverlapConflict } from '../utils/validation';
+import {
+  parseTimeMinutesStrict,
+  normalizeTimeToHHmm,
+  checkTimetableOverlaps,
+  checkBatchRoomClashes,
+  type TimetableOverlapConflict,
+} from '../utils/validation';
 import { inferSubjectCategory } from '../utils/seedData';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -77,6 +83,21 @@ export default function Batches() {
 
   // Timing Overlap Report State (H6)
   const [timingOverlapReport, setTimingOverlapReport] = useState<TimetableOverlapConflict[] | null>(null);
+
+  // Room Clash Warnings State (N5)
+  const roomClashWarnings = useMemo(() => {
+    if (!modalRoomNumber.trim() || !modalBuilding) return [];
+    const tempBatch: Batch = {
+      id: editingBatchId || 'temp_batch_id',
+      building: modalBuilding,
+      yearCategory: modalYearCategory,
+      name: modalName,
+      roomNumber: modalRoomNumber.trim(),
+      periods: modalPeriods,
+      subjects: modalSubjects,
+    };
+    return checkBatchRoomClashes(tempBatch, batches);
+  }, [modalRoomNumber, modalBuilding, modalPeriods, modalSubjects, modalYearCategory, modalName, editingBatchId, batches]);
 
   const saveToStorage = (updatedBatches: Batch[]) => {
     storage.setBatches(updatedBatches);
@@ -262,7 +283,11 @@ export default function Batches() {
           );
         }
       } else {
-        setSuccessMsg(`Batch "${trimmedName}" updated successfully.`);
+        setSuccessMsg(
+          roomClashWarnings.length > 0
+            ? `Batch "${trimmedName}" updated. (Warning: Room ${modalRoomNumber.trim()} in ${modalBuilding} has overlapping period timings with ${Array.from(new Set(roomClashWarnings.map(w => w.otherBatchName))).join(', ')}).`
+            : `Batch "${trimmedName}" updated successfully.`
+        );
       }
     } else {
       // Create new
@@ -276,7 +301,11 @@ export default function Batches() {
         subjects: modalSubjects,
       };
       saveToStorage([...batches, newBatch]);
-      setSuccessMsg(`Batch "${trimmedName}" created successfully.`);
+      setSuccessMsg(
+        roomClashWarnings.length > 0
+          ? `Batch "${trimmedName}" created. (Warning: Room ${modalRoomNumber.trim()} in ${modalBuilding} has overlapping period timings with ${Array.from(new Set(roomClashWarnings.map(w => w.otherBatchName))).join(', ')}).`
+          : `Batch "${trimmedName}" created successfully.`
+      );
     }
 
     setIsModalOpen(false);
@@ -809,6 +838,20 @@ export default function Batches() {
               />
             </div>
           </div>
+
+          {/* Room Schedule Clash Warning (N5) */}
+          {roomClashWarnings.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-md text-xs text-amber-900 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>Room Schedule Overlap Warning</span>
+              </div>
+              <p>
+                Room {modalRoomNumber} in {modalBuilding} has overlapping period timings with{' '}
+                <strong>{Array.from(new Set(roomClashWarnings.map(w => w.otherBatchName))).join(', ')}</strong>.
+              </p>
+            </div>
+          )}
 
           {/* Period Timings */}
           <div className="border-t border-[#A89B8A]/30 pt-4 space-y-2.5">

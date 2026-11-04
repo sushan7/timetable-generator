@@ -1,4 +1,4 @@
-import { Building2, Users } from 'lucide-react';
+import { Building2, Users, RefreshCw } from 'lucide-react';
 import type { Batch, Allocation, UnfilledSlot, FrozenViolation } from '../../types';
 import Badge from '../ui/Badge';
 import AllocationCell from './AllocationCell';
@@ -13,6 +13,7 @@ export default function SectionTable({
   isFacultyAbsent,
   onToggleFreeze,
   onCellClick,
+  onRegenerateBatch,
 }: {
   label: string;
   batches: Batch[];
@@ -23,6 +24,7 @@ export default function SectionTable({
   isFacultyAbsent?: (id: string) => boolean;
   onToggleFreeze: (batchId: string, periodIndex: number) => void;
   onCellClick?: (batch: Batch, periodIndex: number) => void;
+  onRegenerateBatch?: (batchId: string) => void;
 }) {
   const batchIds = new Set(batches.map(b => b.id));
   const sectionAllocations = allocations.filter(a => batchIds.has(a.batchId));
@@ -93,7 +95,20 @@ export default function SectionTable({
           <div key={batch.id} className="p-3.5 bg-white space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-[#E5E0D8]/60">
               <div>
-                <h4 className="font-bold text-sm text-[#252326]">{batch.name}</h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-sm text-[#252326]">{batch.name}</h4>
+                  {onRegenerateBatch && (
+                    <button
+                      type="button"
+                      onClick={() => onRegenerateBatch(batch.id)}
+                      title={`Regenerate day schedule for ${batch.name}`}
+                      aria-label={`Regenerate batch ${batch.name}`}
+                      className="p-1 rounded text-[#5E5B61] hover:text-[#6B2638] hover:bg-[#FAF7F2] transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-[11px] text-[#5E5B61] font-medium">
                     Room {batch.roomNumber || '-'}
@@ -194,8 +209,21 @@ export default function SectionTable({
                   scope="row"
                   className="p-3 align-middle sticky left-0 z-10 bg-white group-hover:bg-[#FAF7F2] transition-colors border-r border-[#E5E0D8] shadow-[1px_0_0_0_#E5E0D8] font-normal text-left"
                 >
-                  <div className="font-bold text-[#252326] text-sm leading-snug">
-                    {batch.name || 'Unnamed Batch'}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="font-bold text-[#252326] text-sm leading-snug truncate">
+                      {batch.name || 'Unnamed Batch'}
+                    </div>
+                    {onRegenerateBatch && (
+                      <button
+                        type="button"
+                        onClick={() => onRegenerateBatch(batch.id)}
+                        title={`Regenerate day schedule for ${batch.name}`}
+                        aria-label={`Regenerate batch ${batch.name}`}
+                        className="p-1 rounded text-[#5E5B61] hover:text-[#6B2638] hover:bg-[#FAF7F2] transition-colors shrink-0"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                     <Badge tone="neutral" className="text-[11px] py-0 px-1.5 font-normal">
