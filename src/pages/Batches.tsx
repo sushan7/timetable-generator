@@ -30,7 +30,9 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import SearchInput from '../components/ui/SearchInput';
+import { useToast } from '../context/ToastContext';
 
 const BUILDINGS = ['Building 1', 'Building 2'];
 
@@ -53,6 +55,7 @@ const DEFAULT_BATCH_SUBJECTS: BatchSubject[] = [
 ];
 
 export default function Batches() {
+  const { toast } = useToast();
   const [batches, setBatches] = useState<Batch[]>(() => {
     storage.initialize();
     return storage.getBatches();
@@ -301,11 +304,11 @@ export default function Batches() {
         subjects: modalSubjects,
       };
       saveToStorage([...batches, newBatch]);
-      setSuccessMsg(
-        roomClashWarnings.length > 0
-          ? `Batch "${trimmedName}" created. (Warning: Room ${modalRoomNumber.trim()} in ${modalBuilding} has overlapping period timings with ${Array.from(new Set(roomClashWarnings.map(w => w.otherBatchName))).join(', ')}).`
-          : `Batch "${trimmedName}" created successfully.`
-      );
+      const msg = roomClashWarnings.length > 0
+        ? `Batch "${trimmedName}" created. (Warning: Room ${modalRoomNumber.trim()} in ${modalBuilding} has overlapping period timings with ${Array.from(new Set(roomClashWarnings.map(w => w.otherBatchName))).join(', ')}).`
+        : `Batch "${trimmedName}" created successfully.`;
+      setSuccessMsg(msg);
+      toast.success(`Batch "${trimmedName}" saved successfully.`);
     }
 
     setIsModalOpen(false);
@@ -322,6 +325,7 @@ export default function Batches() {
     setBatches(storage.getBatches());
     setBatchToDelete(null);
     setSuccessMsg(`Batch "${deletedName}" and related references safely removed.`);
+    toast.success(`Batch "${deletedName}" safely removed.`);
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
@@ -459,12 +463,14 @@ export default function Batches() {
       const toAdd = importedBatches.filter(b => !existingNames.has(b.name.toLowerCase()));
 
       saveToStorage([...batches, ...toAdd]);
-      setSuccessMsg(
-        `Imported ${toAdd.length} new batch(es)${importedBatches.length > toAdd.length ? ` (${importedBatches.length - toAdd.length} duplicate names skipped)` : ''}.`
-      );
+      const msg = `Imported ${toAdd.length} new batch(es)${importedBatches.length > toAdd.length ? ` (${importedBatches.length - toAdd.length} duplicate names skipped)` : ''}.`;
+      setSuccessMsg(msg);
+      toast.success(msg);
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error importing batches file.');
+      const errMsg = err instanceof Error ? err.message : 'Error importing batches file.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -992,41 +998,34 @@ export default function Batches() {
       </Modal>
 
       {/* Safe Batch Deletion Confirmation Modal */}
-      <Modal
+      <ConfirmDialog
         isOpen={!!batchToDelete}
         onClose={() => setBatchToDelete(null)}
+        onConfirm={handleConfirmDelete}
         title="Confirm Safe Batch Deletion"
-        subtitle="Cascade deletion will clean batch associations without corrupting database integrity"
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setBatchToDelete(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" icon={<Trash2 className="w-4 h-4" />} onClick={handleConfirmDelete}>
-              Permanently Delete Batch
-            </Button>
-          </div>
-        }
-      >
-        {batchToDelete && (
-          <div className="space-y-4">
-            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded-md flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
-              <div className="text-xs text-[#252326] space-y-1">
-                <p className="font-semibold text-[#6B2638]">
-                  You are about to delete batch "{batchToDelete.name}" ({batchToDelete.building}, Room {batchToDelete.roomNumber}).
-                </p>
-                <p>
-                  This action will remove all scheduled allocations for this batch across all weekly timetables and cleanly unlock any faculty members currently pinned to it.
-                </p>
+        variant="danger"
+        confirmText="Permanently Delete Batch"
+        message={
+          batchToDelete ? (
+            <div className="space-y-3">
+              <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded-md flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
+                <div className="text-xs text-[#252326] space-y-1">
+                  <p className="font-semibold text-[#6B2638]">
+                    You are about to delete batch "{batchToDelete.name}" ({batchToDelete.building}, Room {batchToDelete.roomNumber}).
+                  </p>
+                  <p>
+                    This action will remove all scheduled allocations for this batch across all weekly timetables and cleanly unlock any faculty members currently pinned to it.
+                  </p>
+                </div>
               </div>
+              <p className="text-xs text-[#252326]/70">
+                This operation cannot be reversed unless you have a full system backup export.
+              </p>
             </div>
-            <p className="text-xs text-[#252326]/70">
-              This operation cannot be reversed unless you have a full system backup export.
-            </p>
-          </div>
-        )}
-      </Modal>
+          ) : null
+        }
+      />
 
       {/* Timing Overlap Report Modal (H6) */}
       <Modal

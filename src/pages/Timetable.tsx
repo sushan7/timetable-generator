@@ -15,7 +15,6 @@ import {
   User,
   Building,
   Sparkles,
-  ArrowRight,
   ChevronDown,
   ChevronUp,
   Printer,
@@ -23,7 +22,6 @@ import {
   BarChart2,
   Layers,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import type {
   Faculty,
   Batch,
@@ -35,10 +33,7 @@ import type {
   FrozenViolation,
 } from '../types';
 import {
-  generateTimetableV2,
-  patchAbsences,
   calculateDetailedCapacityAnalysis,
-  generateWeekTimetables,
   regenerateBatchDay,
   calculateWeekQuotaFit,
 } from '../utils/scheduler';
@@ -52,6 +47,12 @@ import {
   exportTimetableToPng,
   exportTimetableToPdf,
 } from '../utils/export';
+import {
+  runGenerateDay,
+  runGenerateWeek,
+  runPatchAbsences,
+  type SchedulerProgress,
+} from '../utils/schedulerClient';
 import { useTimetableQuota } from '../hooks/useTimetableQuota';
 import SlotEditModal, {
   type SlotEditState,
@@ -62,21 +63,26 @@ import { CapacityPreCheckModal } from '../components/timetable/CapacityPreCheckM
 import { WeekQuotaFitModal } from '../components/timetable/WeekQuotaFitModal';
 import { TeacherScheduleView } from '../components/timetable/TeacherScheduleView';
 import { RoomScheduleView } from '../components/timetable/RoomScheduleView';
+import FirstRunChecklist from '../components/timetable/FirstRunChecklist';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import SearchInput from '../components/ui/SearchInput';
 import DropdownMenu, { type DropdownItem } from '../components/ui/DropdownMenu';
 import DayTabs from '../components/timetable/DayTabs';
 import BalanceBar from '../components/timetable/BalanceBar';
 import SectionTable from '../components/timetable/SectionTable';
+import { useToast } from '../context/ToastContext';
 
 type ViewMode = 'batches' | 'faculty' | 'rooms';
 
 export default function Timetable() {
+  const { toast } = useToast();
   const [currentDay, setCurrentDay] = useState<DayOfWeek>('Monday');
   const [viewMode, setViewMode] = useState<ViewMode>('batches');
+  const [generationProgress, setGenerationProgress] = useState<SchedulerProgress | null>(null);
 
   const [faculties, setFaculties] = useState<Faculty[]>(() => {
     storage.initialize();
@@ -268,15 +274,17 @@ export default function Timetable() {
     setIsReopenConfirmOpen(false);
   };
 
-  // Generate timetable with multi-pass evaluation (Phase 2 & M1)
-  const handleGenerate = () => {
+  // Generate timetable with Web Worker & fallback (Phase 2, M1 & L1)
+  const handleGenerate = async () => {
     if (currentStatus === 'Finalized') {
       setIsReopenConfirmOpen(true);
       return;
     }
 
     setIsGenerating(true);
-    setTimeout(() => {
+    setGenerationProgress({ progress: 10, stage: 'Preparing scheduler parameters...' });
+
+    try {
       const freshFaculties = storage.getFaculty();
       const freshBatches = storage.getBatches();
       setFaculties(freshFaculties);
@@ -286,11 +294,19 @@ export default function Timetable() {
       const seedToUse = !isNaN(parsedSeed as number) ? parsedSeed : undefined;
 
       const weekContext = storage.getWeekAllocationsExcluding(currentDay);
-      const result = generateTimetableV2(freshBatches, freshFaculties, allocations, weekContext, {
-        seed: seedToUse,
-        dayOfWeek: currentDay,
-        dateKey: currentDay,
-      });
+      const result = await runGenerateDay(
+        freshBatches,
+        freshFaculties,
+        allocations,
+        weekContext,
+        {
+          seed: seedToUse,
+          dayOfWeek: currentDay,
+          dateKey: currentDay,
+          settings,
+        },
+        prog => setGenerationProgress(prog)
+      );
 
       pushState(result.allocations);
       setUnfilledSlots(result.unfilled);
@@ -309,14 +325,27 @@ export default function Timetable() {
         result.seed,
         true
       );
+
+      if (result.unfilled.length > 0) {
+        toast.warning(`Generated ${result.allocations.length} allocations with ${result.unfilled.length} unfilled slot(s).`);
+      } else {
+        toast.success(`Generated ${result.allocations.length} allocations clash-free.`);
+      }
+    } catch (err) {
+      console.error('Generation failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to generate timetable.');
+    } finally {
       setIsGenerating(false);
-    }, 250);
+      setGenerationProgress(null);
+    }
   };
 
-  // Generate entire week order-independently (N9)
-  const handleGenerateWeek = () => {
+  // Generate entire week order-independently via Web Worker (N9 & L1)
+  const handleGenerateWeek = async () => {
     setIsGeneratingWeek(true);
-    setTimeout(() => {
+    setGenerationProgress({ progress: 10, stage: 'Initializing 6-day week generation...' });
+
+    try {
       const freshFaculties = storage.getFaculty();
       const freshBatches = storage.getBatches();
       setFaculties(freshFaculties);
@@ -326,12 +355,13 @@ export default function Timetable() {
       const seedToUse = !isNaN(parsedSeed as number) ? parsedSeed : undefined;
 
       const existingWeek = storage.getWeekTimetables();
-      const result = generateWeekTimetables(
+      const result = await runGenerateWeek(
         freshBatches,
         freshFaculties,
         existingWeek,
         settings,
-        { seed: seedToUse }
+        { seed: seedToUse },
+        prog => setGenerationProgress(prog)
       );
 
       storage.setWeekTimetables(result.weekTimetables);
@@ -351,8 +381,14 @@ export default function Timetable() {
 
       setWeekQuotaReport(result.quotaReport);
       setIsQuotaReportModalOpen(true);
+      toast.success(`Generated full 6-day timetable across ${freshBatches.length} batches.`);
+    } catch (err) {
+      console.error('Week generation failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to generate weekly timetable.');
+    } finally {
       setIsGeneratingWeek(false);
-    }, 300);
+      setGenerationProgress(null);
+    }
   };
 
   // Regenerate one batch's day (N8)
@@ -365,25 +401,40 @@ export default function Timetable() {
     if (result.success) {
       pushState(result.allocations);
       persistDay(currentDay, result.allocations);
+      const batchName = batches.find(b => b.id === batchId)?.name || batchId;
+      toast.success(`Regenerated schedule for batch ${batchName}.`);
+    } else {
+      toast.error(result.reason || 'Could not regenerate batch.');
     }
   };
 
-  // Sync Absences (Phase 3 & H4/M3)
-  const handleSyncAbsences = () => {
+  // Sync Absences via Web Worker (Phase 3, H4/M3 & L1)
+  const handleSyncAbsences = async () => {
     if (currentStatus === 'Finalized') return;
     setIsSyncing(true);
-    setTimeout(() => {
+    try {
       const freshFaculties = storage.getFaculty();
       setFaculties(freshFaculties);
 
-      const result = patchAbsences(allocations, batches, freshFaculties, {
-        dateKey: currentDay,
-        dayOfWeek: currentDay,
-      });
+      const result = await runPatchAbsences(
+        allocations,
+        batches,
+        freshFaculties,
+        {
+          dateKey: currentDay,
+          dayOfWeek: currentDay,
+          settings,
+        }
+      );
       pushState(result.updatedAllocations);
       persistDay(currentDay, result.updatedAllocations);
+      toast.success(`Absence sync complete: ${result.patchedCount} slot(s) covered.`);
+    } catch (err) {
+      console.error('Absence patch failed:', err);
+      toast.error('Failed to sync absences.');
+    } finally {
       setIsSyncing(false);
-    }, 200);
+    }
   };
 
   // Slot freeze
@@ -436,6 +487,7 @@ export default function Timetable() {
     updated.push(newAlloc);
     pushState(updated);
     persistDay(currentDay, updated);
+    toast.success('Slot regenerated successfully.');
   };
 
   const handleSaveSlotOverride = (payload: SlotEditSavePayload) => {
@@ -468,6 +520,7 @@ export default function Timetable() {
         day: currentDay,
         reason: `Manually unassigned faculty from period ${periodIndex + 1} (${batch.name})`,
       });
+      toast.success(`Cleared assignment for period ${periodIndex + 1} (${batch.name}).`);
     } else {
       const isConflict = Boolean(conflictEvaluation && !conflictEvaluation.ok);
       const isOverridden = Boolean(isHardConflict && allowConflictOverride);
@@ -507,6 +560,7 @@ export default function Timetable() {
           isOverridden ? ' [FORCED OVERRIDE]' : ''
         }`,
       });
+      toast.success(`Assigned ${facName} to period ${periodIndex + 1} (${batch.name}).`);
     }
 
     pushState(updatedAllocations);
@@ -552,14 +606,15 @@ export default function Timetable() {
     [faculties]
   );
 
-  // Exports
+  // Exports (N10 Feedback)
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
       await exportTimetableToExcel(currentDay, batches, allocations, faculties, currentStatus);
+      toast.success('Timetable exported to Excel (.xlsx) successfully.');
     } catch (e) {
       console.error(e);
-      alert('Failed to generate Excel export.');
+      toast.error('Failed to generate Excel export.');
     } finally {
       setIsExporting(false);
     }
@@ -571,9 +626,10 @@ export default function Timetable() {
     setIsExporting(true);
     try {
       await exportTimetableToPng(target, currentDay);
+      toast.success('Timetable exported to PNG image successfully.');
     } catch (e) {
       console.error(e);
-      alert('Failed to generate PNG export.');
+      toast.error('Failed to generate PNG export.');
     } finally {
       setIsExporting(false);
     }
@@ -583,9 +639,10 @@ export default function Timetable() {
     setIsExporting(true);
     try {
       await exportTimetableToPdf(currentDay, batches, allocations, faculties, currentStatus);
+      toast.success('Timetable exported to PDF document successfully.');
     } catch (e) {
       console.error(e);
-      alert('Failed to generate PDF export.');
+      toast.error('Failed to generate PDF export.');
     } finally {
       setIsExporting(false);
     }
@@ -1161,66 +1218,17 @@ export default function Timetable() {
           role="tabpanel"
           aria-labelledby={`timetable-tab-${currentDay.toLowerCase()}`}
         >
-          {!hasGenerated ? (
-            <div className="p-8 bg-[#F3EEE6]/50 rounded-xl border border-[#A89B8A]/30 space-y-6 text-center">
-              <div className="w-12 h-12 bg-[#6B2638]/10 text-[#6B2638] rounded-full flex items-center justify-center mx-auto">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div className="max-w-md mx-auto space-y-1">
-                <h3 className="text-lg font-bold text-[#252326]">Welcome to Timetable Pro</h3>
-                <p className="text-xs text-[#252326]/70 leading-relaxed">
-                  No timetable is currently active for {currentDay}. Follow the three quick steps below to generate an optimized, clash-free schedule.
-                </p>
-              </div>
-
-              {/* 3-Step Onboarding Cards (Phase 5J) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
-                <div className="p-4 bg-white rounded-lg border border-[#A89B8A]/30 space-y-2">
-                  <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
-                    1
-                  </div>
-                  <h4 className="text-xs font-bold text-[#252326]">Check Faculty Pool</h4>
-                  <p className="text-[11px] text-[#252326]/60 leading-normal">
-                    Confirm {faculties.length} instructors, qualifications, and mark any known absentees.
-                  </p>
-                  <Link to="/faculty" className="text-xs font-bold text-[#6B2638] flex items-center gap-1 hover:underline">
-                    Manage Faculty <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-
-                <div className="p-4 bg-white rounded-lg border border-[#A89B8A]/30 space-y-2">
-                  <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
-                    2
-                  </div>
-                  <h4 className="text-xs font-bold text-[#252326]">Review Batches & Timings</h4>
-                  <p className="text-[11px] text-[#252326]/60 leading-normal">
-                    Inspect active period timings across {batches.length} classroom sections.
-                  </p>
-                  <Link to="/batches" className="text-xs font-bold text-[#6B2638] flex items-center gap-1 hover:underline">
-                    Inspect Batches <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-
-                <div className="p-4 bg-white rounded-lg border border-[#A89B8A]/30 space-y-2">
-                  <div className="w-6 h-6 rounded-full bg-[#6B2638] text-white text-xs font-bold flex items-center justify-center">
-                    3
-                  </div>
-                  <h4 className="text-xs font-bold text-[#252326]">Run Scheduler</h4>
-                  <p className="text-[11px] text-[#252326]/60 leading-normal">
-                    Execute the constraint solver to allocate subjects and resolve all time overlaps.
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    icon={<Play className="w-3.5 h-3.5" />}
-                    onClick={handleGenerate}
-                    loading={isGenerating}
-                  >
-                    Generate Schedule
-                  </Button>
-                </div>
-              </div>
-            </div>
+          {!hasGenerated && allocations.length === 0 ? (
+            <FirstRunChecklist
+              faculties={faculties}
+              batches={batches}
+              currentDay={currentDay}
+              hasGenerated={hasGenerated}
+              allocationsCount={allocations.length}
+              isGenerating={isGenerating}
+              generationProgress={generationProgress}
+              onGenerate={handleGenerate}
+            />
           ) : (
             <div className="space-y-6">
               {/* Summary panel for frozen violations (C2) */}
@@ -1423,31 +1431,25 @@ export default function Timetable() {
       </Modal>
 
       {/* Reopen Finalized Day Confirmation Modal */}
-      <Modal
+      <ConfirmDialog
         isOpen={isReopenConfirmOpen}
         onClose={() => setIsReopenConfirmOpen(false)}
+        onConfirm={confirmReopenDay}
         title="Reopen Finalized Timetable?"
-        subtitle="This timetable is locked as the official published schedule"
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setIsReopenConfirmOpen(false)}>
-              Keep Finalized
-            </Button>
-            <Button variant="primary" icon={<Unlock className="w-4 h-4" />} onClick={confirmReopenDay}>
-              Reopen for Editing
-            </Button>
+        variant="warning"
+        confirmText="Reopen for Editing"
+        cancelText="Keep Finalized"
+        message={
+          <div className="space-y-3 text-xs text-[#252326]">
+            <p>
+              Reopening the <strong>{currentDay}</strong> timetable will change its status to <strong>Draft</strong> and allow manual edits or regeneration of unfrozen slots.
+            </p>
+            <p className="text-[#252326]/70">
+              Frozen slots will continue to be preserved. Are you sure you want to unlock this day?
+            </p>
           </div>
         }
-      >
-        <div className="space-y-3 text-xs text-[#252326]">
-          <p>
-            Reopening the <strong>{currentDay}</strong> timetable will change its status to <strong>Draft</strong> and allow manual edits or regeneration of unfrozen slots.
-          </p>
-          <p className="text-[#252326]/70">
-            Frozen slots will continue to be preserved. Are you sure you want to unlock this day?
-          </p>
-        </div>
-      </Modal>
+      />
 
       {/* Week Quota Fit Report Modal (N9) */}
       <WeekQuotaFitModal

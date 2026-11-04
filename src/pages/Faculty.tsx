@@ -24,8 +24,10 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import EmptyState from '../components/ui/EmptyState';
 import SearchInput from '../components/ui/SearchInput';
+import { useToast } from '../context/ToastContext';
 
 interface ImportValidationResult {
   total: number;
@@ -35,6 +37,7 @@ interface ImportValidationResult {
 }
 
 export default function FacultyManager() {
+  const { toast } = useToast();
   const [faculties, setFaculties] = useState<Faculty[]>(() => {
     storage.initialize();
     return storage.getFaculty();
@@ -128,12 +131,11 @@ export default function FacultyManager() {
     });
     saveToStorage(updated);
     setShowMarkAllPresentConfirm(false);
-    setFeedback({
-      type: 'success',
-      text: allDays
-        ? 'All faculty members marked as Present across all days.'
-        : `All faculty members marked as Present for ${selectedDay}.`,
-    });
+    const msg = allDays
+      ? 'All faculty members marked as Present across all days.'
+      : `All faculty members marked as Present for ${selectedDay}.`;
+    setFeedback({ type: 'success', text: msg });
+    toast.success(msg);
     setTimeout(() => setFeedback(null), 3000);
   };
 
@@ -184,7 +186,9 @@ export default function FacultyManager() {
       storage.logAuditAction('FACULTY_CREATE', {
         reason: `Created faculty profile for ${newFaculty.name}.`,
       });
-      setFeedback({ type: 'success', text: `Added ${newFaculty.name} to directory.` });
+      const msg = `Added ${newFaculty.name} to directory.`;
+      setFeedback({ type: 'success', text: msg });
+      toast.success(msg);
     }
     setTimeout(() => setFeedback(null), 3000);
     handleCloseModal();
@@ -195,10 +199,12 @@ export default function FacultyManager() {
     const res = storage.deleteFaculty(deletingFaculty.id);
     setFaculties(storage.getFaculty());
     setDeletingFaculty(null);
+    const msg = `Removed ${deletingFaculty.name}. Turned ${res.allocationsAffected} timetable slot(s) into unfilled shortage slots.`;
     setFeedback({
       type: 'success',
-      text: `Removed ${deletingFaculty.name}. Turned ${res.allocationsAffected} timetable slot(s) into unfilled shortage slots.`,
+      text: msg,
     });
+    toast.success(msg);
     setTimeout(() => setFeedback(null), 4000);
   };
 
@@ -958,44 +964,37 @@ export default function FacultyManager() {
       </Modal>
 
       {/* Safe Delete Confirmation Modal (H6) */}
-      <Modal
+      <ConfirmDialog
         isOpen={Boolean(deletingFaculty)}
         onClose={() => setDeletingFaculty(null)}
+        onConfirm={handleConfirmDelete}
         title="Confirm Faculty Removal"
-        maxWidth="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDeletingFaculty(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" icon={<Trash2 className="w-4 h-4" />} onClick={handleConfirmDelete}>
-              Delete Faculty
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-[#252326] leading-relaxed">
-            Are you sure you want to permanently remove <strong>{deletingFaculty?.name}</strong> from the faculty directory?
-          </p>
-          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-2">
-            <div className="flex items-center gap-1.5 font-bold">
-              <Trash2 className="w-4 h-4 text-[#6B2638] shrink-0" />
-              <span>Data Integrity Warning</span>
+        variant="danger"
+        confirmText="Delete Faculty"
+        message={
+          <div className="space-y-3">
+            <p className="text-sm text-[#252326] leading-relaxed">
+              Are you sure you want to permanently remove <strong>{deletingFaculty?.name}</strong> from the faculty directory?
+            </p>
+            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-2">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Trash2 className="w-4 h-4 text-[#6B2638] shrink-0" />
+                <span>Data Integrity Warning</span>
+              </div>
+              <p className="text-[#252326]">
+                This faculty member is assigned to{' '}
+                <strong>
+                  {deletingFaculty ? storage.countFacultyAllocations(deletingFaculty.id) : 0} timetable slot(s)
+                </strong>{' '}
+                across stored days.
+              </p>
+              <p className="text-[#5E5B61]">
+                Deleting them will safely turn all those allocations into <strong>unfilled shortage slots</strong> across all stored weekly timetables (preventing orphaned "Unknown" references).
+              </p>
             </div>
-            <p className="text-[#252326]">
-              This faculty member is assigned to{' '}
-              <strong>
-                {deletingFaculty ? storage.countFacultyAllocations(deletingFaculty.id) : 0} timetable slot(s)
-              </strong>{' '}
-              across stored days.
-            </p>
-            <p className="text-[#5E5B61]">
-              Deleting them will safely turn all those allocations into <strong>unfilled shortage slots</strong> across all stored weekly timetables (preventing orphaned "Unknown" references).
-            </p>
           </div>
-        </div>
-      </Modal>
+        }
+      />
 
       {/* Mark All Present Confirmation Modal */}
       <Modal
@@ -1109,49 +1108,40 @@ export default function FacultyManager() {
       </Modal>
 
       {/* Replace Confirmation Modal (H7) */}
-      <Modal
+      <ConfirmDialog
         isOpen={showReplaceConfirm}
         onClose={() => setShowReplaceConfirm(false)}
+        onConfirm={() => {
+          if (!importPreview) return;
+          saveToStorage(importPreview.valid);
+          setShowReplaceConfirm(false);
+          setImportPreview(null);
+          const msg = `Replaced faculty directory with ${importPreview.valid.length} imported profiles.`;
+          setFeedback({
+            type: 'success',
+            text: msg,
+          });
+          toast.success(msg);
+          setTimeout(() => setFeedback(null), 4000);
+        }}
         title="Confirm Directory Replacement"
-        maxWidth="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowReplaceConfirm(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger"
-              icon={<Trash2 className="w-4 h-4" />}
-              onClick={() => {
-                if (!importPreview) return;
-                saveToStorage(importPreview.valid);
-                setShowReplaceConfirm(false);
-                setImportPreview(null);
-                setFeedback({
-                  type: 'success',
-                  text: `Replaced faculty directory with ${importPreview.valid.length} imported profiles.`,
-                });
-                setTimeout(() => setFeedback(null), 4000);
-              }}
-            >
-              Confirm & Replace Directory
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-[#252326] leading-relaxed">
-            Are you sure you want to completely <strong>replace</strong> the entire faculty directory with the{' '}
-            <strong>{importPreview?.valid.length || 0}</strong> imported profiles?
-          </p>
-          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-1">
-            <strong>Warning: Destructive Action</strong>
-            <p>
-              Existing faculty profiles will be overwritten. Any timetable allocations for teachers not present in the new import will become unfilled shortage slots.
+        variant="danger"
+        confirmText="Confirm & Replace Directory"
+        message={
+          <div className="space-y-3">
+            <p className="text-sm text-[#252326] leading-relaxed">
+              Are you sure you want to completely <strong>replace</strong> the entire faculty directory with the{' '}
+              <strong>{importPreview?.valid.length || 0}</strong> imported profiles?
             </p>
+            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-1">
+              <strong>Warning: Destructive Action</strong>
+              <p>
+                Existing faculty profiles will be overwritten. Any timetable allocations for teachers not present in the new import will become unfilled shortage slots.
+              </p>
+            </div>
           </div>
-        </div>
-      </Modal>
+        }
+      />
 
       {/* Duplicate Faculty Name Detected on Add Modal (M8) */}
       <Modal

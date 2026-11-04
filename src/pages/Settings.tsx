@@ -24,10 +24,13 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Card from '../components/ui/Card';
 import Modal from '../components/ui/Modal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useToast } from '../context/ToastContext';
 
 type Tab = 'config' | 'capacity' | 'backup' | 'audit';
 
 export default function SettingsView() {
+  const { toast } = useToast();
   const [tab, setTab] = useState<Tab>('config');
   const [settings, setSettings] = useState<SchedulerSettings>(() => storage.getSettings());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -136,6 +139,7 @@ export default function SettingsView() {
 
     storage.setSettings(settings);
     setStatusMessage('Scheduler parameters saved successfully.');
+    toast.success('Scheduler parameters saved successfully.');
     setTimeout(() => {
       setStatusMessage(null);
     }, 3500);
@@ -145,6 +149,7 @@ export default function SettingsView() {
     setSettings(defaultSettings);
     storage.setSettings(defaultSettings);
     setStatusMessage('Settings reverted to default parameters.');
+    toast.info('Settings reverted to default parameters.');
     setTimeout(() => {
       setStatusMessage(null);
     }, 3500);
@@ -167,6 +172,7 @@ export default function SettingsView() {
     URL.revokeObjectURL(url);
 
     setStatusMessage('Complete system backup exported successfully.');
+    toast.success('Complete system backup exported successfully.');
     setTimeout(() => setStatusMessage(null), 3500);
   };
 
@@ -204,15 +210,17 @@ export default function SettingsView() {
     const result = storage.restoreFromBackup(importedBackup, restoreMode);
     if (result.success) {
       setImportedBackup(null);
-      setStatusMessage(
-        `Successfully restored backup (${restoreMode} mode): ${result.stats.faculty} faculty, ${result.stats.batches} batches, ${result.stats.timetables} timetables.`
-      );
+      const msg = `Successfully restored backup (${restoreMode} mode): ${result.stats.faculty} faculty, ${result.stats.batches} batches, ${result.stats.timetables} timetables.`;
+      setStatusMessage(msg);
+      toast.success(msg);
       setTimeout(() => {
         setStatusMessage(null);
         window.location.reload();
       }, 1500);
     } else {
-      setImportErrors([result.error || 'Failed to restore backup snapshot.']);
+      const errMsg = result.error || 'Failed to restore backup snapshot.';
+      setImportErrors([errMsg]);
+      toast.error(errMsg);
     }
   };
 
@@ -221,6 +229,7 @@ export default function SettingsView() {
     setSettings(defaultSettings);
     setIsResetModalOpen(false);
     setStatusMessage('System restored to factory default seed data.');
+    toast.success('System restored to factory default seed data.');
     setTimeout(() => {
       window.location.reload();
     }, 1000);
@@ -911,37 +920,30 @@ export default function SettingsView() {
       </Modal>
 
       {/* Factory Reset Modal */}
-      <Modal
+      <ConfirmDialog
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
+        onConfirm={handleFactoryResetConfirm}
         title="Confirm Factory Reset"
-        subtitle="This action will restore default demonstration seed data"
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setIsResetModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" icon={<RotateCcw className="w-4 h-4" />} onClick={handleFactoryResetConfirm}>
-              Reset to Factory Seed
-            </Button>
+        variant="danger"
+        confirmText="Reset to Factory Seed"
+        message={
+          <div className="space-y-3">
+            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#252326] flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-[#6B2638]">Warning: All Custom Changes Will Be Lost</p>
+                <p>
+                  This will reset all 145 faculty profiles, 70 batches, weekly timetables, and audit history back to the initial factory seed state.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-[#252326]/70">
+              If you wish to retain your current timetables, please export a JSON backup first from the Backup tab.
+            </p>
           </div>
         }
-      >
-        <div className="space-y-3">
-          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#252326] flex items-start gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-bold text-[#6B2638]">Warning: All Custom Changes Will Be Lost</p>
-              <p>
-                This will reset all 145 faculty profiles, 70 batches, weekly timetables, and audit history back to the initial factory seed state.
-              </p>
-            </div>
-          </div>
-          <p className="text-xs text-[#252326]/70">
-            If you wish to retain your current timetables, please export a JSON backup first from the Backup tab.
-          </p>
-        </div>
-      </Modal>
+      />
     </div>
   );
 }

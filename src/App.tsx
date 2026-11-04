@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import Layout from './components/Layout';
+import { ToastProvider } from './context/ToastContext';
 
 const Timetable = lazy(() => import('./pages/Timetable'));
 const Faculty = lazy(() => import('./pages/Faculty'));
@@ -21,43 +22,45 @@ function PageLoader() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route
-            index
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <Timetable />
-              </Suspense>
-            }
-          />
-          <Route
-            path="faculty"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <Faculty />
-              </Suspense>
-            }
-          />
-          <Route
-            path="batches"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <Batches />
-              </Suspense>
-            }
-          />
-          <Route
-            path="settings"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <Settings />
-              </Suspense>
-            }
-          />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route
+              index
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <Timetable />
+                </Suspense>
+              }
+            />
+            <Route
+              path="faculty"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <Faculty />
+                </Suspense>
+              }
+            />
+            <Route
+              path="batches"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <Batches />
+                </Suspense>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <Settings />
+                </Suspense>
+              }
+            />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   );
 }

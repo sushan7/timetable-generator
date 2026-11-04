@@ -5,9 +5,11 @@ import { storage } from '../utils/storage';
 import Badge, { type BadgeTone } from './ui/Badge';
 import Button from './ui/Button';
 import SearchInput from './ui/SearchInput';
-import Modal from './ui/Modal';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { useToast } from '../context/ToastContext';
 
 export default function AuditLogView() {
+  const { toast } = useToast();
   const [logs, setLogs] = useState<AuditLog[]>(() => storage.getAuditLogs());
   const [actionFilter, setActionFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
@@ -17,6 +19,7 @@ export default function AuditLogView() {
     storage.clearAuditLogs();
     setLogs([]);
     setShowClearConfirm(false);
+    toast.success('Audit history cleared successfully.');
   };
 
   const filteredLogs = logs.filter(log => {
@@ -159,26 +162,15 @@ export default function AuditLogView() {
       </div>
 
       {/* Clear Confirmation Modal */}
-      <Modal
+      <ConfirmDialog
         isOpen={showClearConfirm}
         onClose={() => setShowClearConfirm(false)}
+        onConfirm={handleConfirmClear}
         title="Clear Audit History"
-        maxWidth="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleConfirmClear}>
-              Clear All Logs
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-[#5E5B61] leading-relaxed">
-          Are you sure you want to permanently clear all audit history records? This administrative action cannot be undone.
-        </p>
-      </Modal>
+        variant="danger"
+        confirmText="Clear All Logs"
+        message="Are you sure you want to permanently clear all audit history records? This administrative action cannot be undone."
+      />
     </div>
   );
 }

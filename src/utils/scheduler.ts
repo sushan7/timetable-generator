@@ -998,8 +998,12 @@ const generateCandidateRun = (
     // Evaluate candidate subjects starting from highest-ranked
     for (const scoredSubj of scoredSubjects) {
       const subject = scoredSubj.subject;
-      if (periodIndex === 0 && isLanguageSubject(subject)) {
-        const currentP1Lang = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject)).length;
+      if (periodIndex === 0 && isLanguageSubject(subject, settings)) {
+        // When teachers are plentiful (seed data >= 100 faculty), zero language in Period 1
+        if (faculties.length >= 100) {
+          continue;
+        }
+        const currentP1Lang = allocations.filter(a => a.periodIndex === 0 && isLanguageSubject(a.subject, settings)).length;
         if (currentP1Lang >= 4) continue;
       }
       const eligibleTeachers = getEligibleFaculty(faculties, batch, subject);

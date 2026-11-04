@@ -20,6 +20,7 @@ import { regenerateSingleSlot, getRankedSubstitutes } from '../../utils/schedule
 import { storage } from '../../utils/storage';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
+import { useToast } from '../../context/ToastContext';
 
 export interface SlotEditState {
   batch: Batch;
@@ -65,6 +66,7 @@ export default function SlotEditModal({
   onSave,
   onRegenerateSlotSuccess,
 }: SlotEditModalProps) {
+  const { toast } = useToast();
   const [slotState, setSlotState] = useState<SlotEditState>(editingSlot);
   // Auto-load substitute recommendations for gap or unfilled cells on mount (N8)
   const [substituteCandidates, setSubstituteCandidates] = useState<SubstituteCandidate[]>(() => {
@@ -148,7 +150,7 @@ export default function SlotEditModal({
       onRegenerateSlotSuccess?.(result.newAllocation);
       onClose();
     } else {
-      alert(
+      toast.error(
         result.reason ||
           'Could not find an available eligible teacher for this slot without causing conflicts.'
       );
@@ -160,7 +162,7 @@ export default function SlotEditModal({
     if (currentStatus === 'Finalized') return;
 
     if (isHardConflict && !slotState.allowConflictOverride) {
-      alert(
+      toast.error(
         'A scheduling conflict was detected (TIME_OVERLAP, ABSENT, MAX_LOAD, or BATCH_RESTRICTION). Please check "Override anyway" to confirm this assignment.'
       );
       return;
