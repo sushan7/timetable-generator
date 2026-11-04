@@ -3,7 +3,7 @@
 ## Baseline Verification
 - **Baseline Typecheck (`npx tsc -b`)**: 0 errors
 - **Baseline Lint (`npx eslint .`)**: 0 errors, 0 warnings
-- **Baseline Test Suite (`npm test`)**: 7 test files, 73 tests passing
+- **Baseline Test Suite (`npm test`)**: 8 test files, 86 tests passing
 - **Baseline Build (`npm run build`)**: Passing with zero errors
 
 ---
@@ -34,23 +34,18 @@
 | M9 | Done | `src/utils/export.ts`, `src/utils/exportUtils.ts`, `src/index.css`, `src/__tests__/export.test.ts` | Dedicated export/print view per section (A4 landscape, header with day/status/date) and @media print styles; vector PDF via jsPDF + jspdf-autotable with real selectable text and proper section pagination; ExcelJS multi-sheet export (Summary sheet + one sheet per section with real batch period counts); removed oklch colour-sanitising hack |
 | M10 | Done | `src/pages/Timetable.tsx`, `src/pages/Batches.tsx`, `src/pages/Faculty.tsx`, `src/components/timetable/BalanceBar.tsx`, `src/components/AuditLogView.tsx`, `src/components/timetable/SectionTable.tsx` | Cleaned up literal &middot; (replaced with ·) and HTML entities (&amp;, &quot;, &ldquo;, &rdquo;) across JS/TSX strings |
 | M11 | Done | `src/utils/export.ts` | Unified high-res PNG and vector A4 PDF export integrated into M9 |
-| N1 | Todo | `src/pages/Batches.tsx` | Safe batch deletion with confirmation modal showing affected links |
-| N2 | Todo | `src/pages/Batches.tsx` | Full batch editing modal (timings, subjects, categories, weights) |
-| N3 | Todo | `src/pages/Settings.tsx` | System backup export to JSON with metadata and schema version |
-| N4 | Todo | `src/pages/Settings.tsx` | Backup restoration preview modal with Replace All vs Merge modes |
-| N5 | Todo | `src/pages/Settings.tsx` | Curriculum capacity pre-check analysis (demand vs supply) |
-| N6 | Todo | `src/pages/Timetable.tsx` | Full-day validation report modal with conflict inspector |
-| N7 | Todo | `src/pages/Timetable.tsx` | Teacher-wise schedule matrix view across the 6-day academic cycle |
-| N8 | Todo | `src/pages/Timetable.tsx` | Room-wise occupancy view and clash prevention |
-| N9 | Todo | `src/pages/Timetable.tsx` | Undo/Redo history stack for manual timetable adjustments |
-| N10 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Single-slot regeneration without full timetable recomputation |
-| N11 | Todo | `src/utils/scheduler.ts`, `src/pages/Timetable.tsx` | Ranked substitute candidate recommendation panel |
+| N1 | Done | `src/utils/storage.ts`, `src/pages/Settings.tsx`, `src/__tests__/n1_n4_features.test.ts` | Backup & restore: "Export all data" (single versioned JSON: faculty, batches, settings, timetables, date absences, audit logs) and "Import backup" with schema validation, preview modal with counts and mode selector (replace vs merge), and rollback protection |
+| N2 | Done | `src/utils/scheduler.ts`, `src/pages/Settings.tsx`, `src/pages/Timetable.tsx`, `src/components/timetable/CapacityPreCheckModal.tsx`, `src/__tests__/n1_n4_features.test.ts` | Capacity pre-check: per-subject demand vs supply table flagging shortages and overloaded teachers; weekly-load fairness penalty (priorWeeklyPeriods * 8) in candidate teacher selection and substitute ranking to balance workload and alternate teachers |
+| N3 | Done | `src/utils/validationReport.ts`, `src/components/timetable/ValidationReportModal.tsx`, `src/pages/Timetable.tsx`, `src/components/timetable/SectionTable.tsx`, `src/__tests__/n1_n4_features.test.ts` | Validation report: "Check timetable" action evaluating all 5 violation types (overlaps, over limit, absent, room clashes, unfilled) with category filters, badges, and click-to-jump to cell scrolling & pulsing |
+| N4 | Done | `src/components/timetable/TeacherScheduleView.tsx`, `src/components/timetable/RoomScheduleView.tsx`, `src/pages/Timetable.tsx`, `src/index.css` | Teacher-wise and room-wise views: dedicated 6-day week grids for any teacher or classroom with daily period totals, vacancy/clash indicators, and printable formatting (window.print() with @media print) |
 | L1 | Done | `src/components/timetable/DayTabs.tsx` | Keyboard arrow navigation across weekday tabs with roving tabindex and focus transfer |
 | L2 | Done | `src/components/timetable/SectionTable.tsx` | Accessible table semantics with scope="col" on period headers and scope="row" on batch headers |
 | L3 | Todo | `src/components/ui/Button.tsx`, `src/components/ui/` | Focus ring visibility and contrast standards (WCAG AA) |
 | L4 | Todo | `src/components/AuditLogView.tsx` | Accessible modal confirmation for audit trail clearing |
 | L5 | Done | `src/pages/Timetable.tsx`, `src/components/timetable/SlotEditModal.tsx`, `src/hooks/useTimetableQuota.ts`, `src/utils/export.ts` | Split Timetable.tsx: extracted SlotEditModal component (~270 lines), extracted quota and balance metrics into useTimetableQuota hook, and moved export code into src/utils/export.ts with 0 behavior change |
-| T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, and scheduler (40 tests passing) |
+| T1 | Done | `src/__tests__/` | Automated Vitest test suite for storage, validation, scheduler, export, and N1-N4 features (86 tests passing across 8 files) |
+| accessibility | Done | Across app (`Modal.tsx`, `DayTabs.tsx`, `AllocationCell.tsx`, form inputs, contrast) | Linked every label to its input via htmlFor/id, aria-labelledby, focus trap and focus restore on Modal, aria-controls on DayTabs, icons+text for every status (no color reliance), absent teachers flagged on grid immediately, WCAG AA contrast compliant |
+| theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
 | accessibility | Done | Across app (`Modal.tsx`, `DayTabs.tsx`, `AllocationCell.tsx`, form inputs, contrast) | Linked every label to its input via htmlFor/id, aria-labelledby, focus trap and focus restore on Modal, aria-controls on DayTabs, icons+text for every status (no color reliance), absent teachers flagged on grid immediately, WCAG AA contrast compliant |
 | theme | Todo | `src/index.css`, UI | Deep Burgundy (`#6B2638`), Deep Charcoal (`#252326`), Warm Beige (`#F3EEE6`) |
 

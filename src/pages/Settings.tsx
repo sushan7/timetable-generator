@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { SchedulerSettings, BackupData, SubjectCategory, DayOfWeek } from '../types';
 import { storage, defaultSettings } from '../utils/storage';
-import { calculateCapacityReport } from '../utils/scheduler';
+import { calculateDetailedCapacityAnalysis } from '../utils/scheduler';
 import { inferSubjectCategory } from '../utils/seedData';
 import AuditLogView from '../components/AuditLogView';
 import PageHeader from '../components/ui/PageHeader';
@@ -46,10 +46,13 @@ export default function SettingsView() {
   const [newSubjName, setNewSubjName] = useState('');
   const [newSubjCategory, setNewSubjCategory] = useState<SubjectCategory>('Other');
 
-  // Capacity calculation
-  const capacityReport = useMemo(() => {
-    return calculateCapacityReport(batches, faculty, settings);
+  // Capacity calculation (N2)
+  const detailedCapacity = useMemo(() => {
+    const weekAllocs = storage.getWeekAllocationsExcluding();
+    return calculateDetailedCapacityAnalysis(batches, faculty, settings, weekAllocs);
   }, [batches, faculty, settings]);
+
+  const capacityReport = detailedCapacity.subjects;
 
   const allKnownSubjects = useMemo(() => {
     const set = new Set<string>();
@@ -631,6 +634,61 @@ export default function SettingsView() {
                   <strong>Optimization Tip:</strong> If any subject shows a <em>Deficit Warning</em>, consider hiring or qualifying additional faculty members in that subject, or adjusting daily period limits to avoid unfilled slots during timetable generation.
                 </p>
               </div>
+
+              {/* Overloaded & Near-Capacity Teachers Table (N2) */}
+              <div className="pt-4 border-t border-[#A89B8A]/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-[#252326]">Teacher Workload Distribution</h4>
+                    <p className="text-xs text-[#252326]/60">
+                      Instructors flagged for excessive weekly periods or nearing their maximum weekly allocation.
+                    </p>
+                  </div>
+                  <Badge tone={detailedCapacity.overloadedCount > 0 ? 'danger' : 'gold'}>
+                    {detailedCapacity.overloadedCount} Overloaded · {detailedCapacity.overloadedTeachers.length} Under Review
+                  </Badge>
+                </div>
+
+                {detailedCapacity.overloadedTeachers.length === 0 ? (
+                  <div className="p-3 bg-[#F3EEE6]/60 rounded border border-[#A89B8A]/30 text-xs text-[#252326]/70 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#B08D57]" />
+                    <span>All instructors are operating within balanced workload limits across current timetable allocations.</span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 font-semibold text-[#252326]/80 uppercase tracking-wider">
+                          <th className="p-3">Instructor</th>
+                          <th className="p-3">Subjects</th>
+                          <th className="p-3 text-right">Daily Limit</th>
+                          <th className="p-3 text-right">Weekly Max</th>
+                          <th className="p-3 text-right">Assigned This Week</th>
+                          <th className="p-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#A89B8A]/20">
+                        {detailedCapacity.overloadedTeachers.map((t, idx) => (
+                          <tr key={idx} className="hover:bg-[#F3EEE6]/40 transition-colors">
+                            <td className="p-3 font-bold text-[#252326]">{t.facultyName}</td>
+                            <td className="p-3 text-[#252326]/80">{t.subjects.join(', ')}</td>
+                            <td className="p-3 text-right font-medium text-[#252326]">{t.dailyLimit} / day</td>
+                            <td className="p-3 text-right font-medium text-[#252326]">{t.weeklyLimit} periods</td>
+                            <td className="p-3 text-right font-bold text-[#6B2638]">{t.assignedPeriods} periods</td>
+                            <td className="p-3 text-center">
+                              {t.status === 'overloaded' ? (
+                                <Badge tone="danger">Overloaded</Badge>
+                              ) : (
+                                <Badge tone="gold">Near Capacity</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         </div>
@@ -652,17 +710,17 @@ export default function SettingsView() {
               <div className="p-4 bg-[#F3EEE6]/60 border border-[#A89B8A]/30 rounded-lg space-y-3">
                 <div className="flex items-center gap-2">
                   <Download className="w-4 h-4 text-[#6B2638]" />
-                  <h4 className="text-sm font-bold text-[#252326]">Export Full Backup</h4>
+                  <h4 className="text-sm font-bold text-[#252326]">Export all data</h4>
                 </div>
                 <p className="text-xs text-[#252326]/70 leading-relaxed">
-                  Downloads a self-contained JSON archive containing all instructors, batches, generated timetables, and system configuration.
+                  Downloads a single versioned JSON archive containing faculty, batches, settings, and full week timetables.
                 </p>
                 <Button
                   variant="primary"
                   icon={<Download className="w-4 h-4" />}
                   onClick={handleExportBackup}
                 >
-                  Download Backup JSON
+                  Export all data (JSON)
                 </Button>
               </div>
 
@@ -670,10 +728,10 @@ export default function SettingsView() {
               <div className="p-4 bg-[#F3EEE6]/60 border border-[#A89B8A]/30 rounded-lg space-y-3">
                 <div className="flex items-center gap-2">
                   <Upload className="w-4 h-4 text-[#B08D57]" />
-                  <h4 className="text-sm font-bold text-[#252326]">Restore from Backup</h4>
+                  <h4 className="text-sm font-bold text-[#252326]">Import backup</h4>
                 </div>
                 <p className="text-xs text-[#252326]/70 leading-relaxed">
-                  Upload a previously exported JSON backup. You will be able to review the snapshot before applying changes.
+                  Upload a previously exported backup file with schema validation, preview, and confirmation.
                 </p>
                 <input
                   type="file"
@@ -687,7 +745,7 @@ export default function SettingsView() {
                   icon={<Upload className="w-4 h-4" />}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  Select Backup File
+                  Import backup
                 </Button>
               </div>
             </div>

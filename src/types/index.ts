@@ -27,6 +27,7 @@ export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday',
 export const ALL_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 export type Weekday = typeof WEEKDAYS[number];
 export type DayOfWeek = typeof ALL_DAYS[number];
+export type WeekTimetables = Partial<Record<DayOfWeek, Timetable>>;
 
 export interface Batch {
   id: string;
@@ -197,6 +198,57 @@ export interface SubjectCapacityReport {
   facultyCount: number;
   qualifiedFacultyNames: string[];
   status: 'surplus' | 'balanced' | 'deficit';
+}
+
+export interface TeacherLoadReport {
+  facultyId: string;
+  facultyName: string;
+  subjects: string[];
+  dailyLimit: number;
+  weeklyLimit: number;
+  assignedPeriods: number;
+  isOverloaded: boolean;
+  isNearLimit: boolean;
+  status: 'overloaded' | 'near_limit' | 'normal';
+}
+
+export interface DetailedCapacityAnalysis {
+  subjects: SubjectCapacityReport[];
+  overloadedTeachers: TeacherLoadReport[];
+  allTeacherLoads: TeacherLoadReport[];
+  shortageCount: number;
+  overloadedCount: number;
+  hasCapacityIssues: boolean;
+}
+
+export interface TimetableViolation {
+  id: string;
+  type: 'overlap' | 'over_limit' | 'absent' | 'room_clash' | 'unfilled';
+  severity: 'error' | 'warning';
+  batchId: string;
+  batchName: string;
+  periodIndex: number;
+  periodTime?: string;
+  facultyId?: string;
+  facultyName?: string;
+  roomNumber?: string;
+  description: string;
+}
+
+export interface DayValidationReport {
+  day: DayOfWeek;
+  totalSlots: number;
+  filledSlots: number;
+  violations: TimetableViolation[];
+  summary: {
+    overlaps: number;
+    overLimit: number;
+    absent: number;
+    roomClashes: number;
+    unfilled: number;
+    totalIssues: number;
+  };
+  isValid: boolean;
 }
 
 export interface ConflictCheckResult {

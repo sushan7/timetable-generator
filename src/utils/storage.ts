@@ -820,7 +820,7 @@ export const storage = {
     }
   },
 
-  // --- BACKUP & RESTORATION (Phase 5A) ---
+  // --- BACKUP & RESTORATION (Phase 5A / N1) ---
   createFullBackup: (): BackupData => {
     return {
       version: SCHEMA_VERSION,
@@ -834,27 +834,95 @@ export const storage = {
     };
   },
 
+  // Alias for explicit N1 naming
+  exportAllData: (): BackupData => {
+    return storage.createFullBackup();
+  },
+
   validateBackup: (data: unknown): { valid: boolean; errors: string[]; data?: BackupData } => {
     const errors: string[] = [];
     if (!data || typeof data !== 'object') {
       return { valid: false, errors: ['Backup content is not a valid JSON object.'] };
     }
     const b = data as Partial<BackupData>;
-    if (!b.version || typeof b.version !== 'number') {
-      errors.push('Missing or invalid schema version.');
+    if (typeof b.version !== 'number' || b.version < 1) {
+      errors.push('Missing or invalid schema version (must be a positive integer).');
     }
     if (!Array.isArray(b.faculty)) {
       errors.push('Backup missing faculty list.');
+    } else {
+      let facultyErrors = 0;
+      b.faculty.forEach((f, idx) => {
+        if (!f || typeof f !== 'object') {
+          if (facultyErrors < 3) errors.push(`Faculty item at index ${idx} is not an object.`);
+          facultyErrors++;
+          return;
+        }
+        if (typeof f.id !== 'string' || !f.id.trim()) {
+          if (facultyErrors < 3) errors.push(`Faculty item at index ${idx} has missing or empty id.`);
+          facultyErrors++;
+        }
+        if (typeof f.name !== 'string' || !f.name.trim()) {
+          if (facultyErrors < 3) errors.push(`Faculty item at index ${idx} has missing or empty name.`);
+          facultyErrors++;
+        }
+        if (!Array.isArray(f.subjects)) {
+          if (facultyErrors < 3) errors.push(`Faculty item "${f.name || idx}" is missing subjects array.`);
+          facultyErrors++;
+        }
+      });
+      if (facultyErrors > 3) {
+        errors.push(`...and ${facultyErrors - 3} more faculty validation issues.`);
+      }
     }
+
     if (!Array.isArray(b.batches)) {
       errors.push('Backup missing batches list.');
+    } else {
+      let batchErrors = 0;
+      b.batches.forEach((bt, idx) => {
+        if (!bt || typeof bt !== 'object') {
+          if (batchErrors < 3) errors.push(`Batch item at index ${idx} is not an object.`);
+          batchErrors++;
+          return;
+        }
+        if (typeof bt.id !== 'string' || !bt.id.trim()) {
+          if (batchErrors < 3) errors.push(`Batch item at index ${idx} has missing or empty id.`);
+          batchErrors++;
+        }
+        if (typeof bt.name !== 'string' || !bt.name.trim()) {
+          if (batchErrors < 3) errors.push(`Batch item at index ${idx} has missing or empty name.`);
+          batchErrors++;
+        }
+        if (!Array.isArray(bt.periods)) {
+          if (batchErrors < 3) errors.push(`Batch item "${bt.name || idx}" is missing periods array.`);
+          batchErrors++;
+        }
+      });
+      if (batchErrors > 3) {
+        errors.push(`...and ${batchErrors - 3} more batch validation issues.`);
+      }
     }
+
     if (!b.settings || typeof b.settings !== 'object') {
       errors.push('Backup missing scheduler settings.');
+    } else {
+      const s = b.settings as Partial<SchedulerSettings>;
+      if (s.maxDailyPeriods !== undefined && (typeof s.maxDailyPeriods !== 'number' || s.maxDailyPeriods < 1)) {
+        errors.push('Settings maxDailyPeriods must be a positive integer.');
+      }
     }
+
     if (!b.weekTimetables || typeof b.weekTimetables !== 'object') {
       errors.push('Backup missing week timetables.');
+    } else {
+      Object.entries(b.weekTimetables).forEach(([day, tt]) => {
+        if (tt && typeof tt === 'object' && !Array.isArray(tt.allocations)) {
+          errors.push(`Timetable for ${day} is missing allocations array.`);
+        }
+      });
     }
+
     return {
       valid: errors.length === 0,
       errors,
@@ -942,6 +1010,14 @@ export const storage = {
         stats: { faculty: 0, batches: 0, timetables: 0 },
       };
     }
+  },
+
+  // Alias for explicit N1 naming
+  importBackup: (
+    data: BackupData,
+    mode: 'replace' | 'merge' = 'replace'
+  ): { success: boolean; error?: string; stats: { faculty: number; batches: number; timetables: number } } => {
+    return storage.restoreFromBackup(data, mode);
   },
 
   // Reset to factory seed state

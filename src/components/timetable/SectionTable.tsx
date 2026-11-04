@@ -122,7 +122,11 @@ export default function SectionTable({
                 if (!period || !period.startTime) return null;
 
                 return (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-1.5 p-1 rounded bg-[#FAF7F2]/40 border border-[#E5E0D8]/60">
+                  <div
+                    key={i}
+                    id={`cell-mobile-${batch.id}-${i}`}
+                    className="flex flex-col sm:flex-row sm:items-center gap-1.5 p-1 rounded bg-[#FAF7F2]/40 border border-[#E5E0D8]/60 transition-all"
+                  >
                     <div className="sm:w-28 shrink-0 flex items-center justify-between sm:flex-col sm:items-start px-1.5 py-0.5">
                       <span className="text-[11px] font-bold text-[#6B2638]">Period {i + 1}</span>
                       <span className="text-[10px] font-medium text-[#5E5B61]">
@@ -218,6 +222,7 @@ export default function SectionTable({
                   return (
                     <td
                       key={i}
+                      id={`cell-${batch.id}-${i}`}
                       className="p-2 border-l border-[#E5E0D8] align-top bg-white group-hover:bg-[#FAF7F2]/60 transition-colors"
                     >
                       <AllocationCell

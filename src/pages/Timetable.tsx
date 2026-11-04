@@ -12,15 +12,15 @@ import {
   Download,
   Undo2,
   Redo2,
-  ShieldCheck,
   User,
   Building,
-  CheckCircle2,
   Sparkles,
   ArrowRight,
   ChevronDown,
   ChevronUp,
   Printer,
+  FileCheck,
+  BarChart2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type {
@@ -36,10 +36,12 @@ import type {
 import {
   generateTimetableV2,
   patchAbsences,
+  calculateDetailedCapacityAnalysis,
 } from '../utils/scheduler';
 import { storage } from '../utils/storage';
 import { SECTIONS, groupBatchesBySection } from '../utils/sections';
-import { checkFacultyConflict, isFacultyAbsent } from '../utils/validation';
+import { isFacultyAbsent } from '../utils/validation';
+import { generateDayValidationReport } from '../utils/validationReport';
 import {
   exportTimetableToExcel,
   exportTimetableToPng,
@@ -50,6 +52,10 @@ import SlotEditModal, {
   type SlotEditState,
   type SlotEditSavePayload,
 } from '../components/timetable/SlotEditModal';
+import { ValidationReportModal } from '../components/timetable/ValidationReportModal';
+import { CapacityPreCheckModal } from '../components/timetable/CapacityPreCheckModal';
+import { TeacherScheduleView } from '../components/timetable/TeacherScheduleView';
+import { RoomScheduleView } from '../components/timetable/RoomScheduleView';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -122,13 +128,15 @@ export default function Timetable() {
   // Modals
   const [editingSlot, setEditingSlot] = useState<SlotEditState | null>(null);
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
+  const [isCapacityModalOpen, setIsCapacityModalOpen] = useState(false);
   const [isUnfilledModalOpen, setIsUnfilledModalOpen] = useState(false);
   const [isUnfilledPanelExpanded, setIsUnfilledPanelExpanded] = useState(true);
   const [isReopenConfirmOpen, setIsReopenConfirmOpen] = useState(false);
 
-  // Selected faculty or room for dedicated view modes
-  const [selectedFacultyId, setSelectedFacultyId] = useState<string>('');
-  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string>('');
+  // Settings & Week timetables cache
+  const settings = useMemo(() => storage.getSettings(), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const weekTimetables = useMemo(() => storage.getWeekTimetables(), [allocations, currentDay]);
 
   const pageRef = useRef<HTMLDivElement>(null);
   const exportViewRef = useRef<HTMLDivElement>(null);
@@ -406,71 +414,35 @@ export default function Timetable() {
     setEditingSlot(null);
   };
 
-  // Full day validation audit (Phase 5C)
-  const validationReport = useMemo(() => {
-    const issues: {
-      type: 'CONFLICT' | 'WARNING';
-      batchName: string;
-      period: number;
-      message: string;
-      batchId: string;
-    }[] = [];
+  // Full day validation audit report (N3)
+  const dayValidationReport = useMemo(() => {
+    return generateDayValidationReport(currentDay, allocations, batches, faculties, settings, currentDay);
+  }, [currentDay, allocations, batches, faculties, settings]);
 
-    const settings = storage.getSettings();
+  // Curriculum capacity pre-check analysis (N2)
+  const capacityAnalysis = useMemo(() => {
+    const weekContext = storage.getWeekAllocationsExcluding(currentDay);
+    return calculateDetailedCapacityAnalysis(batches, faculties, settings, weekContext);
+  }, [batches, faculties, settings, currentDay]);
 
-    // 1. Time overlaps & daily load
-    allocations.forEach(a => {
-      if (!a.facultyId) return;
-      const fac = faculties.find(f => f.id === a.facultyId);
-      const batch = batches.find(b => b.id === a.batchId);
-      if (!fac || !batch) return;
-
-      const conflict = checkFacultyConflict(
-        fac,
-        a.batchId,
-        a.periodIndex,
-        batches,
-        allocations.filter(x => x !== a),
-        settings,
-        { dateKey: currentDay, dayOfWeek: currentDay }
-      );
-
-      if (conflict.hasConflict) {
-        issues.push({
-          type: 'CONFLICT',
-          batchName: batch.name,
-          period: a.periodIndex + 1,
-          message: `${fac.name}: ${conflict.message}`,
-          batchId: batch.id,
-        });
+  // Jump to cell handler (N3)
+  const handleJumpToCell = useCallback((batchId: string, periodIndex: number) => {
+    if (viewMode !== 'batches') {
+      setViewMode('batches');
+    }
+    setTimeout(() => {
+      const desktopCell = document.getElementById(`cell-${batchId}-${periodIndex}`);
+      const mobileCell = document.getElementById(`cell-mobile-${batchId}-${periodIndex}`);
+      const target = desktopCell || mobileCell;
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('ring-4', 'ring-[#6B2638]', 'scale-105', 'transition-all');
+        setTimeout(() => {
+          target.classList.remove('ring-4', 'ring-[#6B2638]', 'scale-105', 'transition-all');
+        }, 2200);
       }
-    });
-
-    // 2. Period 1 languages
-    warnings.forEach(w => {
-      const b = batches.find(batch => batch.id === w.batchId);
-      issues.push({
-        type: 'WARNING',
-        batchName: b?.name || 'Unknown',
-        period: (w.periodIndex || 0) + 1,
-        message: w.message,
-        batchId: w.batchId || '',
-      });
-    });
-
-    // 3. Unfilled slots
-    unfilledSlots.forEach(u => {
-      issues.push({
-        type: 'WARNING',
-        batchName: u.batchName,
-        period: u.periodIndex + 1,
-        message: `Unfilled slot for "${u.requiredSubject}": ${u.reason}`,
-        batchId: u.batchId,
-      });
-    });
-
-    return issues;
-  }, [allocations, faculties, batches, warnings, unfilledSlots, currentDay]);
+    }, 150);
+  }, [viewMode]);
 
   const getFacultyName = useCallback(
     (id: string): string => {
@@ -570,11 +542,18 @@ export default function Timetable() {
   const menuItems: DropdownItem[] = useMemo(
     () => [
       {
-        id: 'audit',
-        label: `Audit ${currentDay} (${validationReport.length} issues)`,
-        description: 'Check teacher clashes, daily caps, and room overlaps',
-        icon: <ShieldCheck className="w-4 h-4 text-[#6B2638]" />,
+        id: 'validation-report',
+        label: `Check timetable (${dayValidationReport.summary.totalIssues} issues)`,
+        description: 'Verify teacher overlaps, daily limits, absences, and room clashes',
+        icon: <FileCheck className="w-4 h-4 text-[#6B2638]" />,
         onClick: () => setIsValidationModalOpen(true),
+      },
+      {
+        id: 'capacity-precheck',
+        label: `Capacity Pre-Check (${capacityAnalysis.shortageCount} shortages)`,
+        description: 'Evaluate curriculum demand vs faculty limits and overloaded teachers',
+        icon: <BarChart2 className="w-4 h-4 text-[#B08D57]" />,
+        onClick: () => setIsCapacityModalOpen(true),
       },
       {
         id: 'status',
@@ -594,7 +573,7 @@ export default function Timetable() {
       ...exportItems,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentDay, validationReport.length, currentStatus, exportItems]
+    [currentDay, dayValidationReport.summary.totalIssues, capacityAnalysis.shortageCount, currentStatus, exportItems]
   );
 
   const filteredBatches = useMemo(() => {
@@ -697,6 +676,21 @@ export default function Timetable() {
                 Patch Absences ({gapCount > 0 ? `${gapCount} Gaps` : `${absentFacultyCount} Absent`})
               </Button>
             )}
+
+            {/* Secondary Action: Check timetable (N3) */}
+            <Button
+              variant="secondary"
+              icon={<FileCheck className="w-4 h-4" />}
+              onClick={() => setIsValidationModalOpen(true)}
+              title="Inspect conflicts, overlaps, daily limit violations, absent teachers, room clashes, and unfilled slots"
+            >
+              Check timetable
+              {dayValidationReport.summary.totalIssues > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-[#FAF0F2] text-[#6B2638] rounded-full text-[10px] font-bold border border-[#ECD9DE]">
+                  {dayValidationReport.summary.totalIssues}
+                </span>
+              )}
+            </Button>
 
             {/* Primary Action: Generate */}
             <Button
@@ -1180,185 +1174,24 @@ export default function Timetable() {
         </div>
       )}
 
-      {/* View Mode: FACULTY SCHEDULE (Phase 5D) */}
+      {/* View Mode: FACULTY SCHEDULE (N4) */}
       {viewMode === 'faculty' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 p-4 bg-[#F3EEE6]/50 rounded-lg border border-[#A89B8A]/30">
-            <User className="w-5 h-5 text-[#6B2638]" />
-            <div className="flex-1">
-              <label htmlFor="select-faculty-matrix" className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
-                Select Instructor to Inspect Weekly Matrix
-              </label>
-              <select
-                id="select-faculty-matrix"
-                value={selectedFacultyId || faculties[0]?.id || ''}
-                onChange={e => setSelectedFacultyId(e.target.value)}
-                className="mt-1 w-full max-w-md px-3 py-2 text-xs border border-[#A89B8A]/40 rounded bg-white text-[#252326] outline-none focus:border-[#6B2638]"
-              >
-                {faculties.map(f => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} ({f.subjects.join(', ')}) {f.isAbsent ? '- ABSENT' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Teacher Weekly Matrix */}
-          {(() => {
-            const currentFacId = selectedFacultyId || faculties[0]?.id;
-            const targetFaculty = faculties.find(f => f.id === currentFacId);
-            if (!targetFaculty) return null;
-
-            const week = storage.getWeekTimetables();
-            const days: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-            return (
-              <div className="bg-white rounded-lg border border-[#A89B8A]/30 overflow-hidden shadow-xs">
-                <div className="p-4 bg-[#F3EEE6] border-b border-[#A89B8A]/30 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-[#252326]">{targetFaculty.name}</h3>
-                    <p className="text-xs text-[#252326]/60">
-                      Subjects: {targetFaculty.subjects.join(', ')} · Daily Limit: {targetFaculty.maxPeriodsPerDay || 3} periods
-                    </p>
-                  </div>
-                  {targetFaculty.isAbsent && <Badge tone="danger">Currently Absent</Badge>}
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-[#F8F7F3] border-b border-[#A89B8A]/30 text-[#252326]/70 uppercase font-semibold">
-                        <th className="p-3 w-28">Day</th>
-                        {[1, 2, 3, 4, 5, 6].map(p => (
-                          <th key={p} className="p-3 text-center">
-                            Period {p}
-                          </th>
-                        ))}
-                        <th className="p-3 text-right">Day Load</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#A89B8A]/20">
-                      {days.map(day => {
-                        const dayTimetable = day === currentDay ? { allocations } : week[day];
-                        const dayAllocs = dayTimetable?.allocations || [];
-                        const teacherAllocs = dayAllocs.filter(a => a.facultyId === targetFaculty.id);
-
-                        return (
-                          <tr key={day} className={day === currentDay ? 'bg-[#F3EEE6]/30' : ''}>
-                            <td className="p-3 font-bold text-[#252326]">
-                              {day} {day === currentDay && <span className="text-[10px] text-[#6B2638] font-semibold">(Active)</span>}
-                            </td>
-                            {[0, 1, 2, 3, 4, 5].map(pIdx => {
-                              const alloc = teacherAllocs.find(a => a.periodIndex === pIdx);
-                              const batch = alloc ? batches.find(b => b.id === alloc.batchId) : null;
-
-                              return (
-                                <td key={pIdx} className="p-2.5 text-center">
-                                  {alloc && batch ? (
-                                    <div className="p-2 rounded bg-white border border-[#6B2638]/30 shadow-2xs">
-                                      <div className="font-bold text-[#6B2638]">{alloc.subject}</div>
-                                      <div className="text-[11px] text-[#252326]/80">{batch.name}</div>
-                                      <div className="text-[10px] text-[#252326]/60">Rm {batch.roomNumber}</div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[#252326]/30 italic text-[11px]">Free</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td className="p-3 text-right font-bold text-[#252326]">
-                              {teacherAllocs.length} periods
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
+        <TeacherScheduleView
+          faculties={faculties}
+          batches={batches}
+          weekTimetables={weekTimetables}
+          settings={settings}
+        />
       )}
 
-      {/* View Mode: ROOM OCCUPANCY (Phase 5E) */}
+      {/* View Mode: ROOM OCCUPANCY (N4) */}
       {viewMode === 'rooms' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 p-4 bg-[#F3EEE6]/50 rounded-lg border border-[#A89B8A]/30">
-            <Building className="w-5 h-5 text-[#6B2638]" />
-            <div className="flex-1">
-              <label htmlFor="filter-room-number" className="text-xs font-bold text-[#252326] uppercase tracking-wider block">
-                Filter by Room Number
-              </label>
-              <input
-                id="filter-room-number"
-                type="text"
-                placeholder="Search room (e.g. 204(A), 101, or leave empty for all rooms)"
-                value={selectedRoomNumber}
-                onChange={e => setSelectedRoomNumber(e.target.value)}
-                className="mt-1 w-full max-w-md px-3 py-2 text-xs border border-[#A89B8A]/40 rounded bg-white text-[#252326] outline-none focus:border-[#6B2638]"
-              />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-[#A89B8A]/30 overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 uppercase text-[#252326]/80 font-semibold">
-                    <th className="p-3 w-32">Room No.</th>
-                    <th className="p-3">Assigned Batch</th>
-                    <th className="p-3">Building</th>
-                    {[1, 2, 3, 4, 5, 6].map(p => (
-                      <th key={p} className="p-3 text-center">
-                        Period {p}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#A89B8A]/20">
-                  {batches
-                    .filter(b => !selectedRoomNumber || b.roomNumber.toLowerCase().includes(selectedRoomNumber.toLowerCase()))
-                    .map(batch => {
-                      return (
-                        <tr key={batch.id} className="hover:bg-[#F3EEE6]/40 transition-colors">
-                          <td className="p-3 font-bold text-[#252326]">
-                            <span className="px-2 py-0.5 bg-[#F3EEE6] rounded border border-[#A89B8A]/30">
-                              Room {batch.roomNumber || '-'}
-                            </span>
-                          </td>
-                          <td className="p-3 font-semibold text-[#252326]">{batch.name}</td>
-                          <td className="p-3 text-[#252326]/70">{batch.building}</td>
-                          {[0, 1, 2, 3, 4, 5].map(pIdx => {
-                            const alloc = allocations.find(
-                              a => a.batchId === batch.id && a.periodIndex === pIdx
-                            );
-                            const facName = alloc?.facultyId ? getFacultyName(alloc.facultyId) : null;
-
-                            return (
-                              <td key={pIdx} className="p-2 text-center">
-                                {alloc && alloc.facultyId ? (
-                                  <div className="p-1.5 rounded bg-white border border-[#A89B8A]/30 text-[11px]">
-                                    <div className="font-semibold text-[#6B2638]">{alloc.subject}</div>
-                                    <div className="text-[10px] text-[#252326]/70 truncate max-w-[100px] mx-auto">
-                                      {facName}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-[#252326]/30 text-[11px]">Vacant</span>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <RoomScheduleView
+          batches={batches}
+          faculties={faculties}
+          weekTimetables={weekTimetables}
+          settings={settings}
+        />
       )}
 
       {/* Manual Slot Override Dialog (Extracted into SlotEditModal - L5) */}
@@ -1376,76 +1209,22 @@ export default function Timetable() {
         />
       )}
 
-      {/* Full Day Validation Audit Report Modal (Phase 5C) */}
-      <Modal
+      {/* Validation Report Modal (N3) */}
+      <ValidationReportModal
         isOpen={isValidationModalOpen}
         onClose={() => setIsValidationModalOpen(false)}
-        title={`Timetable Audit Report · ${currentDay}`}
-        subtitle="Comprehensive verification of room conflicts, teacher workloads, and curriculum quotas"
-        footer={
-          <Button variant="secondary" onClick={() => setIsValidationModalOpen(false)}>
-            Close Report
-          </Button>
-        }
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-3 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center">
-              <span className="text-[10px] uppercase font-bold text-[#252326]/60">Total Slots</span>
-              <div className="text-lg font-bold text-[#252326]">
-                {batches.reduce((acc, b) => acc + b.periods.filter(p => p.startTime).length, 0)}
-              </div>
-            </div>
-            <div className="p-3 bg-[#FAF0F2] rounded border border-[#ECD9DE] text-center">
-              <span className="text-[10px] uppercase font-bold text-[#6B2638]">Violations</span>
-              <div className="text-lg font-bold text-[#6B2638]">
-                {validationReport.filter(r => r.type === 'CONFLICT').length}
-              </div>
-            </div>
-            <div className="p-3 bg-[#FAF6EE] rounded border border-[#B08D57]/40 text-center">
-              <span className="text-[10px] uppercase font-bold text-[#B08D57]">Soft Warnings</span>
-              <div className="text-lg font-bold text-[#B08D57]">
-                {validationReport.filter(r => r.type === 'WARNING').length}
-              </div>
-            </div>
-          </div>
+        report={dayValidationReport}
+        onJumpToCell={handleJumpToCell}
+      />
 
-          {validationReport.length === 0 ? (
-            <div className="p-6 text-center space-y-2">
-              <CheckCircle2 className="w-10 h-10 text-[#476B52] mx-auto" />
-              <h4 className="text-sm font-bold text-[#252326]">Zero Conflicts Detected</h4>
-              <p className="text-xs text-[#252326]/60">
-                All teacher schedules, room allocations, and daily teaching limits are 100% compliant.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {validationReport.map((issue, idx) => (
-                <div
-                  key={idx}
-                  className={`p-3 rounded border text-xs flex items-start justify-between gap-3 ${
-                    issue.type === 'CONFLICT'
-                      ? 'bg-[#FAF0F2] border-[#ECD9DE] text-[#6B2638]'
-                      : 'bg-[#FAF6EE] border-[#B08D57]/30 text-[#252326]'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <div className="font-bold flex items-center gap-1.5">
-                      <Badge tone={issue.type === 'CONFLICT' ? 'danger' : 'gold'}>
-                        {issue.type}
-                      </Badge>
-                      <span>
-                        {issue.batchName} · Period {issue.period}
-                      </span>
-                    </div>
-                    <p className="text-[11px] leading-relaxed opacity-90">{issue.message}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Modal>
+      {/* Capacity Pre-Check Modal (N2) */}
+      <CapacityPreCheckModal
+        isOpen={isCapacityModalOpen}
+        onClose={() => setIsCapacityModalOpen(false)}
+        report={capacityAnalysis}
+        onProceedGenerate={handleGenerate}
+        dayName={currentDay}
+      />
 
       {/* Unfilled Slots Drawer / Modal (Phase 2 H4) */}
       <Modal

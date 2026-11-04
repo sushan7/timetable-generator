@@ -10,6 +10,8 @@ import type {
   GenerationStats,
   SubstituteCandidate,
   SubjectCapacityReport,
+  TeacherLoadReport,
+  DetailedCapacityAnalysis,
   SubjectCategory,
   DayOfWeek,
 } from '../types';
@@ -141,14 +143,16 @@ export const getEligibleFaculty = (
 };
 
 // -------------------------------------------------------------
-// TEACHING CAPACITY PRE-CHECK (Phase 5B)
+// TEACHING CAPACITY PRE-CHECK (N2 / Phase 5B)
+// Evaluates per-subject demand vs supply and flags overloaded teachers
 // -------------------------------------------------------------
-export const calculateCapacityReport = (
+export const calculateDetailedCapacityAnalysis = (
   batches: Batch[],
   faculties: Faculty[],
   settings: SchedulerSettings,
+  weekAllocations: Allocation[] = [],
   teachingDays = 6
-): SubjectCapacityReport[] => {
+): DetailedCapacityAnalysis => {
   const demandBySubject: Record<string, number> = {};
   const allSubjectsSet = new Set<string>();
 
@@ -160,22 +164,27 @@ export const calculateCapacityReport = (
     });
   });
 
-  const reports: SubjectCapacityReport[] = [];
+  const subjects: SubjectCapacityReport[] = [];
 
   allSubjectsSet.forEach(subj => {
     const qualified = faculties.filter(f => f.subjects.some(s => normalizeSubj(s) === subj));
-    const qualifiedNonAbsent = qualified.filter(f => !f.isAbsent);
+    const qualifiedNonAbsent = qualified.filter(f => {
+      const absentDaysCount = f.absentDays?.length || 0;
+      return !f.isAbsent && absentDaysCount < teachingDays;
+    });
 
     let availableCapacity = 0;
     qualifiedNonAbsent.forEach(f => {
       const dailyLimit = getDailyLimit(f, settings);
-      availableCapacity += dailyLimit * teachingDays;
+      const absentDaysCount = f.absentDays?.length || (f.isAbsent ? teachingDays : 0);
+      const availableDays = Math.max(0, teachingDays - absentDaysCount);
+      availableCapacity += dailyLimit * availableDays;
     });
 
     const required = demandBySubject[subj] || 0;
     const deficit = required - availableCapacity;
 
-    reports.push({
+    subjects.push({
       subject: subj,
       category: getSubjectCategory(subj, settings),
       requiredWeeklyPeriods: required,
@@ -187,7 +196,65 @@ export const calculateCapacityReport = (
     });
   });
 
-  return reports.sort((a, b) => b.deficit - a.deficit);
+  subjects.sort((a, b) => b.deficit - a.deficit);
+
+  // 2. Calculate Teacher Loads and Overloaded Teachers
+  const teacherLoadMap: Record<string, number> = {};
+  weekAllocations.forEach((a: Allocation) => {
+    if (a.facultyId) {
+      teacherLoadMap[a.facultyId] = (teacherLoadMap[a.facultyId] || 0) + 1;
+    }
+  });
+
+  const allTeacherLoads: TeacherLoadReport[] = faculties.map(f => {
+    const dailyLimit = getDailyLimit(f, settings);
+    const absentDaysCount = f.absentDays?.length || (f.isAbsent ? teachingDays : 0);
+    const availableDays = Math.max(0, teachingDays - absentDaysCount);
+    const weeklyLimit = dailyLimit * availableDays;
+    const assignedPeriods = teacherLoadMap[f.id] || 0;
+    const isOverloaded = weeklyLimit > 0 && assignedPeriods > weeklyLimit;
+    const isNearLimit = weeklyLimit > 0 && !isOverloaded && assignedPeriods >= Math.max(1, weeklyLimit - 2);
+
+    return {
+      facultyId: f.id,
+      facultyName: f.name,
+      subjects: f.subjects,
+      dailyLimit,
+      weeklyLimit,
+      assignedPeriods,
+      isOverloaded,
+      isNearLimit,
+      status: isOverloaded ? 'overloaded' : isNearLimit ? 'near_limit' : 'normal',
+    };
+  });
+
+  allTeacherLoads.sort((a, b) => {
+    if (a.isOverloaded !== b.isOverloaded) return a.isOverloaded ? -1 : 1;
+    if (a.isNearLimit !== b.isNearLimit) return a.isNearLimit ? -1 : 1;
+    return b.assignedPeriods - a.assignedPeriods;
+  });
+
+  const overloadedTeachers = allTeacherLoads.filter(t => t.isOverloaded || t.isNearLimit);
+  const shortageCount = subjects.filter(s => s.status === 'deficit').length;
+  const overloadedCount = allTeacherLoads.filter(t => t.isOverloaded).length;
+
+  return {
+    subjects,
+    overloadedTeachers,
+    allTeacherLoads,
+    shortageCount,
+    overloadedCount,
+    hasCapacityIssues: shortageCount > 0 || overloadedCount > 0,
+  };
+};
+
+export const calculateCapacityReport = (
+  batches: Batch[],
+  faculties: Faculty[],
+  settings: SchedulerSettings,
+  teachingDays = 6
+): SubjectCapacityReport[] => {
+  return calculateDetailedCapacityAnalysis(batches, faculties, settings, [], teachingDays).subjects;
 };
 
 // -------------------------------------------------------------
@@ -462,6 +529,14 @@ export const scoreAssignment = (ctx: AssignmentScoreContext): { score: number; r
     reasons.push('Assigned batch lock preference: +40');
   }
 
+  // N2: Weekly-load fairness term
+  const priorWeeklyLoad = (weekAllocations || []).filter(a => a.facultyId === faculty.id).length;
+  if (priorWeeklyLoad > 0) {
+    const weeklyPenalty = priorWeeklyLoad * 8;
+    score -= weeklyPenalty;
+    reasons.push(`Weekly load fairness penalty: -${weeklyPenalty} (${priorWeeklyLoad} prior periods)`);
+  }
+
   return { score, reasons };
 };
 
@@ -718,6 +793,14 @@ const generateCandidateRun = (
     }
   });
 
+  // Pre-index weekly allocations by faculty for N2 weekly-load fairness
+  const facultyWeeklyLoad: Record<string, number> = {};
+  for (const a of weekAllocations) {
+    if (a.facultyId) {
+      facultyWeeklyLoad[a.facultyId] = (facultyWeeklyLoad[a.facultyId] || 0) + 1;
+    }
+  }
+
   // Pre-index weekAllocations and existingDraft by batch for fast O(1) lookups
   const weekAllocationsByBatch = new Map<string, Allocation[]>();
   for (const a of weekAllocations) {
@@ -899,7 +982,17 @@ const generateCandidateRun = (
         let teacherScore = (dailyLimit - currentLoad) * 20;
         if (currentLoad === 0) teacherScore += 30;
 
+        // N2: Weekly-load fairness term
+        // Penalize teachers who already carry high accumulated weekly load,
+        // so eligible alternates are chosen to distribute teaching periods evenly.
+        const priorWeeklyPeriods = facultyWeeklyLoad[faculty.id] || 0;
+        const weeklyFairnessPenalty = priorWeeklyPeriods * 8;
+        teacherScore -= weeklyFairnessPenalty;
+
         const teacherReasons: string[] = [];
+        if (priorWeeklyPeriods > 0) {
+          teacherReasons.push(`Weekly load fairness: -${weeklyFairnessPenalty} (${priorWeeklyPeriods} prior periods)`);
+        }
         if (settings.enableGapOptimization) {
           const taughtBefore = todayBatchAllocations.some(
             a => a.facultyId === faculty.id && a.periodIndex === periodIndex - 1
@@ -1847,6 +1940,19 @@ export const getRankedSubstitutes = (
       if (currentLoad === 0) {
         score += 30;
         reasons.push('Zero teaching periods today');
+      }
+
+      // N2: Weekly load fairness in substitutes
+      try {
+        const weekAllocs = storage.getWeekAllocationsExcluding(effectiveDay);
+        const priorWeeklyPeriods = weekAllocs.filter(a => a.facultyId === faculty.id).length;
+        if (priorWeeklyPeriods > 0) {
+          const fairnessPenalty = priorWeeklyPeriods * 8;
+          score -= fairnessPenalty;
+          reasons.push(`Weekly load fairness penalty: -${fairnessPenalty} (${priorWeeklyPeriods} prior periods)`);
+        }
+      } catch {
+        // ignore if storage not available in isolated test
       }
     }
 
