@@ -35,7 +35,7 @@ export default function DayTabs({
     <div
       role="tablist"
       aria-label="Academic Weekdays"
-      className="flex flex-wrap gap-1 bg-[#FAF7F2] p-1 rounded-md border border-[#E5E0D8] select-none"
+      className="flex flex-wrap gap-1 bg-surface-muted p-1 rounded-md border border-border select-none"
     >
       {orderedDays.map((day, idx) => {
         const active = currentDay === day;
@@ -51,17 +51,17 @@ export default function DayTabs({
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(day)}
             onKeyDown={e => handleKeyDown(e, idx)}
-            className={`flex-1 min-w-[90px] px-3 py-1.5 rounded text-sm font-medium transition-colors duration-150 flex items-center justify-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-[#6B2638] ${
+            className={`flex-1 min-w-[90px] px-3 py-1.5 rounded text-sm font-medium transition-colors duration-150 flex items-center justify-center gap-2 outline-none focus-visible:ring-2 focus-visible:ring-accent relative ${
               active
-                ? 'bg-[#6B2638] text-white shadow-2xs font-semibold'
-                : 'text-[#5E5B61] hover:bg-white hover:text-[#252326]'
+                ? 'bg-primary text-canvas shadow-2xs font-semibold after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:bg-accent after:rounded-full'
+                : 'text-ink-muted hover:bg-surface hover:text-ink'
             }`}
           >
             <span>{day}</span>
             {exists && (
               <span
                 className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
-                  active ? 'bg-[#B08D57]' : 'bg-[#6B2638]'
+                  active ? 'bg-accent' : 'bg-primary'
                 }`}
                 title="Schedule exists"
               />

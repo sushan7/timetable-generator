@@ -15,17 +15,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
   primary:
-    'bg-[#6B2638] text-white hover:bg-[#581E2D] active:bg-[#461724] border border-[#581E2D]/50 shadow-xs focus-visible:ring-2 focus-visible:ring-[#6B2638] focus-visible:ring-offset-1',
+    'bg-primary text-canvas hover:bg-primary-hover active:bg-primary-hover/90 border border-primary-hover/50 shadow-xs focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
   gold:
-    'bg-[#B08D57] text-white hover:bg-[#9A7947] active:bg-[#846638] border border-[#9A7947]/50 shadow-xs focus-visible:ring-2 focus-visible:ring-[#B08D57] focus-visible:ring-offset-1',
+    'bg-accent text-ink hover:bg-accent-hover active:bg-accent-hover/90 border border-accent-hover/50 shadow-xs focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 font-semibold',
   secondary:
-    'bg-white text-[#252326] border border-[#E5E0D8] hover:bg-[#FAF7F2] hover:border-[#D5CFC5] active:bg-[#F3EEE6] shadow-2xs',
+    'bg-surface text-ink border border-border hover:bg-surface-muted hover:border-taupe/40 active:bg-canvas shadow-2xs focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
   outline:
-    'bg-transparent text-[#252326] border border-[#E5E0D8] hover:bg-[#FAF7F2] hover:border-[#D5CFC5] active:bg-[#F3EEE6]',
+    'bg-transparent text-ink border border-border hover:bg-surface-muted hover:border-taupe/40 active:bg-canvas focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
   danger:
-    'bg-[#FDF2F2] text-[#A63232] border border-[#F6CECE] hover:bg-[#FAE5E5] active:bg-[#F5D8D8]',
+    'bg-burgundy-soft text-burgundy border border-burgundy/20 hover:bg-burgundy-soft/80 active:bg-burgundy-soft/60 focus-visible:ring-2 focus-visible:ring-burgundy focus-visible:ring-offset-1',
   ghost:
-    'bg-transparent text-[#5E5B61] hover:text-[#252326] hover:bg-[#FAF7F2] active:bg-[#F3EEE6]',
+    'bg-transparent text-ink-muted hover:text-ink hover:bg-surface-muted active:bg-canvas focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {

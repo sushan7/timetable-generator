@@ -443,7 +443,7 @@ export default function FacultyManager() {
             {absentCount > 0 && (
               <Button
                 variant="secondary"
-                icon={<CheckCheck className="w-4 h-4 text-[#6B2638]" />}
+                icon={<CheckCheck className="w-4 h-4 text-primary" />}
                 onClick={() => setShowMarkAllPresentConfirm(true)}
                 title="Clear all absence marks"
               >
@@ -480,14 +480,14 @@ export default function FacultyManager() {
 
       {/* Duplicate Faculty Alert Banner (M8) */}
       {duplicateGroups.length > 0 && (
-        <div className="p-4 bg-[#F8F3EA] border border-[#E7D7BD] rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="p-4 bg-accent-soft border border-accent/40 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-start gap-2.5">
-            <GitMerge className="w-4 h-4 text-[#B08D57] shrink-0 mt-0.5" />
+            <GitMerge className="w-4 h-4 text-accent shrink-0 mt-0.5" />
             <div>
-              <strong className="font-bold text-[#7A5B28]">
+              <strong className="font-bold text-ink">
                 Possible duplicates ({duplicateGroups.length})
               </strong>
-              <p className="text-[#7A5B28]/90 mt-0.5 leading-relaxed">
+              <p className="text-ink-muted mt-0.5 leading-relaxed">
                 Found identical names split across subjects (e.g.{' '}
                 {duplicateGroups.slice(0, 3).map(([name]) => name.toUpperCase()).join(', ')}).
                 Review and merge to combine their qualified subjects into single master profiles.
@@ -507,11 +507,11 @@ export default function FacultyManager() {
       )}
 
       {/* M3: Per-Day Attendance Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-white rounded-lg border border-[#E5E0D8] shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-surface rounded-lg border border-border shadow-2xs">
         <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-[#6B2638]" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#5E5B61]">Attendance Day:</span>
-          <span className="text-xs font-bold text-[#6B2638] bg-[#F5EBEE] px-2 py-0.5 rounded border border-[#E6D1D6]">{selectedDay}</span>
+          <Calendar className="w-4 h-4 text-accent" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Attendance Day:</span>
+          <span className="text-xs font-bold text-ink bg-surface-muted px-2 py-0.5 rounded border border-border">{selectedDay}</span>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-0.5">
           {WEEKDAYS.map(day => {
@@ -524,15 +524,15 @@ export default function FacultyManager() {
                 onClick={() => setSelectedDay(day)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 shrink-0 ${
                   isSelected
-                    ? 'bg-[#6B2638] text-white shadow-xs font-semibold'
-                    : 'bg-[#FAF7F2] text-[#5E5B61] hover:bg-[#F3EBEF] hover:text-[#6B2638] border border-[#E5E0D8]'
+                    ? 'bg-primary text-canvas shadow-xs font-semibold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border hover:text-ink border border-border'
                 }`}
               >
                 <span>{day}</span>
                 {dayAbsentCount > 0 && (
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-[#FDF2F2] text-[#A63232] border border-[#F6CECE]'
+                      isSelected ? 'bg-canvas/20 text-canvas' : 'bg-burgundy-soft text-burgundy border border-burgundy/20'
                     }`}
                     title={`${dayAbsentCount} absent on ${day}`}
                   >
@@ -547,42 +547,42 @@ export default function FacultyManager() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card padding={false} className="p-4 border-[#E5E0D8]">
-          <div className="text-xs font-medium text-[#5E5B61]">Total Directory</div>
-          <div className="text-2xl font-bold text-[#252326] mt-1">{faculties.length}</div>
+        <Card padding={false} className="p-4 border-border">
+          <div className="text-xs font-medium text-ink-muted">Total Directory</div>
+          <div className="text-2xl font-bold text-ink mt-1">{faculties.length}</div>
         </Card>
         <Card
           padding={false}
-          className={`p-4 cursor-pointer transition-colors border-[#E5E0D8] ${
-            statusFilter === 'PRESENT' ? 'border-[#6B2638] bg-[#F5EBEE]/60' : ''
+          className={`p-4 cursor-pointer transition-colors border-border ${
+            statusFilter === 'PRESENT' ? 'border-accent bg-accent-soft/30' : ''
           }`}
           onClick={() => setStatusFilter(prev => (prev === 'PRESENT' ? 'ALL' : 'PRESENT'))}
         >
-          <div className="text-xs font-medium text-[#6B2638] flex items-center justify-between">
+          <div className="text-xs font-medium text-ink flex items-center justify-between">
             <span>Present ({selectedDay.slice(0, 3)})</span>
-            <UserCheck className="w-3.5 h-3.5 text-[#6B2638]" />
+            <UserCheck className="w-3.5 h-3.5 text-accent" />
           </div>
-          <div className="text-2xl font-bold text-[#252326] mt-1">{presentCount}</div>
+          <div className="text-2xl font-bold text-ink mt-1">{presentCount}</div>
         </Card>
         <Card
           padding={false}
-          className={`p-4 cursor-pointer transition-colors border-[#E5E0D8] ${
-            statusFilter === 'ABSENT' ? 'border-[#F6CECE] bg-[#FDF2F2]' : ''
+          className={`p-4 cursor-pointer transition-colors border-border ${
+            statusFilter === 'ABSENT' ? 'border-burgundy bg-burgundy-soft' : ''
           }`}
           onClick={() => setStatusFilter(prev => (prev === 'ABSENT' ? 'ALL' : 'ABSENT'))}
         >
-          <div className="text-xs font-medium text-[#A63232] flex items-center justify-between">
+          <div className="text-xs font-medium text-burgundy flex items-center justify-between">
             <span>Absent ({selectedDay.slice(0, 3)})</span>
-            <UserMinus className="w-3.5 h-3.5 text-[#A63232]" />
+            <UserMinus className="w-3.5 h-3.5 text-burgundy" />
           </div>
-          <div className="text-2xl font-bold text-[#A63232] mt-1">{absentCount}</div>
+          <div className="text-2xl font-bold text-burgundy mt-1">{absentCount}</div>
         </Card>
-        <Card padding={false} className="p-4 border-[#E5E0D8]">
-          <div className="text-xs font-medium text-[#B08D57] flex items-center justify-between">
+        <Card padding={false} className="p-4 border-border">
+          <div className="text-xs font-medium text-accent flex items-center justify-between">
             <span>Batch Restricted</span>
-            <Link2 className="w-3.5 h-3.5 text-[#B08D57]" />
+            <Link2 className="w-3.5 h-3.5 text-accent" />
           </div>
-          <div className="text-2xl font-bold text-[#252326] mt-1">{lockedCount}</div>
+          <div className="text-2xl font-bold text-ink mt-1">{lockedCount}</div>
         </Card>
       </div>
 
@@ -590,8 +590,8 @@ export default function FacultyManager() {
         <div
           className={`text-sm font-medium px-4 py-2.5 rounded border ${
             feedback.type === 'success'
-              ? 'bg-[#EEF5F0] text-[#235732] border-[#C6DEC9]'
-              : 'bg-[#FDF2F2] text-[#A63232] border-[#F6CECE]'
+              ? 'bg-accent-soft text-ink border-accent/40'
+              : 'bg-burgundy-soft text-burgundy border-burgundy/20'
           }`}
         >
           {feedback.text}
@@ -609,12 +609,12 @@ export default function FacultyManager() {
           />
 
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-md bg-[#FAF7F2] p-0.5 text-xs font-medium border border-[#E5E0D8]">
+            <div className="inline-flex rounded-md bg-surface-muted p-0.5 text-xs font-medium border border-border">
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
                 className={`px-3 py-1 rounded transition-colors ${
-                  statusFilter === 'ALL' ? 'bg-white shadow-2xs text-[#252326] font-semibold' : 'text-[#5E5B61] hover:text-[#252326]'
+                  statusFilter === 'ALL' ? 'bg-surface shadow-2xs text-ink font-semibold' : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 All
@@ -624,8 +624,8 @@ export default function FacultyManager() {
                 onClick={() => setStatusFilter('PRESENT')}
                 className={`px-3 py-1 rounded transition-colors ${
                   statusFilter === 'PRESENT'
-                    ? 'bg-white shadow-2xs text-[#6B2638] font-semibold'
-                    : 'text-[#5E5B61] hover:text-[#252326]'
+                    ? 'bg-surface shadow-2xs text-primary font-semibold'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 Present ({presentCount})
@@ -635,8 +635,8 @@ export default function FacultyManager() {
                 onClick={() => setStatusFilter('ABSENT')}
                 className={`px-3 py-1 rounded transition-colors ${
                   statusFilter === 'ABSENT'
-                    ? 'bg-white shadow-2xs text-[#A63232] font-semibold'
-                    : 'text-[#5E5B61] hover:text-[#252326]'
+                    ? 'bg-surface shadow-2xs text-burgundy font-semibold'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 Absent ({absentCount})
@@ -652,8 +652,8 @@ export default function FacultyManager() {
             onClick={() => setSelectedSubject('ALL')}
             className={`px-3 py-1.5 rounded font-medium transition-colors shrink-0 ${
               selectedSubject === 'ALL'
-                ? 'bg-[#6B2638] text-white shadow-2xs font-semibold'
-                : 'bg-white border border-[#E5E0D8] text-[#5E5B61] hover:bg-[#FAF7F2] hover:text-[#252326]'
+                ? 'bg-primary text-canvas shadow-2xs font-semibold'
+                : 'bg-surface border border-border text-ink-muted hover:bg-surface-muted hover:text-ink'
             }`}
           >
             All Subjects ({faculties.length})
@@ -668,8 +668,8 @@ export default function FacultyManager() {
                 onClick={() => setSelectedSubject(sub)}
                 className={`px-3 py-1.5 rounded font-medium transition-colors shrink-0 ${
                   active
-                    ? 'bg-[#6B2638] text-white shadow-2xs font-semibold'
-                    : 'bg-white border border-[#E5E0D8] text-[#5E5B61] hover:bg-[#FAF7F2] hover:text-[#252326]'
+                    ? 'bg-primary text-canvas shadow-2xs font-semibold'
+                    : 'bg-surface border border-border text-ink-muted hover:bg-surface-muted hover:text-ink'
                 }`}
               >
                 {sub} ({count})
@@ -680,11 +680,11 @@ export default function FacultyManager() {
       </div>
 
       {/* Faculty Table */}
-      <div className="bg-white rounded-lg border border-[#E5E0D8] shadow-2xs overflow-hidden">
+      <div className="bg-surface rounded-lg border border-border shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#FAF7F2] border-b border-[#E5E0D8] text-xs font-semibold text-[#5E5B61]">
+              <tr className="bg-surface-muted border-b border-border text-xs font-semibold text-ink-muted">
                 <th className="p-3.5 w-36">Status ({selectedDay.slice(0, 3)})</th>
                 <th className="p-3.5">Faculty Name</th>
                 <th className="p-3.5">Qualified Subjects</th>
@@ -693,12 +693,12 @@ export default function FacultyManager() {
                 <th className="p-3.5 w-32 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E0D8] text-sm">
+            <tbody className="divide-y divide-border text-sm">
               {filteredFaculties.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8">
                     <EmptyState
-                      icon={<Users className="w-8 h-8 text-[#5E5B61]" />}
+                      icon={<Users className="w-8 h-8 text-ink-muted" />}
                       title="No faculty members found"
                       description="No records match your active search filter criteria. Try clearing the filter or adding a new instructor."
                     />
@@ -711,8 +711,8 @@ export default function FacultyManager() {
                   return (
                     <tr
                       key={faculty.id}
-                      className={`hover:bg-[#FAF7F2]/40 transition-colors ${
-                        isAbsentToday ? 'bg-[#FDF2F2]/40' : ''
+                      className={`hover:bg-surface-muted/40 transition-colors ${
+                        isAbsentToday ? 'bg-burgundy-soft/40' : ''
                       }`}
                     >
                       <td className="p-3.5 whitespace-nowrap">
@@ -745,7 +745,7 @@ export default function FacultyManager() {
                                     e.stopPropagation();
                                     toggleAbsent(faculty.id, day);
                                   }}
-                                  className="text-[9px] px-1 py-0.2 rounded font-medium transition-colors bg-[#FDF2F2] text-[#A63232] border border-[#F6CECE] hover:bg-[#FCE7E7]"
+                                  className="text-[9px] px-1 py-0.2 rounded font-medium transition-colors bg-burgundy-soft text-burgundy border border-burgundy/30 hover:bg-burgundy-soft/80"
                                   title={`Absent on ${day}. Click to mark present.`}
                                 >
                                   {day.slice(0, 3)}
@@ -759,7 +759,7 @@ export default function FacultyManager() {
                         <div className="flex items-center gap-1.5">
                           <span
                             className={`font-semibold ${
-                              isAbsentToday ? 'text-[#5E5B61] line-through' : 'text-[#252326]'
+                              isAbsentToday ? 'text-ink-muted line-through' : 'text-ink'
                             }`}
                           >
                             {faculty.name}
@@ -782,7 +782,7 @@ export default function FacultyManager() {
                           ))}
                         </div>
                       </td>
-                      <td className="p-3.5 text-center font-medium text-[#252326]">
+                      <td className="p-3.5 text-center font-medium text-ink">
                         {faculty.maxPeriodsPerDay || 4} periods/day
                       </td>
                       <td className="p-3.5">
@@ -798,7 +798,7 @@ export default function FacultyManager() {
                             })}
                           </div>
                         ) : (
-                          <span className="text-xs text-[#5E5B61] italic">
+                          <span className="text-xs text-ink-muted italic">
                             Unrestricted (open assignment)
                           </span>
                         )}
@@ -815,7 +815,7 @@ export default function FacultyManager() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            icon={<Trash2 className="w-3.5 h-3.5 text-[#A63232]" />}
+                            icon={<Trash2 className="w-3.5 h-3.5 text-burgundy" />}
                             onClick={() => setDeletingFaculty(faculty)}
                             title="Delete faculty member"
                           />
@@ -849,7 +849,7 @@ export default function FacultyManager() {
       >
         <form onSubmit={handleSaveFaculty} className="space-y-4">
           <div className="space-y-1">
-            <label htmlFor="faculty-name" className="text-xs font-semibold text-[#252326]">Instructor Name</label>
+            <label htmlFor="faculty-name" className="text-xs font-semibold text-ink">Instructor Name</label>
             <input
               id="faculty-name"
               type="text"
@@ -857,12 +857,12 @@ export default function FacultyManager() {
               placeholder="e.g. Dr. Jane Smith"
               value={currentFaculty.name || ''}
               onChange={e => setCurrentFaculty({ ...currentFaculty, name: e.target.value })}
-              className="w-full px-3 py-2 border border-[#E5E0D8] rounded-md text-sm bg-white focus:border-[#6B2638] focus:ring-1 focus:ring-[#6B2638] outline-none text-[#252326]"
+              className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent focus:ring-1 focus:ring-accent outline-none text-ink"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="faculty-max-periods" className="text-xs font-semibold text-[#252326]">
+            <label htmlFor="faculty-max-periods" className="text-xs font-semibold text-ink">
               Maximum Daily Teaching Limit (Periods/Day)
             </label>
             <input
@@ -875,12 +875,12 @@ export default function FacultyManager() {
               onChange={e =>
                 setCurrentFaculty({ ...currentFaculty, maxPeriodsPerDay: Number(e.target.value) })
               }
-              className="w-full px-3 py-2 border border-[#E5E0D8] rounded-md text-sm bg-white focus:border-[#6B2638] focus:ring-1 focus:ring-[#6B2638] outline-none text-[#252326]"
+              className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent focus:ring-1 focus:ring-accent outline-none text-ink"
             />
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="faculty-subject-input" className="text-xs font-semibold text-[#252326]">Qualified Subjects</label>
+            <label htmlFor="faculty-subject-input" className="text-xs font-semibold text-ink">Qualified Subjects</label>
             <div className="flex gap-2">
               <input
                 id="faculty-subject-input"
@@ -894,7 +894,7 @@ export default function FacultyManager() {
                     handleAddSubject();
                   }
                 }}
-                className="flex-1 px-3 py-2 border border-[#E5E0D8] rounded-md text-sm bg-white focus:border-[#6B2638] focus:ring-1 focus:ring-[#6B2638] outline-none text-[#252326]"
+                className="flex-1 px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent focus:ring-1 focus:ring-accent outline-none text-ink"
               />
               <Button type="button" variant="secondary" size="md" onClick={handleAddSubject}>
                 Add
@@ -907,7 +907,7 @@ export default function FacultyManager() {
                   <button
                     type="button"
                     onClick={() => handleRemoveSubject(subj)}
-                    className="hover:text-[#A63232] ml-1"
+                    className="hover:text-burgundy ml-1"
                     aria-label={`Remove ${subj}`}
                   >
                     <X className="w-3 h-3" />
@@ -917,12 +917,12 @@ export default function FacultyManager() {
             </div>
           </div>
 
-          <div className="space-y-1 border-t border-[#E5E0D8] pt-4">
-            <label htmlFor="faculty-batch-search" className="text-xs font-semibold text-[#252326] flex items-center gap-1.5">
-              <Link2 className="w-3.5 h-3.5 text-[#5E5B61]" />
+          <div className="space-y-1 border-t border-border pt-4">
+            <label htmlFor="faculty-batch-search" className="text-xs font-semibold text-ink flex items-center gap-1.5">
+              <Link2 className="w-3.5 h-3.5 text-ink-muted" />
               <span>Assigned Batches (Optional Lock)</span>
             </label>
-            <p className="text-xs text-[#5E5B61]">
+            <p className="text-xs text-ink-muted">
               Leave unrestricted to let the heuristic scheduler place this teacher anywhere, or select specific batches to lock them exclusively.
             </p>
             <input
@@ -931,27 +931,27 @@ export default function FacultyManager() {
               placeholder="Filter batches..."
               value={batchSearch}
               onChange={e => setBatchSearch(e.target.value)}
-              className="w-full px-3 py-2 border border-[#E5E0D8] rounded-md text-sm mt-1 bg-white focus:border-[#6B2638] focus:ring-1 focus:ring-[#6B2638] outline-none text-[#252326]"
+              className="w-full px-3 py-2 border border-border rounded-md text-sm mt-1 bg-surface focus:border-accent focus:ring-1 focus:ring-accent outline-none text-ink"
             />
-            <div className="max-h-44 overflow-y-auto border border-[#E5E0D8] rounded-md divide-y divide-[#E5E0D8] mt-2">
+            <div className="max-h-44 overflow-y-auto border border-border rounded-md divide-y divide-border mt-2">
               {filteredBatchOptions.length === 0 ? (
-                <div className="p-3 text-xs text-[#5E5B61] text-center">No batches found.</div>
+                <div className="p-3 text-xs text-ink-muted text-center">No batches found.</div>
               ) : (
                 filteredBatchOptions.map(batch => {
                   const isSelected = (currentFaculty.assignedBatches || []).includes(batch.id);
                   return (
                     <label
                       key={batch.id}
-                      className="flex items-center gap-2 p-2 hover:bg-[#FAF7F2] cursor-pointer text-sm"
+                      className="flex items-center gap-2 p-2 hover:bg-surface-muted cursor-pointer text-sm"
                     >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleAssignedBatch(batch.id)}
-                        className="w-4 h-4 text-[#6B2638] rounded border-[#E5E0D8]"
+                        className="w-4 h-4 text-primary rounded border-border accent-primary"
                       />
-                      <span className="font-medium text-[#252326]">{batch.name}</span>
-                      <span className="text-[#5E5B61] text-xs">
+                      <span className="font-medium text-ink">{batch.name}</span>
+                      <span className="text-ink-muted text-xs">
                         Room {batch.roomNumber} · {batch.building}
                       </span>
                     </label>
@@ -973,22 +973,22 @@ export default function FacultyManager() {
         confirmText="Delete Faculty"
         message={
           <div className="space-y-3">
-            <p className="text-sm text-[#252326] leading-relaxed">
+            <p className="text-sm text-ink leading-relaxed">
               Are you sure you want to permanently remove <strong>{deletingFaculty?.name}</strong> from the faculty directory?
             </p>
-            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-2">
+            <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded text-xs text-burgundy space-y-2">
               <div className="flex items-center gap-1.5 font-bold">
-                <Trash2 className="w-4 h-4 text-[#6B2638] shrink-0" />
+                <Trash2 className="w-4 h-4 text-burgundy shrink-0" />
                 <span>Data Integrity Warning</span>
               </div>
-              <p className="text-[#252326]">
+              <p className="text-ink">
                 This faculty member is assigned to{' '}
                 <strong>
                   {deletingFaculty ? storage.countFacultyAllocations(deletingFaculty.id) : 0} timetable slot(s)
                 </strong>{' '}
                 across stored days.
               </p>
-              <p className="text-[#5E5B61]">
+              <p className="text-ink-muted">
                 Deleting them will safely turn all those allocations into <strong>unfilled shortage slots</strong> across all stored weekly timetables (preventing orphaned "Unknown" references).
               </p>
             </div>
@@ -1016,9 +1016,9 @@ export default function FacultyManager() {
           </div>
         }
       >
-        <p className="text-sm text-[#5E5B61]">
+        <p className="text-sm text-ink-muted">
           Are you sure you want to mark all {absentCount} absent faculty members on{' '}
-          <strong className="text-[#252326] font-semibold">{selectedDay}</strong> as Present?
+          <strong className="text-ink font-semibold">{selectedDay}</strong> as Present?
         </p>
       </Modal>
 
@@ -1047,28 +1047,28 @@ export default function FacultyManager() {
         {importPreview && (
           <div className="space-y-4">
             <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              <div className="p-2.5 bg-[#FAF7F2] rounded border border-[#E5E0D8]">
-                <div className="text-[#5E5B61]">Total Parsed</div>
-                <div className="text-lg font-bold text-[#252326]">{importPreview.total}</div>
+              <div className="p-2.5 bg-surface-muted rounded border border-border">
+                <div className="text-ink-muted">Total Parsed</div>
+                <div className="text-lg font-bold text-ink">{importPreview.total}</div>
               </div>
-              <div className="p-2.5 bg-[#EEF5F0] rounded border border-[#C6DEC9]">
-                <div className="text-[#235732]">Valid Records</div>
-                <div className="text-lg font-bold text-[#235732]">{importPreview.valid.length}</div>
+              <div className="p-2.5 bg-surface-muted rounded border border-border">
+                <div className="text-ink-muted">Valid Records</div>
+                <div className="text-lg font-bold text-ink">{importPreview.valid.length}</div>
               </div>
-              <div className="p-2.5 bg-[#FDF2F2] rounded border border-[#F6CECE]">
-                <div className="text-[#A63232]">Invalid / Skipped</div>
-                <div className="text-lg font-bold text-[#A63232]">{importPreview.invalid.length}</div>
+              <div className="p-2.5 bg-burgundy-soft rounded border border-burgundy/30">
+                <div className="text-burgundy">Invalid / Skipped</div>
+                <div className="text-lg font-bold text-burgundy">{importPreview.invalid.length}</div>
               </div>
-              <div className="p-2.5 bg-[#F8F3EA] rounded border border-[#E7D7BD]">
-                <div className="text-[#7A5B28]">Duplicates</div>
-                <div className="text-lg font-bold text-[#7A5B28]">{importPreview.duplicates.length}</div>
+              <div className="p-2.5 bg-accent-soft rounded border border-accent/30">
+                <div className="text-ink-muted">Duplicates</div>
+                <div className="text-lg font-bold text-ink">{importPreview.duplicates.length}</div>
               </div>
             </div>
 
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-[#252326] block">Import Mode</span>
+              <span className="text-xs font-semibold text-ink block">Import Mode</span>
               <div className="flex gap-3">
-                <label htmlFor="import-mode-merge" className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
+                <label htmlFor="import-mode-merge" className="flex items-center gap-2 text-xs text-ink cursor-pointer">
                   <input
                     id="import-mode-merge"
                     type="radio"
@@ -1079,7 +1079,7 @@ export default function FacultyManager() {
                   />
                   <span><strong>Merge:</strong> Add new faculty and update existing matching records by ID or name</span>
                 </label>
-                <label htmlFor="import-mode-replace" className="flex items-center gap-2 text-xs text-[#252326] cursor-pointer">
+                <label htmlFor="import-mode-replace" className="flex items-center gap-2 text-xs text-ink cursor-pointer">
                   <input
                     id="import-mode-replace"
                     type="radio"
@@ -1095,8 +1095,8 @@ export default function FacultyManager() {
 
             {importPreview.invalid.length > 0 && (
               <div className="space-y-1.5">
-                <div className="text-xs font-semibold text-[#A63232]">Invalid Record Errors:</div>
-                <div className="max-h-32 overflow-y-auto border border-[#F6CECE] rounded p-2 bg-[#FDF2F2] text-xs text-[#A63232] space-y-1">
+                <div className="text-xs font-semibold text-burgundy">Invalid Record Errors:</div>
+                <div className="max-h-32 overflow-y-auto border border-burgundy/30 rounded p-2 bg-burgundy-soft text-xs text-burgundy space-y-1">
                   {importPreview.invalid.map((inv, idx) => (
                     <div key={idx}>• {inv.reason}</div>
                   ))}
@@ -1129,11 +1129,11 @@ export default function FacultyManager() {
         confirmText="Confirm & Replace Directory"
         message={
           <div className="space-y-3">
-            <p className="text-sm text-[#252326] leading-relaxed">
+            <p className="text-sm text-ink leading-relaxed">
               Are you sure you want to completely <strong>replace</strong> the entire faculty directory with the{' '}
               <strong>{importPreview?.valid.length || 0}</strong> imported profiles?
             </p>
-            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] space-y-1">
+            <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded text-xs text-burgundy space-y-1">
               <strong>Warning: Destructive Action</strong>
               <p>
                 Existing faculty profiles will be overwritten. Any timetable allocations for teachers not present in the new import will become unfilled shortage slots.
@@ -1206,17 +1206,17 @@ export default function FacultyManager() {
         }
       >
         <div className="space-y-3">
-          <p className="text-sm text-[#252326]">
+          <p className="text-sm text-ink">
             A faculty member named <strong>"{duplicateAddWarning?.existing.name}"</strong> already exists in the directory.
           </p>
-          <div className="p-3 bg-[#F8F3EA] border border-[#E7D7BD] rounded text-xs text-[#7A5B28] space-y-1.5">
+          <div className="p-3 bg-accent-soft border border-accent/30 rounded text-xs text-ink space-y-1.5">
             <div>
               <strong>Existing Profile:</strong> {duplicateAddWarning?.existing.name} (Subjects: {duplicateAddWarning?.existing.subjects.join(', ')})
             </div>
             <div>
               <strong>New Subjects:</strong> {duplicateAddWarning?.pendingSubjects.join(', ')}
             </div>
-            <p className="text-[#5E5B61] pt-1">
+            <p className="text-ink-muted pt-1">
               Would you like to merge these new subjects into the existing profile, or create a separate duplicate record?
             </p>
           </div>
@@ -1242,25 +1242,25 @@ export default function FacultyManager() {
         }
       >
         <div className="space-y-3">
-          <p className="text-xs text-[#5E5B61] leading-relaxed">
+          <p className="text-xs text-ink-muted leading-relaxed">
             The following instructors have multiple entries across different departments. Merging will combine their qualified subject lists into single master records:
           </p>
-          <div className="max-h-64 overflow-y-auto border border-[#E5E0D8] rounded divide-y divide-[#E5E0D8]">
+          <div className="max-h-64 overflow-y-auto border border-border rounded divide-y divide-border">
             {duplicateGroups.map(([name, dupes]) => (
               <div key={name} className="p-3 text-xs flex justify-between items-center gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#252326] text-sm">{dupes[0].name}</span>
+                    <span className="font-bold text-ink text-sm">{dupes[0].name}</span>
                     <Badge tone="gold">{dupes.length} entries</Badge>
                   </div>
-                  <div className="text-[#5E5B61] mt-0.5 truncate">
+                  <div className="text-ink-muted mt-0.5 truncate">
                     Departments: {dupes.flatMap(d => d.subjects).join(', ')}
                   </div>
                 </div>
                 <Button
                   size="sm"
                   variant="secondary"
-                  icon={<GitMerge className="w-3.5 h-3.5 text-[#B08D57]" />}
+                  icon={<GitMerge className="w-3.5 h-3.5 text-accent" />}
                   onClick={() => handleMergeSingleGroup(dupes)}
                   title={`Merge duplicate entries for ${dupes[0].name}`}
                   className="shrink-0"

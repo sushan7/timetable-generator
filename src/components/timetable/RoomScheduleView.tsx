@@ -135,7 +135,7 @@ export const RoomScheduleView: React.FC<RoomScheduleViewProps> = ({
 
   if (allRooms.length === 0) {
     return (
-      <div className="p-8 text-center text-xs text-[#252326]/60 bg-white rounded border border-[#A89B8A]/30">
+      <div className="p-8 text-center text-xs text-ink-muted bg-surface rounded border border-border">
         No room numbers configured in batches. Assign room numbers in the Batches tab to view room occupancy schedules.
       </div>
     );
@@ -144,23 +144,23 @@ export const RoomScheduleView: React.FC<RoomScheduleViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Controls Bar (hidden during print) */}
-      <div className="no-print p-4 bg-white rounded-lg border border-[#A89B8A]/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
+      <div className="no-print p-4 bg-surface rounded-lg border border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
           <div className="relative min-w-[200px]">
-            <Search className="w-4 h-4 text-[#252326]/40 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="Search rooms..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#F3EEE6]/50 border border-[#A89B8A]/40 rounded-md focus:border-[#6B2638] focus:ring-1 focus:ring-[#6B2638] text-[#252326]"
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-surface-muted/50 border border-border rounded-md focus:border-accent focus:ring-1 focus:ring-accent text-ink"
             />
           </div>
 
           <select
             value={selectedRoom}
             onChange={e => setSelectedRoom(e.target.value)}
-            className="text-xs bg-[#F3EEE6]/70 border border-[#A89B8A]/40 rounded-md px-3 py-2 text-[#252326] font-semibold focus:border-[#6B2638] focus:ring-1 focus:ring-[#6B2638] max-w-xs"
+            className="text-xs bg-surface-muted/70 border border-border rounded-md px-3 py-2 text-ink font-semibold focus:border-accent focus:ring-1 focus:ring-accent max-w-xs"
           >
             {filteredRooms.map(room => (
               <option key={room} value={room}>
@@ -181,59 +181,59 @@ export const RoomScheduleView: React.FC<RoomScheduleViewProps> = ({
       </div>
 
       {/* Printable Schedule Container */}
-      <Card className="print-section-page border border-[#A89B8A]/30 space-y-4 p-4 sm:p-6 bg-white">
+      <Card className="print-section-page border border-border space-y-4 p-4 sm:p-6 bg-surface">
         {/* Room Header Banner */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#A89B8A]/20">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-border/40">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-lg font-bold text-[#6B2638]">Room {selectedRoom}</h3>
-              <Badge tone="burgundy">Classroom Space</Badge>
+              <h3 className="text-lg font-bold text-ink">Room {selectedRoom}</h3>
+              <Badge tone="accent">Classroom Space</Badge>
               {buildingsInRoom.map(b => (
                 <span
                   key={b}
-                  className="text-xs bg-[#F3EEE6] border border-[#A89B8A]/30 px-2 py-0.5 rounded font-medium text-[#252326]"
+                  className="text-xs bg-surface-muted border border-border px-2 py-0.5 rounded font-medium text-ink"
                 >
                   {b}
                 </span>
               ))}
             </div>
-            <p className="text-xs text-[#252326]/70 mt-0.5">
+            <p className="text-xs text-ink-muted mt-0.5">
               Assigned batches:{' '}
               <strong>{batchesInRoom.map(b => b.name).join(', ') || 'None assigned'}</strong>
             </p>
           </div>
 
           <div className="flex items-center gap-3 text-right">
-            <div className="p-2 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center min-w-[110px]">
-              <span className="text-[10px] uppercase font-bold text-[#252326]/60 block">Weekly In-Use</span>
-              <span className="text-base font-bold text-[#6B2638]">{totalWeeklyOccupancy} periods</span>
+            <div className="p-2 bg-surface-muted rounded border border-border text-center min-w-[110px]">
+              <span className="text-[10px] uppercase font-bold text-ink-muted block">Weekly In-Use</span>
+              <span className="text-base font-bold text-accent">{totalWeeklyOccupancy} periods</span>
             </div>
-            <div className="p-2 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center min-w-[110px]">
-              <span className="text-[10px] uppercase font-bold text-[#252326]/60 block">Total Capacity</span>
-              <span className="text-base font-bold text-[#252326]">{maxPeriods * 6} periods</span>
+            <div className="p-2 bg-surface-muted rounded border border-border text-center min-w-[110px]">
+              <span className="text-[10px] uppercase font-bold text-ink-muted block">Total Capacity</span>
+              <span className="text-base font-bold text-ink">{maxPeriods * 6} periods</span>
             </div>
           </div>
         </div>
 
         {/* 6-Day Full Week Matrix */}
-        <div className="overflow-x-auto border border-[#A89B8A]/30 rounded-lg">
+        <div className="overflow-x-auto border border-border rounded-lg">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-[#252326] text-white">
-                <th className="p-2.5 font-bold uppercase tracking-wider text-[11px] w-24 text-center border-r border-[#252326]/40">
+              <tr className="bg-primary text-canvas">
+                <th className="p-2.5 font-bold uppercase tracking-wider text-[11px] w-24 text-center border-r border-primary-hover">
                   Period
                 </th>
                 {orderedWeekdays.map(day => (
-                  <th key={day} className="p-2.5 font-bold uppercase tracking-wider text-[11px] border-r border-[#252326]/40 text-center">
+                  <th key={day} className="p-2.5 font-bold uppercase tracking-wider text-[11px] border-r border-primary-hover text-center">
                     {day}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#A89B8A]/20">
+            <tbody className="divide-y divide-border">
               {Array.from({ length: maxPeriods }).map((_, pIdx) => (
-                <tr key={pIdx} className="hover:bg-[#F3EEE6]/30 transition-colors">
-                  <td className="p-2.5 font-bold text-[#252326] bg-[#F3EEE6]/60 border-r border-[#A89B8A]/20 text-center">
+                <tr key={pIdx} className="hover:bg-surface-muted/30 transition-colors">
+                  <td className="p-2.5 font-bold text-ink bg-surface-muted/60 border-r border-border text-center">
                     Period {pIdx + 1}
                   </td>
                   {orderedWeekdays.map(day => {
@@ -242,7 +242,7 @@ export const RoomScheduleView: React.FC<RoomScheduleViewProps> = ({
 
                     if (slots.length === 0) {
                       return (
-                        <td key={day} className="p-2.5 border-r border-[#A89B8A]/20 text-center text-[#252326]/30 font-mono">
+                        <td key={day} className="p-2.5 border-r border-border text-center text-ink-muted/50 font-mono">
                           Vacant
                         </td>
                       );
@@ -251,28 +251,28 @@ export const RoomScheduleView: React.FC<RoomScheduleViewProps> = ({
                     const hasClash = slots.length > 1;
 
                     return (
-                      <td key={day} className="p-2 border-r border-[#A89B8A]/20 bg-[#FDFBF7]">
+                      <td key={day} className="p-2 border-r border-border bg-surface-muted/30">
                         {slots.map((slot, sIdx) => (
                           <div
                             key={sIdx}
                             className={`p-2 rounded border space-y-1 ${
                               hasClash
-                                ? 'bg-[#FAF0F2] border-[#ECD9DE] text-[#6B2638]'
-                                : 'bg-white border-[#B08D57]/30 text-[#252326]'
+                                ? 'bg-burgundy-soft border-burgundy/30 text-burgundy'
+                                : 'bg-surface border-border text-ink'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-1">
                               <span className="font-bold text-xs truncate">{slot.batchName}</span>
-                              {slot.time && <span className="text-[10px] text-[#252326]/50">{slot.time}</span>}
+                              {slot.time && <span className="text-[10px] text-ink-muted">{slot.time}</span>}
                             </div>
-                            <div className="flex items-center justify-between text-[11px] font-semibold text-[#6B2638]">
+                            <div className="flex items-center justify-between text-[11px] font-semibold text-accent">
                               <span>{slot.subject}</span>
-                              <span className="text-[10px] text-[#252326]/70 truncate max-w-[100px]">
+                              <span className="text-[10px] text-ink-muted truncate max-w-[100px]">
                                 {slot.facultyName}
                               </span>
                             </div>
                             {hasClash && (
-                              <div className="text-[10px] font-bold text-[#6B2638] flex items-center gap-1">
+                              <div className="text-[10px] font-bold text-burgundy flex items-center gap-1">
                                 <AlertTriangle className="w-3 h-3" />
                                 <span>Room Clash!</span>
                               </div>
@@ -286,14 +286,14 @@ export const RoomScheduleView: React.FC<RoomScheduleViewProps> = ({
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-[#F3EEE6] font-bold text-xs border-t-2 border-[#A89B8A]/40 text-[#252326]">
-                <td className="p-2.5 text-center uppercase tracking-wider text-[10px] border-r border-[#A89B8A]/30">
+              <tr className="bg-surface-muted font-bold text-xs border-t-2 border-border text-ink">
+                <td className="p-2.5 text-center uppercase tracking-wider text-[10px] border-r border-border">
                   Occupancy
                 </td>
                 {orderedWeekdays.map(day => {
                   const count = dailyOccupancy[day] || 0;
                   return (
-                    <td key={day} className="p-2.5 text-center border-r border-[#A89B8A]/30">
+                    <td key={day} className="p-2.5 text-center border-r border-border">
                       {count} / {maxPeriods} periods
                     </td>
                   );

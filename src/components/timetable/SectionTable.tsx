@@ -60,26 +60,26 @@ export default function SectionTable({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-[#E5E0D8] shadow-2xs overflow-hidden">
+    <div className="bg-surface rounded-lg border border-border shadow-2xs overflow-hidden">
       {/* Section Header */}
-      <div className="p-4 sm:p-5 bg-[#FAF7F2] border-b border-[#E5E0D8] flex flex-col md:flex-row justify-between md:items-center gap-3">
+      <div className="p-4 sm:p-5 bg-surface-muted border-b border-border flex flex-col md:flex-row justify-between md:items-center gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-white text-[#6B2638] rounded-md shrink-0 border border-[#E5E0D8] shadow-2xs">
+          <div className="p-2 bg-surface text-accent rounded-md shrink-0 border border-border shadow-2xs">
             <Building2 className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-[#252326] text-sm sm:text-base leading-tight">
+            <h3 className="font-bold text-ink text-sm sm:text-base leading-tight">
               {label}
             </h3>
-            <p className="text-xs text-[#5E5B61] mt-0.5">
+            <p className="text-xs text-ink-muted mt-0.5">
               {batches.length} batch{batches.length !== 1 ? 'es' : ''} assigned to this section
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-[#5E5B61] bg-white px-2.5 py-1 rounded-md border border-[#E5E0D8]">
-            <Users className="w-3.5 h-3.5 text-[#5E5B61]" />
+          <span className="flex items-center gap-1.5 text-xs font-medium text-ink-muted bg-surface px-2.5 py-1 rounded-md border border-border">
+            <Users className="w-3.5 h-3.5 text-ink-muted" />
             <span>{uniqueFaculty} faculty active</span>
           </span>
           <Badge tone={fillPct >= 90 ? 'burgundy' : fillPct > 50 ? 'neutral' : 'warning'}>
@@ -90,30 +90,30 @@ export default function SectionTable({
       </div>
 
       {/* Mobile Card / List View (Below md breakpoint - Requirement U2) */}
-      <div className="block md:hidden divide-y divide-[#E5E0D8]">
+      <div className="block md:hidden divide-y divide-border">
         {batches.map(batch => (
-          <div key={batch.id} className="p-3.5 bg-white space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5E0D8]/60">
+          <div key={batch.id} className="p-3.5 bg-surface space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-border/60">
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-[#252326]">{batch.name}</h4>
+                  <h4 className="font-bold text-sm text-ink">{batch.name}</h4>
                   {onRegenerateBatch && (
                     <button
                       type="button"
                       onClick={() => onRegenerateBatch(batch.id)}
                       title={`Regenerate day schedule for ${batch.name}`}
                       aria-label={`Regenerate batch ${batch.name}`}
-                      className="p-1 rounded text-[#5E5B61] hover:text-[#6B2638] hover:bg-[#FAF7F2] transition-colors"
+                      className="p-1 rounded text-ink-muted hover:text-accent hover:bg-surface-muted transition-colors"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[11px] text-[#5E5B61] font-medium">
+                  <span className="text-[11px] text-ink-muted font-medium">
                     Room {batch.roomNumber || '-'}
                   </span>
-                  <span className="text-[#5E5B61]/40">·</span>
+                  <span className="text-ink-muted/40">·</span>
                   <Badge tone="neutral" className="text-[10px] py-0 px-1 font-normal">
                     {batch.yearCategory}
                   </Badge>
@@ -140,11 +140,11 @@ export default function SectionTable({
                   <div
                     key={i}
                     id={`cell-mobile-${batch.id}-${i}`}
-                    className="flex flex-col sm:flex-row sm:items-center gap-1.5 p-1 rounded bg-[#FAF7F2]/40 border border-[#E5E0D8]/60 transition-all"
+                    className="flex flex-col sm:flex-row sm:items-center gap-1.5 p-1 rounded bg-surface-muted/40 border border-border/60 transition-all"
                   >
                     <div className="sm:w-28 shrink-0 flex items-center justify-between sm:flex-col sm:items-start px-1.5 py-0.5">
-                      <span className="text-[11px] font-bold text-[#6B2638]">Period {i + 1}</span>
-                      <span className="text-[10px] font-medium text-[#5E5B61]">
+                      <span className="text-[11px] font-bold text-ink">Period {i + 1}</span>
+                      <span className="text-[10px] font-medium text-ink-muted">
                         {period.startTime} - {period.endTime}
                       </span>
                     </div>
@@ -175,10 +175,10 @@ export default function SectionTable({
       <div className="hidden md:block overflow-x-auto relative">
         <table className="w-full text-left border-collapse min-w-[900px]">
           <thead>
-            <tr className="bg-[#FAF7F2] border-b border-[#E5E0D8] text-xs font-semibold text-[#5E5B61]">
+            <tr className="bg-surface-muted border-b border-border text-xs font-semibold text-ink-muted">
               <th
                 scope="col"
-                className="p-3 w-44 md:w-48 lg:w-56 sticky left-0 z-20 bg-[#FAF7F2] border-r border-[#E5E0D8] shadow-[1px_0_0_0_#E5E0D8]"
+                className="p-3 w-44 md:w-48 lg:w-56 sticky left-0 z-20 bg-surface-muted border-r border-border shadow-[1px_0_0_0_var(--color-border)]"
               >
                 Batch & Classroom
               </th>
@@ -188,11 +188,11 @@ export default function SectionTable({
                   <th
                     scope="col"
                     key={i}
-                    className="p-3 text-center border-l border-[#E5E0D8] w-36 lg:w-44 font-semibold text-[#252326]"
+                    className="p-3 text-center border-l border-border w-36 lg:w-44 font-semibold text-ink"
                   >
                     <div>Period {i + 1}</div>
                     {timing && (
-                      <div className="text-[11px] font-normal text-[#5E5B61] mt-0.5">
+                      <div className="text-[11px] font-normal text-ink-muted mt-0.5">
                         {timing}
                       </div>
                     )}
@@ -201,16 +201,16 @@ export default function SectionTable({
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#E5E0D8] text-sm">
+          <tbody className="divide-y divide-border text-sm">
             {batches.map(batch => (
-              <tr key={batch.id} className="group hover:bg-[#FAF7F2]/40 transition-colors">
+              <tr key={batch.id} className="group hover:bg-surface-muted/40 transition-colors">
                 {/* Sticky Batch Column with Reduced Width on Small Tablets */}
                 <th
                   scope="row"
-                  className="p-3 align-middle sticky left-0 z-10 bg-white group-hover:bg-[#FAF7F2] transition-colors border-r border-[#E5E0D8] shadow-[1px_0_0_0_#E5E0D8] font-normal text-left"
+                  className="p-3 align-middle sticky left-0 z-10 bg-surface group-hover:bg-surface-muted transition-colors border-r border-border shadow-[1px_0_0_0_var(--color-border)] font-normal text-left"
                 >
                   <div className="flex items-center justify-between gap-1.5">
-                    <div className="font-bold text-[#252326] text-sm leading-snug truncate">
+                    <div className="font-bold text-ink text-sm leading-snug truncate">
                       {batch.name || 'Unnamed Batch'}
                     </div>
                     {onRegenerateBatch && (
@@ -219,7 +219,7 @@ export default function SectionTable({
                         onClick={() => onRegenerateBatch(batch.id)}
                         title={`Regenerate day schedule for ${batch.name}`}
                         aria-label={`Regenerate batch ${batch.name}`}
-                        className="p-1 rounded text-[#5E5B61] hover:text-[#6B2638] hover:bg-[#FAF7F2] transition-colors shrink-0"
+                        className="p-1 rounded text-ink-muted hover:text-accent hover:bg-surface-muted transition-colors shrink-0"
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                       </button>
@@ -229,7 +229,7 @@ export default function SectionTable({
                     <Badge tone="neutral" className="text-[11px] py-0 px-1.5 font-normal">
                       {batch.yearCategory}
                     </Badge>
-                    <span className="text-xs text-[#5E5B61] font-medium">
+                    <span className="text-xs text-ink-muted font-medium">
                       Room {batch.roomNumber || '-'}
                     </span>
                   </div>
@@ -251,7 +251,7 @@ export default function SectionTable({
                     <td
                       key={i}
                       id={`cell-${batch.id}-${i}`}
-                      className="p-2 border-l border-[#E5E0D8] align-top bg-white group-hover:bg-[#FAF7F2]/60 transition-colors"
+                      className="p-2 border-l border-border align-top bg-surface group-hover:bg-surface-muted/60 transition-colors"
                     >
                       <AllocationCell
                         period={period}

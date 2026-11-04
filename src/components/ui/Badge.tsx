@@ -5,7 +5,9 @@ export type BadgeTone =
   | 'neutral'
   | 'burgundy'
   | 'gold'
+  | 'accent'
   | 'cognac'
+  | 'primary'
   | 'success'
   | 'warning'
   | 'danger'
@@ -15,18 +17,20 @@ export type BadgeTone =
   | 'forest';
 
 const TONE_STYLES: Record<string, string> = {
-  neutral: 'bg-[#FAF7F2] text-[#252326] border-[#E5E0D8]',
-  burgundy: 'bg-[#F5EBEE] text-[#6B2638] border-[#E5CAD1]',
-  gold: 'bg-[#F8F3EA] text-[#7A5B28] border-[#E7D7BD]',
-  cognac: 'bg-[#FAF0EB] text-[#8A4A29] border-[#EFCFC0]',
-  success: 'bg-[#EEF5F0] text-[#235732] border-[#C6DEC9]',
-  warning: 'bg-[#FDF8EE] text-[#8B5602] border-[#F4E2C2]',
-  danger: 'bg-[#FDF2F2] text-[#8F2424] border-[#F6CECE]',
-  info: 'bg-[#EFF5FA] text-[#1F4A75] border-[#C5DBEE]',
+  neutral: 'bg-surface-muted text-ink border-border',
+  burgundy: 'bg-burgundy-soft text-burgundy border-burgundy/20',
+  gold: 'bg-accent-soft text-ink border-accent/40',
+  accent: 'bg-accent-soft text-ink border-accent/40',
+  cognac: 'bg-cognac-soft text-cognac border-cognac/30',
+  primary: 'bg-primary text-canvas border-primary',
+  success: 'bg-accent-soft text-ink border-accent/40',
+  warning: 'bg-cognac-soft text-cognac border-cognac/30',
+  danger: 'bg-burgundy-soft text-burgundy border-burgundy/20',
+  info: 'bg-surface-muted text-ink border-border',
   // Aliases for backward compatibility
-  terracotta: 'bg-[#F5EBEE] text-[#6B2638] border-[#E5CAD1]',
-  ochre: 'bg-[#F8F3EA] text-[#7A5B28] border-[#E7D7BD]',
-  forest: 'bg-[#F5EBEE] text-[#6B2638] border-[#E5CAD1]',
+  terracotta: 'bg-cognac-soft text-cognac border-cognac/30',
+  ochre: 'bg-accent-soft text-ink border-accent/40',
+  forest: 'bg-surface-muted text-ink border-border',
 };
 
 export default function Badge({

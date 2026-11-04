@@ -23,14 +23,14 @@ const NAV_ITEMS = [
 function Brand() {
   return (
     <div className="flex items-center gap-3 select-none">
-      <div className="w-8 h-8 rounded-md bg-[#6B2638] flex items-center justify-center text-white font-bold shrink-0 shadow-2xs">
-        <CalendarDays className="w-4 h-4" />
+      <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-canvas font-bold shrink-0 shadow-2xs border border-primary-hover">
+        <CalendarDays className="w-4 h-4 text-accent" />
       </div>
       <div className="min-w-0">
-        <span className="text-sm font-bold text-[#252326] tracking-tight block leading-tight truncate">
+        <span className="text-sm font-bold text-ink tracking-tight block leading-tight truncate">
           Timetable Pro
         </span>
-        <span className="text-[11px] font-medium text-[#5E5B61] block truncate">
+        <span className="text-[11px] font-medium text-ink-muted block truncate">
           Academic Administration
         </span>
       </div>
@@ -62,21 +62,21 @@ export default function Layout() {
   }, [mobileNavOpen]);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 select-none ${
+    `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 select-none relative ${
       isActive
-        ? 'bg-[#6B2638] text-white shadow-2xs font-semibold'
-        : 'text-[#5E5B61] hover:bg-[#FAF7F2] hover:text-[#252326]'
+        ? 'bg-primary text-canvas shadow-2xs font-semibold after:absolute after:left-0 after:top-1.5 after:bottom-1.5 after:w-1 after:rounded-r after:bg-accent'
+        : 'text-ink-muted hover:bg-surface-muted hover:text-ink'
     }`;
 
   return (
-    <div className="min-h-screen bg-[#F3EEE6] md:flex antialiased selection:bg-[#6B2638] selection:text-white">
+    <div className="min-h-screen bg-canvas md:flex antialiased selection:bg-primary selection:text-canvas">
       {/* Mobile top bar */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#F3EEE6] border-b border-[#E5E0D8] sticky top-0 z-30">
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-canvas border-b border-border sticky top-0 z-30">
         <Brand />
         <button
           type="button"
           onClick={() => setMobileNavOpen(true)}
-          className="p-2 text-[#252326] hover:bg-[#FAF7F2] rounded-md transition-colors"
+          className="p-2 text-ink hover:bg-surface-muted rounded-md transition-colors"
           aria-label="Open navigation menu"
         >
           <Menu className="w-5 h-5" />
@@ -87,21 +87,21 @@ export default function Layout() {
       {mobileNavOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex animate-in fade-in duration-120">
           <div
-            className="fixed inset-0 bg-[#252326]/50"
+            className="fixed inset-0 bg-ink/50"
             onClick={() => setMobileNavOpen(false)}
             role="presentation"
           />
           <nav
-            className="relative w-72 bg-[#F3EEE6] h-full p-5 flex flex-col justify-between shadow-xl z-50 border-r border-[#E5E0D8] animate-in slide-in-from-left duration-150"
+            className="relative w-72 bg-canvas h-full p-5 flex flex-col justify-between shadow-xl z-50 border-r border-border animate-in slide-in-from-left duration-150"
             aria-label="Mobile Navigation"
           >
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-[#E5E0D8] mb-6">
+              <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
                 <Brand />
                 <button
                   type="button"
                   onClick={() => setMobileNavOpen(false)}
-                  className="p-1.5 text-[#5E5B61] hover:text-[#252326] rounded-md hover:bg-[#FAF7F2] transition-colors"
+                  className="p-1.5 text-ink-muted hover:text-ink rounded-md hover:bg-surface-muted transition-colors"
                   aria-label="Close navigation"
                 >
                   <X className="w-5 h-5" />
@@ -124,17 +124,17 @@ export default function Layout() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-[#E5E0D8]">
-              <div className="p-3 rounded-md bg-[#FAF7F2] border border-[#E5E0D8] text-xs">
-                <div className="flex items-center gap-1.5 font-semibold text-[#252326] mb-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#6B2638] shrink-0" />
+            <div className="pt-4 border-t border-border">
+              <div className="p-3 rounded-md bg-surface-muted border border-border text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-ink mb-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-accent shrink-0" />
                   <span>Heuristic Engine Ready</span>
                 </div>
-                <p className="text-[#5E5B61] text-[11px] leading-relaxed">
+                <p className="text-ink-muted text-[11px] leading-relaxed">
                   Clash-free scheduling · PCMB ratio balance · Workload caps
                 </p>
               </div>
-              <div className="text-[11px] text-[#5E5B61] text-center mt-3 font-medium">
+              <div className="text-[11px] text-ink-muted text-center mt-3 font-medium">
                 Academic Year 2026-27
               </div>
             </div>
@@ -143,7 +143,7 @@ export default function Layout() {
       )}
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-64 shrink-0 bg-[#FAF7F2] border-r border-[#E5E0D8] px-4 py-6 flex-col justify-between select-none">
+      <aside className="hidden md:flex w-64 shrink-0 bg-surface border-r border-border px-4 py-6 flex-col justify-between select-none">
         <div>
           <div className="px-2 mb-8">
             <Brand />
@@ -164,18 +164,18 @@ export default function Layout() {
           </nav>
         </div>
 
-        <div className="space-y-3 pt-6 border-t border-[#E5E0D8]">
-          <div className="p-3 rounded-md bg-[#F3EEE6] border border-[#E5E0D8] text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-[#252326] mb-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#6B2638] shrink-0" />
+        <div className="space-y-3 pt-6 border-t border-border">
+          <div className="p-3 rounded-md bg-surface-muted border border-border text-xs">
+            <div className="flex items-center gap-1.5 font-semibold text-ink mb-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-accent shrink-0" />
               <span>Engine Status: Active</span>
             </div>
-            <p className="text-[#5E5B61] text-[11px] leading-relaxed">
+            <p className="text-ink-muted text-[11px] leading-relaxed">
               Multi-candidate search · Hard clash prevention · Preserved locks
             </p>
           </div>
 
-          <div className="text-[11px] text-[#5E5B61] text-center font-medium">
+          <div className="text-[11px] text-ink-muted text-center font-medium">
             Academic Year 2026-27 · v2.5
           </div>
         </div>
@@ -186,16 +186,16 @@ export default function Layout() {
         {storageWarning && (
           <div
             role="alert"
-            className="bg-[#FAF0F2] text-[#6B2638] px-4 py-2 border-b border-[#ECD9DE] text-xs font-semibold flex items-center justify-between gap-2 z-30 shrink-0"
+            className="bg-burgundy-soft text-burgundy px-4 py-2 border-b border-burgundy/20 text-xs font-semibold flex items-center justify-between gap-2 z-30 shrink-0"
           >
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-[#6B2638]" />
+              <AlertTriangle className="w-4 h-4 shrink-0 text-burgundy" />
               <span>{storageWarning}</span>
             </div>
             <button
               type="button"
               onClick={() => setStorageWarning(null)}
-              className="p-1 hover:bg-[#F5DEE3] rounded transition-colors text-[#6B2638]"
+              className="p-1 hover:bg-burgundy-soft/80 rounded transition-colors text-burgundy"
               aria-label="Dismiss warning"
             >
               <X className="w-3.5 h-3.5" />

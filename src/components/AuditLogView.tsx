@@ -60,12 +60,12 @@ export default function AuditLogView() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-white border border-[#E5E0D8] px-3 py-1.5 rounded-md text-xs font-medium text-[#252326] shadow-2xs">
-            <Filter className="w-3.5 h-3.5 text-[#5E5B61]" />
+          <div className="flex items-center gap-1.5 bg-surface border border-border px-3 py-1.5 rounded-md text-xs font-medium text-ink shadow-2xs">
+            <Filter className="w-3.5 h-3.5 text-ink-muted" />
             <select
               value={actionFilter}
               onChange={e => setActionFilter(e.target.value)}
-              className="bg-transparent border-none outline-none font-semibold text-[#252326]"
+              className="bg-transparent border-none outline-none font-semibold text-ink"
             >
               <option value="ALL">All Actions ({logs.length})</option>
               <option value="MANUAL_OVERRIDE">Manual Overrides</option>
@@ -94,30 +94,30 @@ export default function AuditLogView() {
             variant="ghost"
             icon={<Trash2 className="w-3.5 h-3.5" />}
             onClick={() => setShowClearConfirm(true)}
-            className="text-[#5E5B61] hover:text-[#A63232] hover:bg-[#FDF2F2]"
+            className="text-ink-muted hover:text-burgundy hover:bg-burgundy-soft"
           >
             Clear History
           </Button>
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-[#E5E0D8] shadow-2xs overflow-hidden">
+      <div className="bg-surface rounded-lg border border-border shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#FAF7F2] border-b border-[#E5E0D8] text-xs text-[#5E5B61] font-semibold">
+              <tr className="bg-surface-muted border-b border-border text-xs text-ink-muted font-semibold">
                 <th className="p-3.5 w-48">Timestamp</th>
                 <th className="p-3.5 w-44">Action Type</th>
                 <th className="p-3.5">Event Details & Justification</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E0D8] text-sm">
+            <tbody className="divide-y divide-border text-sm">
               {filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="p-10 text-center">
-                    <History className="w-8 h-8 text-[#5E5B61] mx-auto mb-2" />
-                    <p className="font-semibold text-[#252326] text-sm">No audit trail records</p>
-                    <p className="text-xs text-[#5E5B61] mt-0.5">
+                    <History className="w-8 h-8 text-ink-muted mx-auto mb-2" />
+                    <p className="font-semibold text-ink text-sm">No audit trail records</p>
+                    <p className="text-xs text-ink-muted mt-0.5">
                       {logs.length === 0
                         ? 'Timetable generation, manual edits, and freeze actions will automatically appear here.'
                         : 'No records match your selected filter criteria.'}
@@ -126,10 +126,10 @@ export default function AuditLogView() {
                 </tr>
               ) : (
                 filteredLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-[#FAF7F2]/40 transition-colors">
-                    <td className="p-3.5 text-[#5E5B61] whitespace-nowrap text-xs">
+                  <tr key={log.id} className="hover:bg-surface-muted/40 transition-colors">
+                    <td className="p-3.5 text-ink-muted whitespace-nowrap text-xs">
                       <div className="flex items-center gap-1.5 font-medium">
-                        <Clock className="w-3 h-3 text-[#5E5B61]" />
+                        <Clock className="w-3 h-3 text-ink-muted" />
                         {new Date(log.timestamp).toLocaleDateString()} ·{' '}
                         {new Date(log.timestamp).toLocaleTimeString([], {
                           hour: '2-digit',
@@ -143,12 +143,12 @@ export default function AuditLogView() {
                         {log.action.replace(/_/g, ' ')}
                       </Badge>
                     </td>
-                    <td className="p-3.5 text-[#252326] font-normal">
-                      <div className="text-xs text-[#252326] font-medium">
+                    <td className="p-3.5 text-ink font-normal">
+                      <div className="text-xs text-ink font-medium">
                         {log.reason || 'No description logged.'}
                       </div>
                       {log.batchId && (
-                        <div className="text-[11px] text-[#5E5B61] mt-0.5">
+                        <div className="text-[11px] text-ink-muted mt-0.5">
                           Batch: {log.batchId} · Period: {(log.periodIndex ?? 0) + 1}
                         </div>
                       )}

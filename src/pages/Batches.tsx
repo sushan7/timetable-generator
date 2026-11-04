@@ -504,7 +504,7 @@ export default function Batches() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <PageHeader
-        icon={<Building2 className="w-5 h-5 text-[#6B2638]" />}
+        icon={<Building2 className="w-5 h-5 text-primary" />}
         title="Batches & Classrooms"
         subtitle={`${batches.length} academic sections, classroom allocations, and period schedules`}
         actions={
@@ -536,15 +536,15 @@ export default function Batches() {
       />
 
       {error && (
-        <div className="p-3.5 bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] rounded-md flex items-start gap-2.5 text-sm font-medium">
-          <AlertCircle className="w-4 h-4 shrink-0 text-[#6B2638] mt-0.5" />
+        <div className="p-3.5 bg-burgundy-soft text-burgundy border border-burgundy/20 rounded-md flex items-start gap-2.5 text-sm font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0 text-burgundy mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-3.5 bg-[#F6F4F0] text-[#252326] border border-[#B08D57]/40 rounded-md flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-[#B08D57]" />
+        <div className="p-3.5 bg-surface-muted text-ink border border-accent/40 rounded-md flex items-center gap-2 text-sm font-medium">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-accent" />
           <span>{successMsg}</span>
         </div>
       )}
@@ -553,14 +553,14 @@ export default function Batches() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Building Pills */}
-          <div className="inline-flex rounded-md bg-[#F3EEE6] p-0.5 text-xs font-medium select-none border border-[#A89B8A]/30">
+          <div className="inline-flex rounded-md bg-surface-muted p-0.5 text-xs font-medium select-none border border-border">
             <button
               type="button"
               onClick={() => setSelectedBuilding('ALL')}
               className={`px-3 py-1.5 rounded transition-colors ${
                 selectedBuilding === 'ALL'
-                  ? 'bg-white text-[#6B2638] shadow-xs font-semibold'
-                  : 'text-[#252326]/70 hover:text-[#252326]'
+                  ? 'bg-surface text-primary shadow-xs font-semibold'
+                  : 'text-ink-muted hover:text-ink'
               }`}
             >
               All Buildings ({batches.length})
@@ -572,8 +572,8 @@ export default function Batches() {
                 onClick={() => setSelectedBuilding(b)}
                 className={`px-3 py-1.5 rounded transition-colors ${
                   selectedBuilding === b
-                    ? 'bg-white text-[#6B2638] shadow-xs font-semibold'
-                    : 'text-[#252326]/70 hover:text-[#252326]'
+                    ? 'bg-surface text-primary shadow-xs font-semibold'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {b} ({batches.filter(item => item.building === b).length})
@@ -585,7 +585,7 @@ export default function Batches() {
           <select
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
-            className="text-xs px-2.5 py-1.5 rounded border border-[#A89B8A]/30 bg-white text-[#252326] font-medium outline-none focus:border-[#6B2638]"
+            className="text-xs px-2.5 py-1.5 rounded border border-border bg-surface text-ink font-medium outline-none focus:border-accent"
           >
             <option value="ALL">All Categories</option>
             {categories.map(cat => (
@@ -604,11 +604,11 @@ export default function Batches() {
         />
       </div>
 
-      <Card padding={false} className="overflow-hidden border border-[#A89B8A]/30 shadow-xs">
+      <Card padding={false} className="overflow-hidden border border-border shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 text-xs text-[#252326]/80 font-semibold uppercase tracking-wider">
+              <tr className="bg-surface-muted border-b border-border text-xs text-ink-muted font-semibold uppercase tracking-wider">
                 <th className="p-3.5 w-12 text-center"></th>
                 <th className="p-3.5">Batch Name</th>
                 <th className="p-3.5">Building</th>
@@ -619,13 +619,13 @@ export default function Batches() {
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#A89B8A]/20 text-sm">
+            <tbody className="divide-y divide-border text-sm">
               {filteredBatches.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-10 text-center">
-                    <Layers className="w-8 h-8 text-[#A89B8A] mx-auto mb-2" />
-                    <p className="font-semibold text-[#252326] text-sm">No batches found</p>
-                    <p className="text-xs text-[#252326]/60 mt-0.5">
+                    <Layers className="w-8 h-8 text-ink-muted mx-auto mb-2" />
+                    <p className="font-semibold text-ink text-sm">No batches found</p>
+                    <p className="text-xs text-ink-muted mt-0.5">
                       Try adjusting the building or category filters or clearing the search.
                     </p>
                   </td>
@@ -639,41 +639,41 @@ export default function Batches() {
                   return (
                     <Fragment key={batch.id}>
                       <tr
-                        className={`hover:bg-[#F3EEE6]/50 transition-colors ${
-                          isExpanded ? 'bg-[#F3EEE6]/70' : ''
+                        className={`hover:bg-surface-muted/50 transition-colors ${
+                          isExpanded ? 'bg-surface-muted/70' : ''
                         }`}
                       >
                         <td className="p-3.5 text-center">
                           <button
                             type="button"
                             onClick={() => setExpandedId(isExpanded ? null : batch.id)}
-                            className="p-1.5 rounded text-[#252326]/70 hover:text-[#6B2638] hover:bg-[#F3EEE6] transition-colors"
+                            className="p-1.5 rounded text-ink-muted hover:text-primary hover:bg-surface-muted transition-colors"
                             aria-label={isExpanded ? 'Collapse timings' : 'Expand timings'}
                           >
                             {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-[#6B2638]" />
+                              <ChevronDown className="w-4 h-4 text-primary" />
                             ) : (
                               <ChevronRight className="w-4 h-4" />
                             )}
                           </button>
                         </td>
-                        <td className="p-3.5 font-bold text-[#252326]">{batch.name}</td>
-                        <td className="p-3.5 text-[#252326]/80 text-xs font-medium">{batch.building}</td>
+                        <td className="p-3.5 font-bold text-ink">{batch.name}</td>
+                        <td className="p-3.5 text-ink-muted text-xs font-medium">{batch.building}</td>
                         <td className="p-3.5">
                           <Badge tone="neutral">{batch.yearCategory}</Badge>
                         </td>
-                        <td className="p-3.5 font-semibold text-[#252326]">
-                          <span className="px-2 py-0.5 bg-[#F3EEE6] rounded text-xs border border-[#A89B8A]/30">
+                        <td className="p-3.5 font-semibold text-ink">
+                          <span className="px-2 py-0.5 bg-surface-muted rounded text-xs border border-border">
                             Room {batch.roomNumber || '-'}
                           </span>
                         </td>
                         <td className="p-3.5">
-                          <span className="text-xs font-medium text-[#252326]">
+                          <span className="text-xs font-medium text-ink">
                             {activePeriodCount} period{activePeriodCount !== 1 ? 's' : ''}/day
                           </span>
                         </td>
                         <td className="p-3.5">
-                          <span className="text-xs text-[#252326]/70">
+                          <span className="text-xs text-ink-muted">
                             {subjectCount} subjects
                           </span>
                         </td>
@@ -684,31 +684,31 @@ export default function Batches() {
                             onClick={() => handleOpenEditModal(batch)}
                             title="Edit Batch"
                           >
-                            <Edit2 className="w-4 h-4 text-[#252326]/70 hover:text-[#6B2638]" />
+                            <Edit2 className="w-4 h-4 text-ink-muted hover:text-primary" />
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => setBatchToDelete(batch)}
-                            className="hover:text-[#6B2638] hover:bg-[#FAF0F2]"
+                            className="hover:text-burgundy hover:bg-burgundy-soft"
                             title="Delete Batch"
                           >
-                            <Trash2 className="w-4 h-4 text-[#6B2638]/80 hover:text-[#6B2638]" />
+                            <Trash2 className="w-4 h-4 text-burgundy/80 hover:text-burgundy" />
                           </Button>
                         </td>
                       </tr>
 
                       {isExpanded && (
-                        <tr className="bg-[#F8F7F3]">
+                        <tr className="bg-canvas">
                           <td
                             colSpan={8}
-                            className="p-4 sm:p-5 border-l-4 border-l-[#6B2638] border-t border-b border-[#A89B8A]/30 bg-[#F8F7F3]"
+                            className="p-4 sm:p-5 border-l-4 border-l-primary border-t border-b border-border bg-canvas"
                           >
                             <div className="space-y-4">
                               {/* Timings */}
                               <div>
-                                <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-[#252326] uppercase tracking-wide">
-                                  <Clock className="w-3.5 h-3.5 text-[#B08D57]" />
+                                <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-ink uppercase tracking-wide">
+                                  <Clock className="w-3.5 h-3.5 text-accent" />
                                   <span>Period Timings for {batch.name}</span>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
@@ -717,14 +717,14 @@ export default function Batches() {
                                       key={i}
                                       className={`p-2.5 rounded border text-center transition-all ${
                                         p.startTime && p.endTime
-                                          ? 'bg-white border-[#A89B8A]/30 shadow-2xs'
-                                          : 'bg-[#F3EEE6]/50 border-dashed border-[#A89B8A]/30 text-[#252326]/50'
+                                          ? 'bg-surface border-border shadow-2xs'
+                                          : 'bg-surface-muted/50 border-dashed border-border text-ink-muted'
                                       }`}
                                     >
-                                      <div className="text-[11px] font-semibold text-[#6B2638] mb-0.5">
+                                      <div className="text-[11px] font-semibold text-primary mb-0.5">
                                         Period {i + 1}
                                       </div>
-                                      <div className="text-xs font-medium text-[#252326]">
+                                      <div className="text-xs font-medium text-ink">
                                         {p.startTime && p.endTime ? `${p.startTime} - ${p.endTime}` : 'No slot'}
                                       </div>
                                     </div>
@@ -734,21 +734,21 @@ export default function Batches() {
 
                               {/* Subjects Curriculum */}
                               <div>
-                                <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-[#252326] uppercase tracking-wide">
-                                  <BookOpen className="w-3.5 h-3.5 text-[#6B2638]" />
+                                <div className="flex items-center gap-1.5 mb-2.5 text-xs font-bold text-ink uppercase tracking-wide">
+                                  <BookOpen className="w-3.5 h-3.5 text-primary" />
                                   <span>Curriculum & Weights</span>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                   {(batch.subjects || DEFAULT_BATCH_SUBJECTS).map((s, idx) => (
                                     <span
                                       key={idx}
-                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white border border-[#A89B8A]/30 text-xs text-[#252326]"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface border border-border text-xs text-ink"
                                     >
                                       <span className="font-semibold">{s.subject}</span>
                                       <Badge tone={s.category === 'Core' ? 'burgundy' : 'gold'}>
                                         {s.category || 'Core'}
                                       </Badge>
-                                      <span className="text-[11px] text-[#252326]/60">wt: {s.count}</span>
+                                      <span className="text-[11px] text-ink-muted">wt: {s.count}</span>
                                     </span>
                                   ))}
                                 </div>
@@ -786,12 +786,12 @@ export default function Batches() {
         <form onSubmit={handleSaveModal} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label htmlFor="batch-building" className="text-xs font-semibold text-[#252326]">Campus Building</label>
+              <label htmlFor="batch-building" className="text-xs font-semibold text-ink">Campus Building</label>
               <select
                 id="batch-building"
                 value={modalBuilding}
                 onChange={e => setModalBuilding(e.target.value)}
-                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
               >
                 {BUILDINGS.map(b => (
                   <option key={b} value={b}>
@@ -802,13 +802,13 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="batch-track" className="text-xs font-semibold text-[#252326]">Academic Track / Category</label>
+              <label htmlFor="batch-track" className="text-xs font-semibold text-ink">Academic Track / Category</label>
               <input
                 id="batch-track"
                 list="years-list"
                 value={modalYearCategory}
                 onChange={e => setModalYearCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                 required
                 placeholder="e.g. First PU"
               />
@@ -821,24 +821,24 @@ export default function Batches() {
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="batch-name" className="text-xs font-semibold text-[#252326]">Batch Name</label>
+              <label htmlFor="batch-name" className="text-xs font-semibold text-ink">Batch Name</label>
               <input
                 id="batch-name"
                 value={modalName}
                 onChange={e => setModalName(e.target.value)}
-                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                 required
                 placeholder="e.g. Lakshya 10"
               />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="batch-room" className="text-xs font-semibold text-[#252326]">Room Number</label>
+              <label htmlFor="batch-room" className="text-xs font-semibold text-ink">Room Number</label>
               <input
                 id="batch-room"
                 value={modalRoomNumber}
                 onChange={e => setModalRoomNumber(e.target.value)}
-                className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                 required
                 placeholder="e.g. 204(A)"
               />
@@ -847,12 +847,12 @@ export default function Batches() {
 
           {/* Room Schedule Clash Warning (N5) */}
           {roomClashWarnings.length > 0 && (
-            <div className="p-3 bg-amber-50 border border-amber-300 rounded-md text-xs text-amber-900 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-amber-950">
-                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+            <div className="p-3 bg-cognac-soft border border-cognac/30 rounded-md text-xs text-cognac space-y-1">
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>Room Schedule Overlap Warning</span>
               </div>
-              <p>
+              <p className="text-ink">
                 Room {modalRoomNumber} in {modalBuilding} has overlapping period timings with{' '}
                 <strong>{Array.from(new Set(roomClashWarnings.map(w => w.otherBatchName))).join(', ')}</strong>.
               </p>
@@ -860,12 +860,12 @@ export default function Batches() {
           )}
 
           {/* Period Timings */}
-          <div className="border-t border-[#A89B8A]/30 pt-4 space-y-2.5">
+          <div className="border-t border-border pt-4 space-y-2.5">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-[#252326] uppercase tracking-wide">
+              <label className="text-xs font-bold text-ink uppercase tracking-wide">
                 Daily Period Timings (24-Hour Clock HH:MM)
               </label>
-              <span className="text-[11px] text-[#252326]/60">Leave empty for unused periods</span>
+              <span className="text-[11px] text-ink-muted">Leave empty for unused periods</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -876,11 +876,11 @@ export default function Batches() {
                     key={i}
                     className={`p-2.5 rounded border space-y-1 text-center transition-colors ${
                       inlineError
-                        ? 'bg-[#FAF0F2] border-[#ECD9DE]'
-                        : 'bg-[#F3EEE6]/70 border-[#A89B8A]/30'
+                        ? 'bg-burgundy-soft border-burgundy/20'
+                        : 'bg-surface-muted/70 border-border'
                     }`}
                   >
-                    <div className="text-[11px] font-semibold text-[#6B2638]">Period {i + 1}</div>
+                    <div className="text-[11px] font-semibold text-primary">Period {i + 1}</div>
                     <div className="grid grid-cols-2 gap-1.5">
                       <input
                         type="text"
@@ -892,8 +892,8 @@ export default function Batches() {
                           newP[i] = { ...newP[i], startTime: e.target.value };
                           setModalPeriods(newP);
                         }}
-                        className={`w-full text-xs p-1.5 border rounded bg-white text-center outline-none text-[#252326] ${
-                          inlineError ? 'border-[#A63232] focus:border-[#A63232]' : 'border-[#A89B8A]/30 focus:border-[#6B2638]'
+                        className={`w-full text-xs p-1.5 border rounded bg-surface text-center outline-none text-ink ${
+                          inlineError ? 'border-burgundy focus:border-burgundy' : 'border-border focus:border-accent'
                         }`}
                         title="Start Time"
                       />
@@ -907,14 +907,14 @@ export default function Batches() {
                           newP[i] = { ...newP[i], endTime: e.target.value };
                           setModalPeriods(newP);
                         }}
-                        className={`w-full text-xs p-1.5 border rounded bg-white text-center outline-none text-[#252326] ${
-                          inlineError ? 'border-[#A63232] focus:border-[#A63232]' : 'border-[#A89B8A]/30 focus:border-[#6B2638]'
+                        className={`w-full text-xs p-1.5 border rounded bg-surface text-center outline-none text-ink ${
+                          inlineError ? 'border-burgundy focus:border-burgundy' : 'border-border focus:border-accent'
                         }`}
                         title="End Time"
                       />
                     </div>
                     {inlineError && (
-                      <p className="text-[10px] text-[#A63232] font-semibold leading-tight mt-0.5">
+                      <p className="text-[10px] text-burgundy font-semibold leading-tight mt-0.5">
                         {inlineError}
                       </p>
                     )}
@@ -925,28 +925,28 @@ export default function Batches() {
           </div>
 
           {/* Curriculum Subjects */}
-          <div className="border-t border-[#A89B8A]/30 pt-4 space-y-3">
+          <div className="border-t border-border pt-4 space-y-3">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-[#252326] uppercase tracking-wide">
+              <label className="text-xs font-bold text-ink uppercase tracking-wide">
                 Assigned Subjects & Relative Weights
               </label>
-              <span className="text-[11px] text-[#252326]/60">Weights determine weekly distribution ratio</span>
+              <span className="text-[11px] text-ink-muted">Weights determine weekly distribution ratio</span>
             </div>
 
             <div className="space-y-2">
               {modalSubjects.map((s, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between gap-3 p-2 rounded bg-white border border-[#A89B8A]/30"
+                  className="flex items-center justify-between gap-3 p-2 rounded bg-surface border border-border"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-[#252326]">{s.subject}</span>
+                    <span className="font-semibold text-sm text-ink">{s.subject}</span>
                     <Badge tone={s.category === 'Core' ? 'burgundy' : 'gold'}>
                       {s.category || 'Core'}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-3">
-                    <label htmlFor={`subject-weight-${idx}`} className="text-xs text-[#252326]/70 flex items-center gap-1.5 cursor-pointer">
+                    <label htmlFor={`subject-weight-${idx}`} className="text-xs text-ink-muted flex items-center gap-1.5 cursor-pointer">
                       <span>Weight:</span>
                       <input
                         id={`subject-weight-${idx}`}
@@ -955,13 +955,13 @@ export default function Batches() {
                         max={10}
                         value={s.count}
                         onChange={e => handleSubjectWeightChange(idx, parseInt(e.target.value) || 1)}
-                        className="w-14 px-2 py-1 text-xs border border-[#A89B8A]/30 rounded bg-[#F8F7F3] text-center font-bold text-[#252326] focus:border-[#6B2638] outline-none"
+                        className="w-14 px-2 py-1 text-xs border border-border rounded bg-surface-muted text-center font-bold text-ink focus:border-accent outline-none"
                       />
                     </label>
                     <button
                       type="button"
                       onClick={() => handleRemoveSubjectFromModal(idx)}
-                      className="text-[#6B2638]/70 hover:text-[#6B2638] p-1 rounded"
+                      className="text-burgundy/70 hover:text-burgundy p-1 rounded"
                       title="Remove Subject"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -978,7 +978,7 @@ export default function Batches() {
                 placeholder="Subject name (e.g. Statistics)"
                 value={newSubjName}
                 onChange={e => setNewSubjName(e.target.value)}
-                className="flex-1 px-3 py-1.5 border border-[#A89B8A]/40 rounded text-xs bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+                className="flex-1 px-3 py-1.5 border border-border rounded text-xs bg-surface text-ink outline-none focus:border-accent"
               />
               <input
                 type="number"
@@ -987,7 +987,7 @@ export default function Batches() {
                 placeholder="Wt"
                 value={newSubjCount}
                 onChange={e => setNewSubjCount(parseInt(e.target.value) || 1)}
-                className="w-16 px-2 py-1.5 border border-[#A89B8A]/40 rounded text-xs bg-white text-[#252326] text-center outline-none focus:border-[#6B2638]"
+                className="w-16 px-2 py-1.5 border border-border rounded text-xs bg-surface text-ink text-center outline-none focus:border-accent"
               />
               <Button size="sm" variant="secondary" icon={<Plus className="w-3.5 h-3.5" />} onClick={handleAddSubjectToModal}>
                 Add Subject
@@ -1008,10 +1008,10 @@ export default function Batches() {
         message={
           batchToDelete ? (
             <div className="space-y-3">
-              <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded-md flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
-                <div className="text-xs text-[#252326] space-y-1">
-                  <p className="font-semibold text-[#6B2638]">
+              <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded-md flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-burgundy shrink-0 mt-0.5" />
+                <div className="text-xs text-ink space-y-1">
+                  <p className="font-semibold text-burgundy">
                     You are about to delete batch "{batchToDelete.name}" ({batchToDelete.building}, Room {batchToDelete.roomNumber}).
                   </p>
                   <p>
@@ -1019,7 +1019,7 @@ export default function Batches() {
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-[#252326]/70">
+              <p className="text-xs text-ink-muted">
                 This operation cannot be reversed unless you have a full system backup export.
               </p>
             </div>
@@ -1041,24 +1041,24 @@ export default function Batches() {
         }
       >
         <div className="space-y-3">
-          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#6B2638] flex items-start gap-2.5">
+          <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded text-xs text-burgundy flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
               <strong>Timing Modification Conflict Alert:</strong>
-              <p className="mt-0.5 text-[#252326]">
+              <p className="mt-0.5 text-ink">
                 The updated period timings conflict with scheduled teacher assignments on the following days. Please regenerate or manually adjust these slots on the Timetable page.
               </p>
             </div>
           </div>
 
-          <div className="max-h-64 overflow-y-auto border border-[#E5E0D8] rounded divide-y divide-[#E5E0D8]">
+          <div className="max-h-64 overflow-y-auto border border-border rounded divide-y divide-border">
             {timingOverlapReport?.map((conflict, idx) => (
               <div key={idx} className="p-3 text-xs space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#252326]">{conflict.facultyName}</span>
+                  <span className="font-bold text-ink">{conflict.facultyName}</span>
                   <Badge tone="danger">{conflict.day}</Badge>
                 </div>
-                <div className="text-[#5E5B61]">
+                <div className="text-ink-muted">
                   <strong>{conflict.batch1Name}</strong> (P{conflict.period1 + 1}: {conflict.timing1}) overlaps with{' '}
                   <strong>{conflict.batch2Name}</strong> (P{conflict.period2 + 1}: {conflict.timing2})
                 </div>

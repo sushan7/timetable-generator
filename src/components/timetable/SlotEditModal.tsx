@@ -216,16 +216,16 @@ export default function SlotEditModal({
     >
       <form id="slot-override-form" onSubmit={handleSubmit} className="space-y-4">
         {/* Slot info badge */}
-        <div className="bg-[#FAF7F2] p-3 rounded-md border border-[#E5E0D8] space-y-1 text-xs">
+        <div className="bg-surface-muted p-3 rounded-md border border-border space-y-1 text-xs">
           <div className="flex justify-between">
-            <span className="text-[#5E5B61] font-medium">Campus & Room:</span>
-            <span className="font-semibold text-[#252326]">
+            <span className="text-ink-muted font-medium">Campus & Room:</span>
+            <span className="font-semibold text-ink">
               Room {slotState.batch.roomNumber || '-'} · {slotState.batch.building}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[#5E5B61] font-medium">Slot Timing:</span>
-            <span className="font-semibold text-[#252326]">
+            <span className="text-ink-muted font-medium">Slot Timing:</span>
+            <span className="font-semibold text-ink">
               {periodTiming?.startTime ? `${periodTiming.startTime} - ${periodTiming.endTime}` : 'No timing set'}
             </span>
           </div>
@@ -256,41 +256,41 @@ export default function SlotEditModal({
 
         {/* Substitute candidates list */}
         {substituteCandidates.length > 0 && (
-          <div className="p-3 bg-white rounded border border-[#E5E0D8] space-y-2">
-            <span className="text-[11px] font-bold text-[#6B2638] uppercase block">
+          <div className="p-3 bg-surface rounded border border-border space-y-2">
+            <span className="text-[11px] font-bold text-accent uppercase block">
               Top Recommended Substitute Candidates
             </span>
             <div className="space-y-1.5 max-h-36 overflow-y-auto">
               {substituteCandidates.map(c => (
                 <div
                   key={c.faculty.id}
-                  className="flex items-center justify-between p-2 rounded bg-[#FAF7F2] border border-[#E5E0D8] text-xs"
+                  className="flex items-center justify-between p-2 rounded bg-surface-muted border border-border text-xs"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-[#252326]">{c.faculty.name}</span>
+                      <span className="font-bold text-ink">{c.faculty.name}</span>
                       {c.currentDayLoad === 0 && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-accent-soft text-ink border border-accent/40">
                           Free
                         </span>
                       )}
                       {c.currentDayLoad > 0 && c.currentDayLoad <= 2 && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-surface-muted text-ink border border-border">
                           Light load
                         </span>
                       )}
                       {c.faculty.assignedBatches && c.faculty.assignedBatches.includes(slotState.batch.id) && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#FAF2E6] text-[#6B2638] border border-[#6B2638]/30">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-accent-soft text-ink border border-accent/40">
                           Batch owner
                         </span>
                       )}
                       {!c.eligible && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-300">
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-burgundy-soft text-burgundy border border-burgundy/20">
                           Conflict
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-[#5E5B61]">
+                    <div className="text-[10px] text-ink-muted">
                       {c.faculty.subjects.join(', ')} · Daily load: {c.currentDayLoad}
                     </div>
                   </div>
@@ -315,14 +315,14 @@ export default function SlotEditModal({
 
         {/* Subject Dropdown */}
         <div className="space-y-1">
-          <label htmlFor="slot-edit-subject" className="text-xs font-semibold text-[#252326]">
+          <label htmlFor="slot-edit-subject" className="text-xs font-semibold text-ink">
             Subject
           </label>
           <select
             id="slot-edit-subject"
             value={slotState.subject}
             onChange={e => setSlotState(prev => ({ ...prev, subject: e.target.value }))}
-            className="w-full px-3 py-2 border border-[#E5E0D8] rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+            className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
           >
             {slotState.batch.subjects.map(s => (
               <option key={s.subject} value={s.subject}>
@@ -337,7 +337,7 @@ export default function SlotEditModal({
 
         {/* Faculty Dropdown */}
         <div className="space-y-1">
-          <label htmlFor="slot-edit-faculty" className="text-xs font-semibold text-[#252326]">
+          <label htmlFor="slot-edit-faculty" className="text-xs font-semibold text-ink">
             Assigned Instructor
           </label>
           <select
@@ -350,7 +350,7 @@ export default function SlotEditModal({
                 allowConflictOverride: false,
               }))
             }
-            className="w-full px-3 py-2 border border-[#E5E0D8] rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+            className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
           >
             <option value="">-- Vacant (Free Period) --</option>
             {faculties
@@ -365,7 +365,7 @@ export default function SlotEditModal({
 
         {/* Conflict Warning & Confirmation Checkbox (C2) */}
         {conflictEvaluation && !conflictEvaluation.ok && (
-          <div className="p-3 bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] rounded-md text-xs space-y-2">
+          <div className="p-3 bg-burgundy-soft text-burgundy border border-burgundy/20 rounded-md text-xs space-y-2">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
@@ -376,7 +376,7 @@ export default function SlotEditModal({
             {isHardConflict && (
               <label
                 htmlFor="slot-conflict-override"
-                className="flex items-center gap-2 pt-2 border-t border-[#ECD9DE] cursor-pointer font-bold select-none text-[#6B2638]"
+                className="flex items-center gap-2 pt-2 border-t border-burgundy/20 cursor-pointer font-bold select-none text-burgundy"
               >
                 <input
                   id="slot-conflict-override"
@@ -385,7 +385,7 @@ export default function SlotEditModal({
                   onChange={e =>
                     setSlotState(prev => ({ ...prev, allowConflictOverride: e.target.checked }))
                   }
-                  className="w-4 h-4 text-[#6B2638] focus:ring-[#6B2638] rounded"
+                  className="w-4 h-4 text-burgundy focus:ring-burgundy rounded"
                 />
                 <span>Override anyway</span>
               </label>
@@ -394,20 +394,20 @@ export default function SlotEditModal({
         )}
 
         {/* Freeze slot toggle */}
-        <div className="pt-2 border-t border-[#E5E0D8]">
+        <div className="pt-2 border-t border-border">
           <label
             htmlFor="slot-is-frozen"
-            className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-[#252326] select-none"
+            className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-ink select-none"
           >
             <input
               id="slot-is-frozen"
               type="checkbox"
               checked={slotState.isFrozen}
               onChange={e => setSlotState(prev => ({ ...prev, isFrozen: e.target.checked }))}
-              className="w-4 h-4 text-[#6B2638] focus:ring-[#6B2638] rounded"
+              className="w-4 h-4 text-accent focus:ring-accent rounded"
             />
             <span className="flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-[#6B2638]" />
+              <Lock className="w-3.5 h-3.5 text-accent" />
               Freeze this slot (protect from future automatic regeneration)
             </span>
           </label>

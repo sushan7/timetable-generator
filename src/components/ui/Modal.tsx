@@ -106,7 +106,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 bg-[#252326]/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-120"
+      className="fixed inset-0 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-120"
       onClick={onClose}
       role="presentation"
     >
@@ -114,7 +114,7 @@ export default function Modal({
         ref={modalRef}
         tabIndex={-1}
         className={cn(
-          'bg-white rounded-lg shadow-xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-[#E5E0D8] animate-in zoom-in-95 duration-120 outline-none',
+          'bg-surface rounded-lg shadow-xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-border animate-in zoom-in-95 duration-120 outline-none',
           MAX_WIDTH_STYLES[maxWidth]
         )}
         onClick={e => e.stopPropagation()}
@@ -123,19 +123,19 @@ export default function Modal({
         aria-labelledby={titleId}
       >
         {/* Modal Header */}
-        <div className="flex justify-between items-start p-5 sm:p-6 border-b border-[#E5E0D8] bg-[#FAF7F2]">
+        <div className="flex justify-between items-start p-5 sm:p-6 border-b border-border bg-surface-muted">
           <div>
-            <h2 id={titleId} className="text-base sm:text-lg font-bold text-[#252326] tracking-tight leading-snug">
+            <h2 id={titleId} className="text-base sm:text-lg font-bold text-ink tracking-tight leading-snug">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-xs text-[#5E5B61] mt-0.5">{subtitle}</p>
+              <p className="text-xs text-ink-muted mt-0.5">{subtitle}</p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[#5E5B61] hover:text-[#252326] rounded-md p-1.5 hover:bg-[#E5E0D8]/60 transition-colors shrink-0 ml-3"
+            className="text-ink-muted hover:text-ink rounded-md p-1.5 hover:bg-border/60 transition-colors shrink-0 ml-3"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />
@@ -147,7 +147,7 @@ export default function Modal({
 
         {/* Modal Footer */}
         {footer && (
-          <div className="flex flex-wrap justify-end items-center gap-2.5 p-4 sm:p-6 sm:py-4 border-t border-[#E5E0D8] bg-[#FAF7F2]">
+          <div className="flex flex-wrap justify-end items-center gap-2.5 p-4 sm:p-6 sm:py-4 border-t border-border bg-surface-muted">
             {footer}
           </div>
         )}

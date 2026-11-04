@@ -339,23 +339,23 @@ export const buildTimetablePdf = (
       doc.addPage();
     }
 
-    // Top Brand Accent Line
-    doc.setFillColor(107, 38, 56); // Burgundy #6B2638
+    // Top Brand Accent Line (Brushed Gold Accent)
+    doc.setFillColor(176, 138, 74); // Gold #B08A4A
     doc.rect(30, 24, 782, 3, 'F');
 
     // Header Content
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.setTextColor(37, 35, 38); // Charcoal #252326
+    doc.setTextColor(42, 40, 38); // Deep Charcoal #2A2826
     doc.text('TIMETABLE PRO — ACADEMIC SCHEDULE', 30, 44);
 
     doc.setFontSize(11);
-    doc.setTextColor(107, 38, 56);
+    doc.setTextColor(42, 40, 38); // Deep Charcoal #2A2826
     doc.text(sec.label, 30, 59);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.setTextColor(94, 91, 97); // Muted #5E5B61
+    doc.setTextColor(110, 101, 89); // Taupe Muted #6E6559
     const metaString = `Day: ${day}   |   Status: ${status}   |   Batches: ${secBatches.length}   |   Export Date: ${exportDate}`;
     doc.text(metaString, 30, 72);
 
@@ -411,8 +411,8 @@ export const buildTimetablePdf = (
       body: bodyRows,
       theme: 'grid',
       headStyles: {
-        fillColor: [107, 38, 56], // #6B2638 Burgundy
-        textColor: [255, 255, 255],
+        fillColor: [42, 40, 38], // #2A2826 Deep Charcoal
+        textColor: [245, 240, 232], // #F5F0E8 Canvas Warm Beige
         fontSize: 8,
         fontStyle: 'bold',
         halign: 'center',
@@ -421,12 +421,12 @@ export const buildTimetablePdf = (
       styles: {
         fontSize: 7.5,
         cellPadding: 3,
-        lineColor: [229, 224, 216], // #E5E0D8
+        lineColor: [220, 210, 193], // #DCD2C1 Border
         lineWidth: 0.5,
         valign: 'middle',
         halign: 'center',
         overflow: 'linebreak',
-        textColor: [37, 35, 38],
+        textColor: [42, 40, 38], // #2A2826 Ink
       },
       columnStyles: {
         0: { halign: 'left', fontStyle: 'bold', minCellWidth: 65 },
@@ -434,13 +434,13 @@ export const buildTimetablePdf = (
         2: { halign: 'center', minCellWidth: 45 },
       },
       alternateRowStyles: {
-        fillColor: [253, 251, 247], // #FDFBF7 Warm Beige
+        fillColor: [245, 240, 232], // #F5F0E8 Canvas Warm Beige
       },
       didDrawPage: data => {
         // Footer pagination
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.setTextColor(120, 115, 120);
+        doc.setTextColor(110, 101, 89);
         const pageNumber = `Timetable Pro  ·  ${sec.label}  ·  Page ${data.pageNumber}`;
         doc.text(pageNumber, 421, 580, { align: 'center' });
       },
@@ -477,7 +477,7 @@ export const exportTimetableToPng = async (
 
   const canvas = await html2canvas(containerElement, {
     scale: 2,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     useCORS: true,
     logging: false,
     ignoreElements: element =>

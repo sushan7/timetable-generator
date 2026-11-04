@@ -74,25 +74,25 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               aria-live={isError ? 'assertive' : 'polite'}
               className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-lg shadow-xl border text-xs leading-relaxed transition-all duration-200 transform translate-y-0 ${
                 isSuccess
-                  ? 'bg-[#252326] text-white border-emerald-500/40 shadow-emerald-950/20'
+                  ? 'bg-primary text-canvas border-accent/40 shadow-black/20'
                   : isError
-                  ? 'bg-[#252326] text-white border-red-500/40 shadow-red-950/20'
+                  ? 'bg-primary text-canvas border-burgundy/40 shadow-burgundy/20'
                   : isWarning
-                  ? 'bg-[#252326] text-white border-amber-500/40 shadow-amber-950/20'
-                  : 'bg-[#252326] text-white border-[#A89B8A]/40 shadow-black/20'
+                  ? 'bg-primary text-canvas border-cognac/40 shadow-cognac/20'
+                  : 'bg-primary text-canvas border-border/40 shadow-black/20'
               }`}
             >
               <div className="shrink-0 mt-0.5">
-                {isSuccess && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                {isError && <AlertCircle className="w-4 h-4 text-red-400" />}
-                {isWarning && <AlertTriangle className="w-4 h-4 text-amber-400" />}
-                {!isSuccess && !isError && !isWarning && <Info className="w-4 h-4 text-[#B08D57]" />}
+                {isSuccess && <CheckCircle2 className="w-4 h-4 text-accent" />}
+                {isError && <AlertCircle className="w-4 h-4 text-burgundy" />}
+                {isWarning && <AlertTriangle className="w-4 h-4 text-cognac" />}
+                {!isSuccess && !isError && !isWarning && <Info className="w-4 h-4 text-accent" />}
               </div>
-              <div className="flex-1 font-medium text-slate-100">{t.message}</div>
+              <div className="flex-1 font-medium text-canvas">{t.message}</div>
               <button
                 type="button"
                 onClick={() => dismissToast(t.id)}
-                className="shrink-0 text-white/50 hover:text-white p-0.5 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-white"
+                className="shrink-0 text-canvas/50 hover:text-canvas p-0.5 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-accent"
                 aria-label="Dismiss notification"
               >
                 <X className="w-3.5 h-3.5" />

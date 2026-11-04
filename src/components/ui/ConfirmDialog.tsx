@@ -30,11 +30,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => {
   const defaultIcon =
     variant === 'danger' ? (
-      <AlertCircle className="w-5 h-5 text-red-600" />
+      <AlertCircle className="w-5 h-5 text-burgundy" />
     ) : variant === 'warning' ? (
-      <AlertTriangle className="w-5 h-5 text-amber-600" />
+      <AlertTriangle className="w-5 h-5 text-cognac" />
     ) : (
-      <HelpCircle className="w-5 h-5 text-[#6B2638]" />
+      <HelpCircle className="w-5 h-5 text-accent" />
     );
 
   const displayIcon = icon ?? defaultIcon;
@@ -45,7 +45,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       onClose={onClose}
       title={
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-md bg-stone-100 shrink-0">
+          <div className="p-1.5 rounded-md bg-surface-muted shrink-0">
             {displayIcon}
           </div>
           <span>{title}</span>
@@ -71,7 +71,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </div>
       }
     >
-      <div className="text-xs text-[#252326]/80 leading-relaxed py-2">
+      <div className="text-xs text-ink/80 leading-relaxed py-2">
         {typeof message === 'string' ? <p>{message}</p> : message}
       </div>
     </Modal>

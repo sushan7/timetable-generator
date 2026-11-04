@@ -36,6 +36,21 @@ export default function SettingsView() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Theme state
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'system'>(() => {
+    return (localStorage.getItem('theme') as 'light' | 'dark' | 'system') || 'system';
+  });
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setCurrentTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    if (newTheme === 'dark' || (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   // Backup & Restore states
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importedBackup, setImportedBackup] = useState<BackupData | null>(null);
@@ -238,13 +253,13 @@ export default function SettingsView() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <PageHeader
-        icon={<SettingsIcon className="w-5 h-5 text-[#6B2638]" />}
+        icon={<SettingsIcon className="w-5 h-5 text-primary" />}
         title="Settings & Administration"
         subtitle="Manage heuristic weights, pre-check curriculum capacity, export backups, and inspect audit logs"
         actions={
           statusMessage ? (
-            <span className="text-xs font-semibold text-[#252326] bg-[#F6F4F0] border border-[#B08D57]/40 px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-xs">
-              <CheckCircle2 className="w-4 h-4 text-[#B08D57]" />
+            <span className="text-xs font-semibold text-ink bg-surface-muted border border-accent/40 px-3 py-1.5 rounded-md flex items-center gap-1.5 shadow-xs">
+              <CheckCircle2 className="w-4 h-4 text-accent" />
               <span>{statusMessage}</span>
             </span>
           ) : undefined
@@ -252,14 +267,14 @@ export default function SettingsView() {
       />
 
       {/* Tabs */}
-      <div className="flex border-b border-[#A89B8A]/30 select-none overflow-x-auto">
+      <div className="flex border-b border-border select-none overflow-x-auto">
         <button
           type="button"
           onClick={() => setTab('config')}
           className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider flex items-center gap-2 transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === 'config'
-              ? 'border-[#6B2638] text-[#6B2638] font-bold'
-              : 'border-transparent text-[#252326]/60 hover:text-[#252326]'
+              ? 'border-accent text-primary font-bold'
+              : 'border-transparent text-ink-muted hover:text-ink'
           }`}
         >
           <Sliders className="w-4 h-4" />
@@ -271,8 +286,8 @@ export default function SettingsView() {
           onClick={() => setTab('capacity')}
           className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider flex items-center gap-2 transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === 'capacity'
-              ? 'border-[#6B2638] text-[#6B2638] font-bold'
-              : 'border-transparent text-[#252326]/60 hover:text-[#252326]'
+              ? 'border-accent text-primary font-bold'
+              : 'border-transparent text-ink-muted hover:text-ink'
           }`}
         >
           <BarChart2 className="w-4 h-4" />
@@ -284,8 +299,8 @@ export default function SettingsView() {
           onClick={() => setTab('backup')}
           className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider flex items-center gap-2 transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === 'backup'
-              ? 'border-[#6B2638] text-[#6B2638] font-bold'
-              : 'border-transparent text-[#252326]/60 hover:text-[#252326]'
+              ? 'border-accent text-primary font-bold'
+              : 'border-transparent text-ink-muted hover:text-ink'
           }`}
         >
           <Database className="w-4 h-4" />
@@ -297,8 +312,8 @@ export default function SettingsView() {
           onClick={() => setTab('audit')}
           className={`px-4 py-2.5 font-medium text-xs uppercase tracking-wider flex items-center gap-2 transition-colors border-b-2 -mb-px whitespace-nowrap ${
             tab === 'audit'
-              ? 'border-[#6B2638] text-[#6B2638] font-bold'
-              : 'border-transparent text-[#252326]/60 hover:text-[#252326]'
+              ? 'border-accent text-primary font-bold'
+              : 'border-transparent text-ink-muted hover:text-ink'
           }`}
         >
           <History className="w-4 h-4" />
@@ -309,19 +324,19 @@ export default function SettingsView() {
       {/* Tab 1: Config */}
       {tab === 'config' && (
         <div className="space-y-6">
-          <Card className="border border-[#A89B8A]/30">
+          <Card className="border border-border">
             <form onSubmit={handleSave} className="space-y-6">
               <div>
-                <h3 className="text-base font-bold text-[#252326] leading-snug">
+                <h3 className="text-base font-bold text-ink leading-snug">
                   Curriculum Distribution Weights
                 </h3>
-                <p className="text-xs text-[#252326]/60 mt-0.5">
+                <p className="text-xs text-ink-muted mt-0.5">
                   Controls target ratio between core PCMB science lectures and language/elective classes.
                 </p>
               </div>
 
               {validationError && (
-                <div className="p-3 bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] rounded-md text-xs font-semibold flex items-center gap-2">
+                <div className="p-3 bg-burgundy-soft text-burgundy border border-burgundy/20 rounded-md text-xs font-semibold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   <span>{validationError}</span>
                 </div>
@@ -329,7 +344,7 @@ export default function SettingsView() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-1">
-                  <label htmlFor="settings-pcmb-weight" className="text-xs font-semibold text-[#252326]">
+                  <label htmlFor="settings-pcmb-weight" className="text-xs font-semibold text-ink">
                     Core Science (PCMB) Weight (%)
                   </label>
                   <input
@@ -339,15 +354,15 @@ export default function SettingsView() {
                     max={100}
                     value={settings.pcmbWeight}
                     onChange={e => handleChange('pcmbWeight', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                   />
-                  <p className="text-xs text-[#252326]/60">
+                  <p className="text-xs text-ink-muted">
                     Target allocation share for Physics, Chemistry, Math & Biology.
                   </p>
                 </div>
 
                 <div className="space-y-1">
-                  <label htmlFor="settings-language-weight" className="text-xs font-semibold text-[#252326]">
+                  <label htmlFor="settings-language-weight" className="text-xs font-semibold text-ink">
                     Language & Elective Weight (%)
                   </label>
                   <input
@@ -357,9 +372,9 @@ export default function SettingsView() {
                     max={100}
                     value={settings.languageWeight}
                     onChange={e => handleChange('languageWeight', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                   />
-                  <p className="text-xs text-[#252326]/60">
+                  <p className="text-xs text-ink-muted">
                     Target allocation share for English, K/H/S, and second languages.
                   </p>
                 </div>
@@ -371,27 +386,27 @@ export default function SettingsView() {
                 const corePct = totalWeight > 0 ? Math.round((settings.pcmbWeight / totalWeight) * 100) : 0;
                 const langPct = totalWeight > 0 ? 100 - corePct : 0;
                 return (
-                  <div className="p-2.5 bg-[#FAF7F2] rounded border border-[#E5E0D8] text-xs flex items-center justify-between">
-                    <span className="text-[#252326]/70">Normalized Distribution Target:</span>
-                    <span className="font-semibold text-[#252326]">
+                  <div className="p-2.5 bg-surface-muted rounded border border-border text-xs flex items-center justify-between">
+                    <span className="text-ink-muted">Normalized Distribution Target:</span>
+                    <span className="font-semibold text-ink">
                       {totalWeight > 0 ? (
                         <>Core {corePct}% · Languages {langPct}%</>
                       ) : (
-                        <span className="text-[#A63232]">Both weights cannot be 0</span>
+                        <span className="text-burgundy">Both weights cannot be 0</span>
                       )}
                     </span>
                   </div>
                 );
               })()}
 
-              <hr className="border-[#A89B8A]/20" />
+              <hr className="border-border" />
 
               {/* Subject Categories (M6) */}
               <div>
-                <h3 className="text-base font-bold text-[#252326] leading-snug">
+                <h3 className="text-base font-bold text-ink leading-snug">
                   Curriculum Subject Categories
                 </h3>
-                <p className="text-xs text-[#252326]/60 mt-0.5">
+                <p className="text-xs text-ink-muted mt-0.5">
                   Categorize subjects as Core (PCMB), Language, or Other. Other subjects (e.g. Computer Science) are never counted as languages.
                 </p>
               </div>
@@ -404,9 +419,9 @@ export default function SettingsView() {
                   return (
                     <div
                       key={subj}
-                      className="flex items-center justify-between p-2.5 bg-white border border-[#A89B8A]/30 rounded-md text-xs"
+                      className="flex items-center justify-between p-2.5 bg-surface border border-border rounded-md text-xs"
                     >
-                      <span className="font-semibold text-[#252326]">{subj}</span>
+                      <span className="font-semibold text-ink">{subj}</span>
                       <div className="flex items-center gap-1">
                         {(['Core', 'Language', 'Other'] as const).map(cat => (
                           <button
@@ -416,11 +431,11 @@ export default function SettingsView() {
                             className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
                               currentCat === cat
                                 ? cat === 'Core'
-                                  ? 'bg-[#6B2638] text-white shadow-2xs'
+                                  ? 'bg-primary text-canvas shadow-2xs'
                                   : cat === 'Language'
-                                  ? 'bg-[#B08D57] text-white shadow-2xs'
-                                  : 'bg-[#5C6B73] text-white shadow-2xs'
-                                : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E8E2D9]'
+                                  ? 'bg-accent text-ink shadow-2xs'
+                                  : 'bg-taupe text-canvas shadow-2xs'
+                                : 'bg-surface-muted text-ink-muted hover:bg-border/60'
                             }`}
                           >
                             {cat}
@@ -438,12 +453,12 @@ export default function SettingsView() {
                   placeholder="New subject name (e.g. Computer Science)"
                   value={newSubjName}
                   onChange={e => setNewSubjName(e.target.value)}
-                  className="flex-1 px-3 py-1.5 border border-[#A89B8A]/40 rounded-md text-xs bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+                  className="flex-1 px-3 py-1.5 border border-border rounded-md text-xs bg-surface text-ink outline-none focus:border-accent"
                 />
                 <select
                   value={newSubjCategory}
                   onChange={e => setNewSubjCategory(e.target.value as SubjectCategory)}
-                  className="px-2.5 py-1.5 border border-[#A89B8A]/40 rounded-md text-xs bg-white text-[#252326] outline-none focus:border-[#6B2638]"
+                  className="px-2.5 py-1.5 border border-border rounded-md text-xs bg-surface text-ink outline-none focus:border-accent"
                 >
                   <option value="Core">Core</option>
                   <option value="Language">Language</option>
@@ -454,20 +469,20 @@ export default function SettingsView() {
                 </Button>
               </div>
 
-              <hr className="border-[#A89B8A]/20" />
+              <hr className="border-border" />
 
               <div>
-                <h3 className="text-base font-bold text-[#252326] leading-snug">
+                <h3 className="text-base font-bold text-ink leading-snug">
                   Faculty Workload & Scheduling Constraints
                 </h3>
-                <p className="text-xs text-[#252326]/60 mt-0.5">
+                <p className="text-xs text-ink-muted mt-0.5">
                   Configure limits on instructor load and algorithmic guardrails.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-1">
-                  <label htmlFor="settings-max-daily-periods" className="text-xs font-semibold text-[#252326]">
+                  <label htmlFor="settings-max-daily-periods" className="text-xs font-semibold text-ink">
                     Maximum Daily Periods per Faculty (1–8)
                   </label>
                   <input
@@ -477,15 +492,15 @@ export default function SettingsView() {
                     max={8}
                     value={settings.maxDailyPeriods}
                     onChange={e => handleChange('maxDailyPeriods', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                   />
-                  <p className="text-xs text-[#252326]/60">
+                  <p className="text-xs text-ink-muted">
                     Global daily teaching ceiling per instructor (1–8 periods).
                   </p>
                 </div>
 
                 <div className="space-y-1">
-                  <label htmlFor="settings-min-travel-gap" className="text-xs font-semibold text-[#252326]">
+                  <label htmlFor="settings-min-travel-gap" className="text-xs font-semibold text-ink">
                     Inter-Building Travel Gap (Minutes)
                   </label>
                   <input
@@ -495,22 +510,22 @@ export default function SettingsView() {
                     max={60}
                     value={settings.minTravelGapMinutes ?? 0}
                     onChange={e => handleChange('minTravelGapMinutes', Math.max(0, Number(e.target.value)))}
-                    className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                   />
-                  <p className="text-xs text-[#252326]/60">
+                  <p className="text-xs text-ink-muted">
                     Min gap when moving between Building 1 and 2 (soft penalty).
                   </p>
                 </div>
 
                 <div className="space-y-1">
-                  <label htmlFor="settings-week-start-day" className="text-xs font-semibold text-[#252326]">
+                  <label htmlFor="settings-week-start-day" className="text-xs font-semibold text-ink">
                     Academic Week Start Day
                   </label>
                   <select
                     id="settings-week-start-day"
                     value={settings.weekStartDay}
                     onChange={e => handleChange('weekStartDay', e.target.value as DayOfWeek)}
-                    className="w-full px-3 py-2 border border-[#A89B8A]/40 rounded-md text-sm bg-white focus:border-[#6B2638] outline-none text-[#252326]"
+                    className="w-full px-3 py-2 border border-border rounded-md text-sm bg-surface focus:border-accent outline-none text-ink"
                   >
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
@@ -520,44 +535,44 @@ export default function SettingsView() {
                     <option value="Saturday">Saturday</option>
                     <option value="Sunday">Sunday</option>
                   </select>
-                  <p className="text-xs text-[#252326]/60">Initial day for weekly timetable generation cycles.</p>
+                  <p className="text-xs text-ink-muted">Initial day for weekly timetable generation cycles.</p>
                 </div>
               </div>
 
-              <div className="border-t border-[#A89B8A]/20 pt-4 space-y-3">
-                <label htmlFor="settings-strict-p1-lang" className="flex items-center gap-2.5 text-xs text-[#252326] font-medium cursor-pointer">
+              <div className="border-t border-border pt-4 space-y-3">
+                <label htmlFor="settings-strict-p1-lang" className="flex items-center gap-2.5 text-xs text-ink font-medium cursor-pointer">
                   <input
                     id="settings-strict-p1-lang"
                     type="checkbox"
                     checked={settings.enableStrictPeriod1NoLanguage ?? true}
                     onChange={e => handleChange('enableStrictPeriod1NoLanguage', e.target.checked)}
-                    className="rounded text-[#6B2638] focus:ring-[#6B2638]"
+                    className="rounded text-primary focus:ring-accent accent-primary"
                   />
                   <span>
                     <strong>Avoid Language in Period 1:</strong> Restrict first period of the day to core PCMB science lectures.
                   </span>
                 </label>
 
-                <label htmlFor="settings-respect-daily-limits" className="flex items-center gap-2.5 text-xs text-[#252326] font-medium cursor-pointer">
+                <label htmlFor="settings-respect-daily-limits" className="flex items-center gap-2.5 text-xs text-ink font-medium cursor-pointer">
                   <input
                     id="settings-respect-daily-limits"
                     type="checkbox"
                     checked={settings.respectDailyLimits ?? true}
                     onChange={e => handleChange('respectDailyLimits', e.target.checked)}
-                    className="rounded text-[#6B2638] focus:ring-[#6B2638]"
+                    className="rounded text-primary focus:ring-accent accent-primary"
                   />
                   <span>
                     <strong>Strict Daily Teaching Limits:</strong> Do not assign faculty beyond their daily maximum.
                   </span>
                 </label>
 
-                <label htmlFor="settings-allow-same-subject" className="flex items-center gap-2.5 text-xs text-[#252326] font-medium cursor-pointer">
+                <label htmlFor="settings-allow-same-subject" className="flex items-center gap-2.5 text-xs text-ink font-medium cursor-pointer">
                   <input
                     id="settings-allow-same-subject"
                     type="checkbox"
                     checked={!settings.allowSameSubjectConsecutive}
                     onChange={e => handleChange('allowSameSubjectConsecutive', !e.target.checked)}
-                    className="rounded text-[#6B2638] focus:ring-[#6B2638]"
+                    className="rounded text-primary focus:ring-accent accent-primary"
                   />
                   <span>
                     <strong>Subject Spacing:</strong> Prevent identical subjects from being scheduled in consecutive periods for any batch.
@@ -565,7 +580,34 @@ export default function SettingsView() {
                 </label>
               </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-[#A89B8A]/20">
+              <hr className="border-border" />
+
+              <div>
+                <h3 className="text-base font-bold text-ink leading-snug">
+                  Appearance & Interface Theme
+                </h3>
+                <p className="text-xs text-ink-muted mt-0.5">
+                  Choose between high-contrast editorial light mode and nocturnal dark mode.
+                </p>
+                <div className="flex items-center gap-2 mt-3">
+                  {(['light', 'dark', 'system'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => handleThemeChange(t)}
+                      className={`px-3.5 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors ${
+                        currentTheme === t
+                          ? 'bg-primary text-canvas shadow-2xs'
+                          : 'bg-surface-muted text-ink-muted hover:bg-border/60 hover:text-ink border border-border'
+                      }`}
+                    >
+                      {t} Mode
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-border">
                 <Button
                   type="button"
                   variant="secondary"
@@ -586,29 +628,29 @@ export default function SettingsView() {
       {/* Tab 2: Capacity Pre-Check */}
       {tab === 'capacity' && (
         <div className="space-y-6">
-          <Card className="border border-[#A89B8A]/30">
+          <Card className="border border-border">
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-bold text-[#252326]">
+                <h3 className="text-base font-bold text-ink">
                   Curriculum Demand vs Faculty Supply
                 </h3>
-                <p className="text-xs text-[#252326]/60 mt-0.5">
+                <p className="text-xs text-ink-muted mt-0.5">
                   Verifies if your registered faculty pool has sufficient teaching capacity to deliver the required periods across all {batches.length} active batches.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-[#F3EEE6] rounded-md border border-[#A89B8A]/30">
-                  <span className="text-[11px] font-semibold text-[#252326]/60 uppercase">Total Batches</span>
-                  <div className="text-xl font-bold text-[#6B2638] mt-0.5">{batches.length}</div>
+                <div className="p-3 bg-surface-muted rounded-md border border-border">
+                  <span className="text-[11px] font-semibold text-ink-muted uppercase">Total Batches</span>
+                  <div className="text-xl font-bold text-primary mt-0.5">{batches.length}</div>
                 </div>
-                <div className="p-3 bg-[#F3EEE6] rounded-md border border-[#A89B8A]/30">
-                  <span className="text-[11px] font-semibold text-[#252326]/60 uppercase">Teaching Faculty</span>
-                  <div className="text-xl font-bold text-[#6B2638] mt-0.5">{faculty.length}</div>
+                <div className="p-3 bg-surface-muted rounded-md border border-border">
+                  <span className="text-[11px] font-semibold text-ink-muted uppercase">Teaching Faculty</span>
+                  <div className="text-xl font-bold text-primary mt-0.5">{faculty.length}</div>
                 </div>
-                <div className="p-3 bg-[#F3EEE6] rounded-md border border-[#A89B8A]/30">
-                  <span className="text-[11px] font-semibold text-[#252326]/60 uppercase">Deficit Subjects</span>
-                  <div className="text-xl font-bold text-[#6B2638] mt-0.5">
+                <div className="p-3 bg-surface-muted rounded-md border border-border">
+                  <span className="text-[11px] font-semibold text-ink-muted uppercase">Deficit Subjects</span>
+                  <div className="text-xl font-bold text-primary mt-0.5">
                     {capacityReport.filter(r => r.status === 'deficit').length}
                   </div>
                 </div>
@@ -617,7 +659,7 @@ export default function SettingsView() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 font-semibold text-[#252326]/80 uppercase tracking-wider">
+                    <tr className="bg-surface-muted border-b border-border font-semibold text-ink-muted uppercase tracking-wider">
                       <th className="p-3">Subject</th>
                       <th className="p-3">Category</th>
                       <th className="p-3 text-right">Weekly Demand</th>
@@ -627,25 +669,25 @@ export default function SettingsView() {
                       <th className="p-3 text-center">Health Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#A89B8A]/20">
+                  <tbody className="divide-y divide-border">
                     {capacityReport.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-[#F3EEE6]/40 transition-colors">
-                        <td className="p-3 font-bold text-[#252326]">{row.subject}</td>
+                      <tr key={idx} className="hover:bg-surface-muted/40 transition-colors">
+                        <td className="p-3 font-bold text-ink">{row.subject}</td>
                         <td className="p-3">
                           <Badge tone={row.category === 'Core' ? 'burgundy' : 'gold'}>
                             {row.category}
                           </Badge>
                         </td>
-                        <td className="p-3 text-right font-medium text-[#252326]">
+                        <td className="p-3 text-right font-medium text-ink">
                           {row.requiredWeeklyPeriods} periods
                         </td>
-                        <td className="p-3 text-right text-[#252326]/80">
+                        <td className="p-3 text-right text-ink-muted">
                           {row.facultyCount} teachers
                         </td>
-                        <td className="p-3 text-right font-medium text-[#252326]">
+                        <td className="p-3 text-right font-medium text-ink">
                           {row.availableWeeklyPeriods} periods
                         </td>
-                        <td className="p-3 text-right font-bold text-[#252326]">
+                        <td className="p-3 text-right font-bold text-ink">
                           {row.deficit > 0 ? `-${row.deficit}` : '0'}
                         </td>
                         <td className="p-3 text-center">
@@ -663,19 +705,19 @@ export default function SettingsView() {
                 </table>
               </div>
 
-              <div className="p-3 bg-[#F6F4F0] border border-[#B08D57]/40 rounded-md text-xs text-[#252326] flex items-start gap-2.5">
-                <Info className="w-4 h-4 text-[#B08D57] shrink-0 mt-0.5" />
+              <div className="p-3 bg-surface-muted border border-accent/40 rounded-md text-xs text-ink flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
                 <p>
                   <strong>Optimization Tip:</strong> If any subject shows a <em>Deficit Warning</em>, consider hiring or qualifying additional faculty members in that subject, or adjusting daily period limits to avoid unfilled slots during timetable generation.
                 </p>
               </div>
 
               {/* Overloaded & Near-Capacity Teachers Table (N2) */}
-              <div className="pt-4 border-t border-[#A89B8A]/20 space-y-3">
+              <div className="pt-4 border-t border-border space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-sm font-bold text-[#252326]">Teacher Workload Distribution</h4>
-                    <p className="text-xs text-[#252326]/60">
+                    <h4 className="text-sm font-bold text-ink">Teacher Workload Distribution</h4>
+                    <p className="text-xs text-ink-muted">
                       Instructors flagged for excessive weekly periods or nearing their maximum weekly allocation.
                     </p>
                   </div>
@@ -685,15 +727,15 @@ export default function SettingsView() {
                 </div>
 
                 {detailedCapacity.overloadedTeachers.length === 0 ? (
-                  <div className="p-3 bg-[#F3EEE6]/60 rounded border border-[#A89B8A]/30 text-xs text-[#252326]/70 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-[#B08D57]" />
+                  <div className="p-3 bg-surface-muted/60 rounded border border-border text-xs text-ink-muted flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-accent" />
                     <span>All instructors are operating within balanced workload limits across current timetable allocations.</span>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 font-semibold text-[#252326]/80 uppercase tracking-wider">
+                        <tr className="bg-surface-muted border-b border-border font-semibold text-ink-muted uppercase tracking-wider">
                           <th className="p-3">Instructor</th>
                           <th className="p-3">Subjects</th>
                           <th className="p-3 text-right">Daily Limit</th>
@@ -702,14 +744,14 @@ export default function SettingsView() {
                           <th className="p-3 text-center">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#A89B8A]/20">
+                      <tbody className="divide-y divide-border">
                         {detailedCapacity.overloadedTeachers.map((t, idx) => (
-                          <tr key={idx} className="hover:bg-[#F3EEE6]/40 transition-colors">
-                            <td className="p-3 font-bold text-[#252326]">{t.facultyName}</td>
-                            <td className="p-3 text-[#252326]/80">{t.subjects.join(', ')}</td>
-                            <td className="p-3 text-right font-medium text-[#252326]">{t.dailyLimit} / day</td>
-                            <td className="p-3 text-right font-medium text-[#252326]">{t.weeklyLimit} periods</td>
-                            <td className="p-3 text-right font-bold text-[#6B2638]">{t.assignedPeriods} periods</td>
+                          <tr key={idx} className="hover:bg-surface-muted/40 transition-colors">
+                            <td className="p-3 font-bold text-ink">{t.facultyName}</td>
+                            <td className="p-3 text-ink-muted">{t.subjects.join(', ')}</td>
+                            <td className="p-3 text-right font-medium text-ink">{t.dailyLimit} / day</td>
+                            <td className="p-3 text-right font-medium text-ink">{t.weeklyLimit} periods</td>
+                            <td className="p-3 text-right font-bold text-burgundy">{t.assignedPeriods} periods</td>
                             <td className="p-3 text-center">
                               {t.status === 'overloaded' ? (
                                 <Badge tone="danger">Overloaded</Badge>
@@ -732,22 +774,22 @@ export default function SettingsView() {
       {/* Tab 3: Backup & Restore */}
       {tab === 'backup' && (
         <div className="space-y-6">
-          <Card className="border border-[#A89B8A]/30 space-y-6">
+          <Card className="border border-border space-y-6">
             <div>
-              <h3 className="text-base font-bold text-[#252326]">Data Persistence & System Backups</h3>
-              <p className="text-xs text-[#252326]/60 mt-0.5">
+              <h3 className="text-base font-bold text-ink">Data Persistence & System Backups</h3>
+              <p className="text-xs text-ink-muted mt-0.5">
                 Export and restore the complete system database (faculty, batches, timetables, and audit history) as JSON snapshots.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Export Box */}
-              <div className="p-4 bg-[#F3EEE6]/60 border border-[#A89B8A]/30 rounded-lg space-y-3">
+              <div className="p-4 bg-surface-muted/60 border border-border rounded-lg space-y-3">
                 <div className="flex items-center gap-2">
-                  <Download className="w-4 h-4 text-[#6B2638]" />
-                  <h4 className="text-sm font-bold text-[#252326]">Export all data</h4>
+                  <Download className="w-4 h-4 text-primary" />
+                  <h4 className="text-sm font-bold text-ink">Export all data</h4>
                 </div>
-                <p className="text-xs text-[#252326]/70 leading-relaxed">
+                <p className="text-xs text-ink-muted leading-relaxed">
                   Downloads a single versioned JSON archive containing faculty, batches, settings, and full week timetables.
                 </p>
                 <Button
@@ -760,12 +802,12 @@ export default function SettingsView() {
               </div>
 
               {/* Import Box */}
-              <div className="p-4 bg-[#F3EEE6]/60 border border-[#A89B8A]/30 rounded-lg space-y-3">
+              <div className="p-4 bg-surface-muted/60 border border-border rounded-lg space-y-3">
                 <div className="flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-[#B08D57]" />
-                  <h4 className="text-sm font-bold text-[#252326]">Import backup</h4>
+                  <Upload className="w-4 h-4 text-accent" />
+                  <h4 className="text-sm font-bold text-ink">Import backup</h4>
                 </div>
-                <p className="text-xs text-[#252326]/70 leading-relaxed">
+                <p className="text-xs text-ink-muted leading-relaxed">
                   Upload a previously exported backup file with schema validation, preview, and confirmation.
                 </p>
                 <input
@@ -787,7 +829,7 @@ export default function SettingsView() {
 
             {/* Import Errors if any */}
             {importErrors.length > 0 && (
-              <div className="p-3.5 bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] rounded-md space-y-1 text-xs font-medium">
+              <div className="p-3.5 bg-burgundy-soft text-burgundy border border-burgundy/20 rounded-md space-y-1 text-xs font-medium">
                 <div className="flex items-center gap-2 font-bold">
                   <AlertTriangle className="w-4 h-4" />
                   <span>Backup Validation Errors:</span>
@@ -801,10 +843,10 @@ export default function SettingsView() {
             )}
 
             {/* Factory Reset */}
-            <div className="pt-4 border-t border-[#A89B8A]/20 flex items-center justify-between">
+            <div className="pt-4 border-t border-border flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold text-[#6B2638]">Factory Seed Reset</h4>
-                <p className="text-xs text-[#252326]/60">
+                <h4 className="text-xs font-bold text-burgundy">Factory Seed Reset</h4>
+                <p className="text-xs text-ink-muted">
                   Restore original 145 faculty members, 70 batches, and default settings.
                 </p>
               </div>
@@ -822,7 +864,7 @@ export default function SettingsView() {
 
       {/* Tab 4: Audit Log */}
       {tab === 'audit' && (
-        <Card className="border border-[#A89B8A]/30" padding={false}>
+        <Card className="border border-border" padding={false}>
           <AuditLogView />
         </Card>
       )}
@@ -851,30 +893,30 @@ export default function SettingsView() {
         {importedBackup && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="p-2.5 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center">
-                <span className="text-[10px] uppercase font-bold text-[#252326]/60">Faculty</span>
-                <div className="text-lg font-bold text-[#6B2638]">{importedBackup.faculty?.length || 0}</div>
+              <div className="p-2.5 bg-surface-muted rounded border border-border text-center">
+                <span className="text-[10px] uppercase font-bold text-ink-muted">Faculty</span>
+                <div className="text-lg font-bold text-primary">{importedBackup.faculty?.length || 0}</div>
               </div>
-              <div className="p-2.5 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center">
-                <span className="text-[10px] uppercase font-bold text-[#252326]/60">Batches</span>
-                <div className="text-lg font-bold text-[#6B2638]">{importedBackup.batches?.length || 0}</div>
+              <div className="p-2.5 bg-surface-muted rounded border border-border text-center">
+                <span className="text-[10px] uppercase font-bold text-ink-muted">Batches</span>
+                <div className="text-lg font-bold text-primary">{importedBackup.batches?.length || 0}</div>
               </div>
-              <div className="p-2.5 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center">
-                <span className="text-[10px] uppercase font-bold text-[#252326]/60">Timetables</span>
-                <div className="text-lg font-bold text-[#6B2638]">
+              <div className="p-2.5 bg-surface-muted rounded border border-border text-center">
+                <span className="text-[10px] uppercase font-bold text-ink-muted">Timetables</span>
+                <div className="text-lg font-bold text-primary">
                   {Object.keys(importedBackup.weekTimetables || {}).length}
                 </div>
               </div>
-              <div className="p-2.5 bg-[#F3EEE6] rounded border border-[#A89B8A]/30 text-center">
-                <span className="text-[10px] uppercase font-bold text-[#252326]/60">Schema Ver</span>
-                <div className="text-lg font-bold text-[#6B2638]">{importedBackup.version || 1}</div>
+              <div className="p-2.5 bg-surface-muted rounded border border-border text-center">
+                <span className="text-[10px] uppercase font-bold text-ink-muted">Schema Ver</span>
+                <div className="text-lg font-bold text-primary">{importedBackup.version || 1}</div>
               </div>
             </div>
 
             <div className="space-y-2 pt-2">
-              <span className="text-xs font-bold text-[#252326] uppercase block">Restoration Mode</span>
+              <span className="text-xs font-bold text-ink uppercase block">Restoration Mode</span>
               <div className="space-y-2">
-                <label htmlFor="restore-mode-replace" className="flex items-start gap-2.5 p-3 rounded border border-[#A89B8A]/40 bg-white cursor-pointer hover:border-[#6B2638]">
+                <label htmlFor="restore-mode-replace" className="flex items-start gap-2.5 p-3 rounded border border-border bg-surface cursor-pointer hover:border-accent">
                   <input
                     id="restore-mode-replace"
                     type="radio"
@@ -882,19 +924,19 @@ export default function SettingsView() {
                     value="replace"
                     checked={restoreMode === 'replace'}
                     onChange={() => setRestoreMode('replace')}
-                    className="mt-0.5 text-[#6B2638] focus:ring-[#6B2638]"
+                    className="mt-0.5 text-primary focus:ring-accent accent-primary"
                   />
                   <div>
-                    <span className="text-xs font-bold text-[#252326] block">
+                    <span className="text-xs font-bold text-ink block">
                       Replace All Existing State (Recommended)
                     </span>
-                    <span className="text-[11px] text-[#252326]/70">
+                    <span className="text-[11px] text-ink-muted">
                       Wipes current working state and restores this exact snapshot cleanly.
                     </span>
                   </div>
                 </label>
 
-                <label htmlFor="restore-mode-merge" className="flex items-start gap-2.5 p-3 rounded border border-[#A89B8A]/40 bg-white cursor-pointer hover:border-[#6B2638]">
+                <label htmlFor="restore-mode-merge" className="flex items-start gap-2.5 p-3 rounded border border-border bg-surface cursor-pointer hover:border-accent">
                   <input
                     id="restore-mode-merge"
                     type="radio"
@@ -902,13 +944,13 @@ export default function SettingsView() {
                     value="merge"
                     checked={restoreMode === 'merge'}
                     onChange={() => setRestoreMode('merge')}
-                    className="mt-0.5 text-[#6B2638] focus:ring-[#6B2638]"
+                    className="mt-0.5 text-primary focus:ring-accent accent-primary"
                   />
                   <div>
-                    <span className="text-xs font-bold text-[#252326] block">
+                    <span className="text-xs font-bold text-ink block">
                       Merge with Existing State
                     </span>
-                    <span className="text-[11px] text-[#252326]/70">
+                    <span className="text-[11px] text-ink-muted">
                       Keeps current records and appends non-conflicting batches and faculty members.
                     </span>
                   </div>
@@ -929,16 +971,16 @@ export default function SettingsView() {
         confirmText="Reset to Factory Seed"
         message={
           <div className="space-y-3">
-            <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded text-xs text-[#252326] flex items-start gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-[#6B2638] shrink-0 mt-0.5" />
+            <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded text-xs text-ink flex items-start gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-burgundy shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-bold text-[#6B2638]">Warning: All Custom Changes Will Be Lost</p>
+                <p className="font-bold text-burgundy">Warning: All Custom Changes Will Be Lost</p>
                 <p>
                   This will reset all 145 faculty profiles, 70 batches, weekly timetables, and audit history back to the initial factory seed state.
                 </p>
               </div>
             </div>
-            <p className="text-xs text-[#252326]/70">
+            <p className="text-xs text-ink-muted">
               If you wish to retain your current timetables, please export a JSON backup first from the Backup tab.
             </p>
           </div>

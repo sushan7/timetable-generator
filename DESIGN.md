@@ -1,4 +1,4 @@
-# Timetable Pro — Editorial Design System (DESIGN.md)
+# Timetable Pro — Design System & Editorial Tokens (DESIGN.md)
 
 > Visual design guidelines, color architecture, and typographic hierarchy for **Timetable Pro**. Inspired by Swiss typographic rigor, Dieter Rams' functional restraint, and modern academic editorial interfaces.
 
@@ -6,9 +6,10 @@
 
 ## 1. Design Philosophy
 
-- **Archetype**: Warm Minimalism + Swiss Typography + Academic Editorial Precision.
-- **Tone**: Authoritative, calm, deliberate, highly organized, and respectful of academic complexity.
-- **Foundational Rule**: Less decoration, more structure. Minimalist color application where every visual accent carries operational meaning.
+- **Archetype**: Quiet Editorial Elegance + Swiss Grid Precision + Architectural Restraint.
+- **Palette Essence**: Deep Charcoal (primary dark), Warm Beige / Taupe (secondary canvas and surfaces), and Brushed Gold / Cognac (accents used with deliberate restraint).
+- **Core Principle**: Tokens define **operational role**, not arbitrary shades. Minimalist color application where every visual accent carries operational meaning.
+- **Contrast Rigor**: All text and background combinations strictly pass WCAG AA standards (≥ 4.5:1 for normal text, ≥ 3:1 for large text and UI affordances).
 
 ---
 
@@ -16,64 +17,111 @@
 
 | Dial | Level | Implementation Strategy |
 |---|---|---|
-| **ENERGY** | **1 (Calm)** | Warm beige canvas, charcoal typography, grounded editorial layout. Absolute zero neon or generic blue/purple AI gradients. |
-| **RHYTHM** | **2 (Balanced)** | Timetable matrix is the focal centerpiece; forms and data tables adhere strictly to Swiss grid alignment. |
-| **MOTION** | **1 (Subtle)** | 120ms-150ms ease-out transitions on hover, focus, and modal triggers. Zero continuous loops, bounces, or decorative pulses. |
+| **ENERGY** | **1 (Quiet & Authoritative)** | Warm beige canvas (`#F5F0E8`), deep charcoal typography (`#2A2826`), muted hairline borders (`#DCD2C1`). Absolute zero neon, saturated tech blues, or purple AI gradients. |
+| **RHYTHM** | **2 (Balanced & Editorial)** | Timetable matrix is the structured centerpiece; forms, navigation tabs, and data cards adhere strictly to Swiss grid alignment with tight 4–6px rounded radii. |
+| **MOTION** | **1 (Subtle & Restrained)** | 120ms–150ms ease-out transitions on hover, focus, and modal triggers. Zero continuous loops, bounces, or decorative pulses. |
 
 ---
 
-## 3. Strict Color System
+## 3. Semantic Token Architecture
 
-The palette replaces conventional tech dashboard blues and purples with an authoritative, academic palette:
+All colors are tokenized via Tailwind v4 `@theme` in `src/index.css`. **Zero hard-coded hex literals are permitted in React components (`src/**/*.tsx`).**
 
-| Token | Hex | Role | Usage |
+### Light Palette (`:root` / default)
+
+| Token | CSS Variable | Hex | Role & Usage |
 |---|---|---|---|
-| **Primary Brand** | `#6B2638` | Deep Burgundy | Primary action buttons, active navigation indicator, brand identity |
-| **Primary Ink** | `#252326` | Deep Charcoal | High-contrast typography, column headers, matrix text |
-| **Secondary Canvas** | `#F3EEE6` | Warm Beige | App surface, table headers, inactive tab pills, subtle container fills |
-| **Subtle Borders** | `#A89B8A` | Taupe (30% opacity) | Hairline dividing lines and card borders (`border-[#A89B8A]/30`) |
-| **Brushed Gold** | `#B08D57` | Accent 1 | Secondary badges, Language quota indicators, attention markers |
-| **Cognac** | `#A65E3B` | Accent 2 | Warnings, pending absence gaps, conflict override notices |
-| **Surface White** | `#FFFFFF` | Crisp White | Cell cards, active tabs, modal dialog surfaces |
-| **Error / Alert** | `#FAF0F2` / `#6B2638` | Soft Crimson | Severe clash warnings and delete confirmation banners |
+| `canvas` | `--color-canvas` | `#F5F0E8` | App background canvas, editorial warm beige (never cool grey). |
+| `surface` | `--color-surface` | `#FFFFFF` | Cards, timetable matrix cells, modal dialog panels. |
+| `surface-muted`| `--color-surface-muted` | `#ECE4D6` | Table headers, inactive filter pills, nested summary boxes. |
+| `border` | `--color-border` | `#DCD2C1` | Hairline dividers, table row separations, card edges. |
+| `ink` | `--color-ink` | `#2A2826` | Primary high-contrast typography, section titles, matrix labels. |
+| `ink-muted` | `--color-ink-muted` | `#6E6559` | Secondary metadata, timestamps, teacher count labels (WCAG AA on canvas). |
+| `taupe` | `--color-taupe` | `#9C8F7E` | Decorative UI elements, dashed unfilled borders, "Other" curriculum category in BalanceBar. |
+| `primary` | `--color-primary` | `#2A2826` | Deep Charcoal: primary buttons (Generate, Save), active nav items, active day tabs. |
+| `primary-hover`| `--color-primary-hover` | `#3B3835` | Hover state for primary charcoal buttons. |
+| `accent` | `--color-accent` | `#B08A4A` | Brushed Gold: keyboard focus rings, active indicators, Language quota bar. |
+| `accent-hover` | `--color-accent-hover` | `#96753C` | Hover state for gold accent buttons. |
+| `accent-soft` | `--color-accent-soft` | `#F1E6CF` | Soft gold tint: locked/frozen cells, gold badges, duplicate notices. |
+| `cognac` | `--color-cognac` | `#8B4A2B` | Secondary accent: manual slot overrides, schedule warnings, links. |
+| `cognac-soft` | `--color-cognac-soft` | `#F2E1D6` | Soft cognac tint: manual/overridden cell backgrounds, unfilled slot cards. |
+| `burgundy` | `--color-burgundy` | `#6B1E2E` | Strictly reserved for danger, gap shortages, hard errors, destructive actions. |
+| `burgundy-soft`| `--color-burgundy-soft`| `#F4E4E4` | Soft burgundy tint: cell gap backgrounds, violation banners, delete confirmations. |
 
-### Strictly Prohibited Palette
-- No purple, violet, indigo, cyan, blue, or neon hues.
-- No purple-to-blue linear gradients.
-- No glassmorphic blur effects or heavy drop shadows.
+### Dark Palette (`.dark`)
+
+Dark mode uses the identical semantic token names with an inverted nocturne palette:
+
+| Token | CSS Variable | Hex | Role in Dark Mode |
+|---|---|---|---|
+| `canvas` | `--color-canvas` | `#1E1D1B` | Deep nocturnal charcoal background. |
+| `surface` | `--color-surface` | `#282624` | Elevated dark surface for cards and matrix cells. |
+| `surface-muted`| `--color-surface-muted` | `#363330` | Inactive pills, subtle panel insets. |
+| `border` | `--color-border` | `#4A4641` | Soft dark dividing lines. |
+| `ink` | `--color-ink` | `#F5F0E8` | High-contrast warm off-white primary text. |
+| `ink-muted` | `--color-ink-muted` | `#B4ACA0` | Muted secondary text. |
+| `primary` | `--color-primary` | `#F5F0E8` | Inverted primary action button fill. |
+| `accent` | `--color-accent` | `#C49F58` | Warm gold metallic accent for rings and indicators. |
+| `burgundy` | `--color-burgundy` | `#E26D82` | Legible rose-burgundy for errors and gaps. |
 
 ---
 
-## 4. Typography & Layout Metrics
+## 4. Contrast Ratio Verification (WCAG 2.1 AA / AAA)
 
-- **Primary Font**: Inter & system sans-serif (`font-sans`).
-- **Tabular Figures**: `font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum"` for aligned numbers in tables and period timings.
-- **Typographic Scale**:
-  - **H1 (Page Title)**: `text-xl sm:text-2xl font-bold tracking-tight text-[#252326]`
-  - **H2 (Section Heading)**: `text-sm sm:text-base font-bold text-[#252326]`
-  - **H3 / Batch Label**: `text-xs sm:text-sm font-bold text-[#252326]`
-  - **Body Copy**: `text-xs sm:text-sm text-[#252326]`
-  - **Micro Label / Time**: `text-[11px] font-medium text-[#252326]/70`
-  - **Tag / Badge Text**: `text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider`
+All core text and background pairings have been mathematically verified against standard luminance formulas:
+
+| Foreground | Background | Calculated Ratio | WCAG Compliance |
+|---|---|---|---|
+| `text-ink` (`#2A2826`) | `bg-canvas` (`#F5F0E8`) | **13.0 : 1** | Passes AAA (≥ 7:1) |
+| `text-ink` (`#2A2826`) | `bg-surface` (`#FFFFFF`) | **14.8 : 1** | Passes AAA (≥ 7:1) |
+| `text-canvas` (`#F5F0E8`) | `bg-primary` (`#2A2826`) | **13.0 : 1** | Passes AAA (≥ 7:1) |
+| `text-ink-muted` (`#6E6559`) | `bg-canvas` (`#F5F0E8`) | **5.01 : 1** | Passes AA (≥ 4.5:1) |
+| `text-ink-muted` (`#6E6559`) | `bg-surface` (`#FFFFFF`) | **5.70 : 1** | Passes AA (≥ 4.5:1) |
+| `text-ink` (`#2A2826`) | `bg-accent` (`#B08A4A`) | **4.65 : 1** | Passes AA (≥ 4.5:1) |
+| `text-burgundy` (`#6B1E2E`) | `bg-burgundy-soft` (`#F4E4E4`) | **9.50 : 1** | Passes AAA (≥ 7:1) |
+| `text-cognac` (`#8B4A2B`) | `bg-cognac-soft` (`#F2E1D6`) | **5.25 : 1** | Passes AA (≥ 4.5:1) |
+
+> [!IMPORTANT]
+> **Gold Contrast Constraint**: White text on brushed gold (`#B08A4A`) yields only **3.18:1** (fails WCAG AA for normal text). Therefore, all gold buttons and badges strictly use charcoal text (`text-ink`), achieving a compliant **4.65:1** ratio.
 
 ---
 
-## 5. UI Component Hierarchy
+## 5. Component Styling Rules
 
-### Buttons (`src/components/ui/Button.tsx`)
-- **Primary**: Deep Burgundy (`bg-[#6B2638] text-white hover:bg-[#581F2E] active:bg-[#461924]`)
-- **Secondary**: Clean bordered white (`bg-white border-[#A89B8A]/40 text-[#252326] hover:bg-[#F3EEE6]`)
-- **Danger**: Soft Crimson (`bg-[#FAF0F2] text-[#6B2638] border border-[#ECD9DE] hover:bg-[#F5DEE3]`)
-- **Ghost**: Transparent backdrop (`text-[#252326]/70 hover:text-[#252326] hover:bg-[#F3EEE6]`)
+### Primary Actions
+- **Primary Buttons (Generate, Save)**: Deep charcoal fill with canvas text (`bg-primary text-canvas hover:bg-primary-hover`).
+- **Focus Rings**: Gold accent ring with offset (`focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2`).
+- **Active Navigation & Day Tabs**: Charcoal background with a thin gold bottom indicator bar (`after:bg-accent`).
 
-### Badges (`src/components/ui/Badge.tsx`)
-- **Burgundy**: Core science subjects, primary tags
-- **Gold**: Language & elective subjects, balanced metrics
-- **Cognac**: Warnings, conflict overrides
-- **Neutral**: Track indicators, room numbers
+### Timetable Matrix Cell States (`AllocationCell.tsx`)
+1. **Normal Auto-Scheduled**: Crisp white surface (`bg-surface text-ink`).
+2. **Frozen / Locked**: Soft gold tint (`bg-accent-soft border-accent/40`) with gold lock icon (`text-accent`).
+3. **Manual Edit**: Crisp white with cognac left accent border (`border-l-2 border-l-cognac`).
+4. **Overridden**: Soft cognac tint (`bg-cognac-soft border-cognac/40 text-cognac`).
+5. **Absence Patch Gap**: Soft burgundy tint (`bg-burgundy-soft border-burgundy/40 text-burgundy`).
+6. **Hard Constraint Violation**: Soft burgundy border edge (`border-2 border-burgundy/60`).
+7. **Unfilled Shortage**: Dashed taupe border with cognac label (`border-dashed border-taupe text-cognac`).
+8. **Free / Unscheduled**: Muted dashed border (`border-dashed border-border text-ink-muted`).
+9. **Subject Changed**: Gold changed badge with cognac explanation note.
 
-### Timetable Matrix (`src/components/timetable/SectionTable.tsx`)
-- Dynamic columns: dynamically counts maximum periods across sections rather than hardcoding 6 slots.
-- Sticky Batch Column: remains anchored during horizontal matrix scroll.
-- Mobile Card View: toggles between horizontal table and touch-friendly vertical cards on smaller screens.
-- Focus rings: 2px Deep Burgundy ring with 2px offset (`focus-visible:ring-2 focus-visible:ring-[#6B2638] focus-visible:ring-offset-2`).
+### Curriculum Quota Balance Bar (`BalanceBar.tsx`)
+- **Core Science (PCMB)**: Charcoal fill (`bg-primary`).
+- **Language & Electives**: Brushed Gold fill (`bg-accent`).
+- **Other Electives (e.g. CS)**: Taupe fill (`bg-taupe`).
+- **Legend & Gaps**: Includes explicit category key and shortage alert pills.
+
+### Badges (`Badge.tsx`)
+- **Neutral**: `bg-surface-muted text-ink border-border`
+- **Gold / Accent**: `bg-accent-soft text-ink border-accent/40`
+- **Cognac / Warning**: `bg-cognac-soft text-cognac border-cognac/30`
+- **Burgundy / Danger**: `bg-burgundy-soft text-burgundy border-burgundy/30`
+
+---
+
+## 6. Prohibited Visual Patterns (Anti-Slop)
+
+- **NO Raw Terracotta / Ochre**: Eliminated all previous orange-brown `#C47B59`, `#A58A68`, and raw ochre tones.
+- **NO Neons / Saturated Tech Blues**: No electric blue (`#0066FF`), cyan, or purple accents.
+- **NO Linear Gradients**: No purple-to-blue or rainbow gradient headers.
+- **NO Glassmorphic Blur**: No `backdrop-blur-md` on solid structural panels; clean, crisp solid backgrounds only.
+- **NO Hard-Coded Hex in Components**: All styling is 100% tokenized.

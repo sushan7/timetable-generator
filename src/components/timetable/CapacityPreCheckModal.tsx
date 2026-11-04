@@ -36,15 +36,15 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
       subtitle="Evaluates subject period demand against available faculty limits before schedule generation"
       footer={
         <div className="flex items-center justify-between w-full">
-          <div className="text-xs text-[#252326]/70">
+          <div className="text-xs text-ink-muted">
             {report.hasCapacityIssues ? (
-              <span className="text-[#6B2638] font-bold flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-[#6B2638]" />
+              <span className="text-burgundy font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-burgundy" />
                 {report.shortageCount} subject shortages · {report.overloadedCount} overloaded teachers
               </span>
             ) : (
-              <span className="text-[#252326] font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[#B08D57]" />
+              <span className="text-ink font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-accent" />
                 Faculty capacity is balanced across all subjects
               </span>
             )}
@@ -70,15 +70,15 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
         {/* Metric summary banner */}
         {report.hasCapacityIssues ? (
-          <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded-md text-xs text-[#6B2638] flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-[#6B2638] shrink-0 mt-0.5" />
+          <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded-md text-xs text-burgundy flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-burgundy shrink-0 mt-0.5" />
             <div>
               <strong>Capacity Warning:</strong> Teaching demand in some subjects exceeds available faculty capacity, or specific instructors are carrying high weekly loads. Unfilled slots may occur during generation if constraints are strictly enforced.
             </div>
           </div>
         ) : (
-          <div className="p-3 bg-[#F6F4F0] border border-[#B08D57]/40 rounded-md text-xs text-[#252326] flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-[#B08D57] shrink-0 mt-0.5" />
+          <div className="p-3 bg-surface-muted border border-accent/40 rounded-md text-xs text-ink flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-accent shrink-0 mt-0.5" />
             <div>
               <strong>Sufficient Capacity:</strong> All subjects have enough qualified, non-absent faculty to fulfill curriculum demand for this academic cycle.
             </div>
@@ -87,13 +87,13 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
 
         {/* Per-subject demand vs supply table */}
         <div className="space-y-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-[#252326]">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-ink">
             Subject Demand vs Supply
           </h4>
-          <div className="overflow-x-auto border border-[#A89B8A]/30 rounded-lg">
+          <div className="overflow-x-auto border border-border rounded-lg">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 font-semibold text-[#252326]/80 uppercase tracking-wider">
+                <tr className="bg-surface-muted border-b border-border font-semibold text-ink-muted uppercase tracking-wider">
                   <th className="p-2.5">Subject</th>
                   <th className="p-2.5">Category</th>
                   <th className="p-2.5 text-right">Weekly Demand</th>
@@ -103,25 +103,25 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
                   <th className="p-2.5 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#A89B8A]/20">
+              <tbody className="divide-y divide-border">
                 {report.subjects.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-[#F3EEE6]/30 transition-colors">
-                    <td className="p-2.5 font-bold text-[#252326]">{row.subject}</td>
+                  <tr key={idx} className="hover:bg-surface-muted/30 transition-colors">
+                    <td className="p-2.5 font-bold text-ink">{row.subject}</td>
                     <td className="p-2.5">
                       <Badge tone={row.category === 'Core' ? 'burgundy' : 'gold'}>
                         {row.category}
                       </Badge>
                     </td>
-                    <td className="p-2.5 text-right font-medium text-[#252326]">
+                    <td className="p-2.5 text-right font-medium text-ink">
                       {row.requiredWeeklyPeriods}
                     </td>
-                    <td className="p-2.5 text-right text-[#252326]/70">
+                    <td className="p-2.5 text-right text-ink-muted">
                       {row.facultyCount}
                     </td>
-                    <td className="p-2.5 text-right font-medium text-[#252326]">
+                    <td className="p-2.5 text-right font-medium text-ink">
                       {row.availableWeeklyPeriods}
                     </td>
-                    <td className="p-2.5 text-right font-bold text-[#252326]">
+                    <td className="p-2.5 text-right font-bold text-ink">
                       {row.deficit > 0 ? `-${row.deficit}` : '0'}
                     </td>
                     <td className="p-2.5 text-center">
@@ -143,25 +143,25 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
         {/* Overloaded & Near-Capacity Teachers Table */}
         <div className="space-y-2 pt-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#252326] flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#6B2638]" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-ink flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-accent" />
               Overloaded & High-Volume Teachers
             </h4>
-            <span className="text-[11px] text-[#252326]/60">
+            <span className="text-[11px] text-ink-muted">
               {report.overloadedTeachers.length} flagged
             </span>
           </div>
 
           {report.overloadedTeachers.length === 0 ? (
-            <div className="p-3 bg-[#F3EEE6]/50 rounded border border-[#A89B8A]/30 text-xs text-[#252326]/70 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#B08D57]" />
+            <div className="p-3 bg-surface-muted/50 rounded border border-border text-xs text-ink-muted flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-accent" />
               <span>All instructors are within balanced weekly teaching limits.</span>
             </div>
           ) : (
-            <div className="overflow-x-auto border border-[#A89B8A]/30 rounded-lg">
+            <div className="overflow-x-auto border border-border rounded-lg">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-[#F3EEE6] border-b border-[#A89B8A]/30 font-semibold text-[#252326]/80 uppercase tracking-wider">
+                  <tr className="bg-surface-muted border-b border-border font-semibold text-ink-muted uppercase tracking-wider">
                     <th className="p-2.5">Teacher</th>
                     <th className="p-2.5">Subjects</th>
                     <th className="p-2.5 text-right">Daily Limit</th>
@@ -170,14 +170,14 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
                     <th className="p-2.5 text-center">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#A89B8A]/20">
+                <tbody className="divide-y divide-border">
                   {report.overloadedTeachers.map((t, idx) => (
-                    <tr key={idx} className="hover:bg-[#F3EEE6]/30 transition-colors">
-                      <td className="p-2.5 font-bold text-[#252326]">{t.facultyName}</td>
-                      <td className="p-2.5 text-[#252326]/80">{t.subjects.join(', ')}</td>
-                      <td className="p-2.5 text-right font-medium text-[#252326]">{t.dailyLimit} / day</td>
-                      <td className="p-2.5 text-right font-medium text-[#252326]">{t.weeklyLimit}</td>
-                      <td className="p-2.5 text-right font-bold text-[#6B2638]">{t.assignedPeriods}</td>
+                    <tr key={idx} className="hover:bg-surface-muted/30 transition-colors">
+                      <td className="p-2.5 font-bold text-ink">{t.facultyName}</td>
+                      <td className="p-2.5 text-ink/80">{t.subjects.join(', ')}</td>
+                      <td className="p-2.5 text-right font-medium text-ink">{t.dailyLimit} / day</td>
+                      <td className="p-2.5 text-right font-medium text-ink">{t.weeklyLimit}</td>
+                      <td className="p-2.5 text-right font-bold text-cognac">{t.assignedPeriods}</td>
                       <td className="p-2.5 text-center">
                         {t.status === 'overloaded' ? (
                           <Badge tone="danger">Overloaded</Badge>
@@ -193,8 +193,8 @@ export const CapacityPreCheckModal: React.FC<CapacityPreCheckModalProps> = ({
           )}
         </div>
 
-        <div className="p-3 bg-[#F6F4F0] border border-[#B08D57]/40 rounded-md text-xs text-[#252326] flex items-start gap-2">
-          <Info className="w-4 h-4 text-[#B08D57] shrink-0 mt-0.5" />
+        <div className="p-3 bg-surface-muted border border-accent/40 rounded-md text-xs text-ink flex items-start gap-2">
+          <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
           <p>
             The scheduling engine automatically applies <strong>weekly-load fairness</strong> to rotate subjects among available alternate instructors, keeping individual teaching volume balanced.
           </p>

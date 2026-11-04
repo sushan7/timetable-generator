@@ -12,15 +12,15 @@ export default function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="bg-white p-8 sm:p-12 rounded-lg border border-[#E5E0D8] text-center max-w-xl mx-auto shadow-2xs">
+    <div className="bg-surface p-8 sm:p-12 rounded-lg border border-border text-center max-w-xl mx-auto shadow-2xs">
       {icon && (
-        <div className="flex justify-center mb-4 text-[#6B2638] p-3 bg-[#FAF7F2] w-fit mx-auto rounded-md border border-[#E5E0D8]">
+        <div className="flex justify-center mb-4 text-accent p-3 bg-surface-muted w-fit mx-auto rounded-md border border-border">
           {icon}
         </div>
       )}
-      <h3 className="font-bold text-[#252326] text-base">{title}</h3>
+      <h3 className="font-bold text-ink text-base">{title}</h3>
       {description && (
-        <p className="text-sm text-[#5E5B61] mt-1.5 max-w-md mx-auto leading-relaxed">
+        <p className="text-sm text-ink-muted mt-1.5 max-w-md mx-auto leading-relaxed">
           {description}
         </p>
       )}

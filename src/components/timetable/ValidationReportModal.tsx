@@ -48,15 +48,15 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
   const getTypeIcon = (type: TimetableViolation['type']) => {
     switch (type) {
       case 'overlap':
-        return <Clock className="w-4 h-4 text-[#6B2638]" />;
+        return <Clock className="w-4 h-4 text-burgundy" />;
       case 'over_limit':
-        return <AlertOctagon className="w-4 h-4 text-[#6B2638]" />;
+        return <AlertOctagon className="w-4 h-4 text-burgundy" />;
       case 'absent':
-        return <UserX className="w-4 h-4 text-[#6B2638]" />;
+        return <UserX className="w-4 h-4 text-burgundy" />;
       case 'room_clash':
-        return <DoorClosed className="w-4 h-4 text-[#6B2638]" />;
+        return <DoorClosed className="w-4 h-4 text-burgundy" />;
       case 'unfilled':
-        return <AlertTriangle className="w-4 h-4 text-[#B08D57]" />;
+        return <AlertTriangle className="w-4 h-4 text-accent" />;
     }
   };
 
@@ -80,10 +80,10 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
       subtitle={`Diagnostic inspection across all ${report.totalSlots} scheduled periods`}
       footer={
         <div className="flex items-center justify-between w-full">
-          <div className="text-xs text-[#252326]/70">
+          <div className="text-xs text-ink-muted">
             {report.summary.totalIssues === 0 ? (
-              <span className="text-[#252326] font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[#B08D57]" />
+              <span className="text-ink font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-accent" />
                 All rules satisfied
               </span>
             ) : (
@@ -101,43 +101,43 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
         {/* Top Summary Banner */}
         {report.summary.totalIssues === 0 ? (
-          <div className="p-4 bg-[#F6F4F0] border border-[#B08D57]/40 rounded-lg flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-[#B08D57] shrink-0 mt-0.5" />
+          <div className="p-4 bg-surface-muted border border-accent/40 rounded-lg flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-accent shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-sm font-bold text-[#252326]">Schedule Verified Clean</h4>
-              <p className="text-xs text-[#252326]/70 mt-0.5">
+              <h4 className="text-sm font-bold text-ink">Schedule Verified Clean</h4>
+              <p className="text-xs text-ink-muted mt-0.5">
                 Zero teacher overlaps, zero daily workload exceedances, no absent teacher assignments, no room clashes, and all {report.totalSlots} periods are filled.
               </p>
             </div>
           </div>
         ) : (
-          <div className="p-3.5 bg-[#FAF0F2] border border-[#ECD9DE] rounded-lg space-y-2">
+          <div className="p-3.5 bg-burgundy-soft border border-burgundy/20 rounded-lg space-y-2">
             <div className="flex items-center gap-2">
-              <AlertOctagon className="w-4 h-4 text-[#6B2638]" />
-              <h4 className="text-xs font-bold text-[#6B2638] uppercase tracking-wide">
+              <AlertOctagon className="w-4 h-4 text-burgundy" />
+              <h4 className="text-xs font-bold text-burgundy uppercase tracking-wide">
                 Detected Schedule Conflicts ({report.summary.totalIssues})
               </h4>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-              <div className="p-2 bg-white/80 rounded border border-[#ECD9DE]">
-                <div className="text-[10px] uppercase font-bold text-[#252326]/60">Overlaps</div>
-                <div className="text-base font-bold text-[#6B2638]">{report.summary.overlaps}</div>
+              <div className="p-2 bg-surface/80 rounded border border-burgundy/20">
+                <div className="text-[10px] uppercase font-bold text-ink-muted">Overlaps</div>
+                <div className="text-base font-bold text-burgundy">{report.summary.overlaps}</div>
               </div>
-              <div className="p-2 bg-white/80 rounded border border-[#ECD9DE]">
-                <div className="text-[10px] uppercase font-bold text-[#252326]/60">Over Limit</div>
-                <div className="text-base font-bold text-[#6B2638]">{report.summary.overLimit}</div>
+              <div className="p-2 bg-surface/80 rounded border border-burgundy/20">
+                <div className="text-[10px] uppercase font-bold text-ink-muted">Over Limit</div>
+                <div className="text-base font-bold text-burgundy">{report.summary.overLimit}</div>
               </div>
-              <div className="p-2 bg-white/80 rounded border border-[#ECD9DE]">
-                <div className="text-[10px] uppercase font-bold text-[#252326]/60">Absent</div>
-                <div className="text-base font-bold text-[#6B2638]">{report.summary.absent}</div>
+              <div className="p-2 bg-surface/80 rounded border border-burgundy/20">
+                <div className="text-[10px] uppercase font-bold text-ink-muted">Absent</div>
+                <div className="text-base font-bold text-burgundy">{report.summary.absent}</div>
               </div>
-              <div className="p-2 bg-white/80 rounded border border-[#ECD9DE]">
-                <div className="text-[10px] uppercase font-bold text-[#252326]/60">Rooms</div>
-                <div className="text-base font-bold text-[#6B2638]">{report.summary.roomClashes}</div>
+              <div className="p-2 bg-surface/80 rounded border border-burgundy/20">
+                <div className="text-[10px] uppercase font-bold text-ink-muted">Rooms</div>
+                <div className="text-base font-bold text-burgundy">{report.summary.roomClashes}</div>
               </div>
-              <div className="p-2 bg-white/80 rounded border border-[#ECD9DE]">
-                <div className="text-[10px] uppercase font-bold text-[#252326]/60">Unfilled</div>
-                <div className="text-base font-bold text-[#B08D57]">{report.summary.unfilled}</div>
+              <div className="p-2 bg-surface/80 rounded border border-burgundy/20">
+                <div className="text-[10px] uppercase font-bold text-ink-muted">Unfilled</div>
+                <div className="text-base font-bold text-accent">{report.summary.unfilled}</div>
               </div>
             </div>
           </div>
@@ -146,7 +146,7 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
         {/* Filter Tabs */}
         {report.summary.totalIssues > 0 && (
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs select-none">
-            <span className="text-[11px] font-bold text-[#252326]/50 uppercase flex items-center gap-1 mr-1">
+            <span className="text-[11px] font-bold text-ink-muted uppercase flex items-center gap-1 mr-1">
               <Filter className="w-3 h-3" />
               Filter:
             </span>
@@ -155,8 +155,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
               onClick={() => setFilter('all')}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                 filter === 'all'
-                  ? 'bg-[#6B2638] text-white font-bold'
-                  : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E5E0D8]'
+                  ? 'bg-primary text-canvas font-bold'
+                  : 'bg-surface-muted text-ink-muted hover:bg-border'
               }`}
             >
               All ({report.summary.totalIssues})
@@ -167,8 +167,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                 onClick={() => setFilter('overlap')}
                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   filter === 'overlap'
-                    ? 'bg-[#6B2638] text-white font-bold'
-                    : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E5E0D8]'
+                    ? 'bg-primary text-canvas font-bold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border'
                 }`}
               >
                 Overlaps ({report.summary.overlaps})
@@ -180,8 +180,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                 onClick={() => setFilter('over_limit')}
                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   filter === 'over_limit'
-                    ? 'bg-[#6B2638] text-white font-bold'
-                    : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E5E0D8]'
+                    ? 'bg-primary text-canvas font-bold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border'
                 }`}
               >
                 Over Limit ({report.summary.overLimit})
@@ -193,8 +193,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                 onClick={() => setFilter('absent')}
                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   filter === 'absent'
-                    ? 'bg-[#6B2638] text-white font-bold'
-                    : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E5E0D8]'
+                    ? 'bg-primary text-canvas font-bold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border'
                 }`}
               >
                 Absent ({report.summary.absent})
@@ -206,8 +206,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                 onClick={() => setFilter('room_clash')}
                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   filter === 'room_clash'
-                    ? 'bg-[#6B2638] text-white font-bold'
-                    : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E5E0D8]'
+                    ? 'bg-primary text-canvas font-bold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border'
                 }`}
               >
                 Rooms ({report.summary.roomClashes})
@@ -219,8 +219,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                 onClick={() => setFilter('unfilled')}
                 className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   filter === 'unfilled'
-                    ? 'bg-[#B08D57] text-white font-bold'
-                    : 'bg-[#F3EEE6] text-[#252326]/70 hover:bg-[#E5E0D8]'
+                    ? 'bg-accent text-ink font-bold'
+                    : 'bg-surface-muted text-ink-muted hover:bg-border'
                 }`}
               >
                 Unfilled ({report.summary.unfilled})
@@ -232,7 +232,7 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
         {/* Violations List */}
         <div className="space-y-2">
           {filteredViolations.length === 0 ? (
-            <div className="p-6 text-center text-xs text-[#252326]/60 bg-[#F3EEE6]/40 rounded border border-[#A89B8A]/20">
+            <div className="p-6 text-center text-xs text-ink-muted bg-surface-muted/40 rounded border border-border">
               No issues in this category.
             </div>
           ) : (
@@ -241,8 +241,8 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                 key={v.id}
                 className={`p-3 rounded-lg border transition-all ${
                   v.severity === 'error'
-                    ? 'bg-[#FAF0F2]/70 border-[#ECD9DE] hover:border-[#6B2638]'
-                    : 'bg-[#FDFBF7] border-[#B08D57]/30 hover:border-[#B08D57]'
+                    ? 'bg-burgundy-soft/70 border-burgundy/20 hover:border-burgundy'
+                    : 'bg-surface border-accent/30 hover:border-accent'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -253,18 +253,18 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                         <Badge tone={getTypeBadgeTone(v.type)}>
                           {v.type.replace('_', ' ').toUpperCase()}
                         </Badge>
-                        <span className="text-xs font-bold text-[#252326]">{v.batchName}</span>
-                        <span className="text-xs text-[#252326]/60">
+                        <span className="text-xs font-bold text-ink">{v.batchName}</span>
+                        <span className="text-xs text-ink-muted">
                           Period {v.periodIndex + 1}
                           {v.periodTime ? ` (${v.periodTime})` : ''}
                         </span>
                         {v.roomNumber && (
-                          <span className="text-[11px] text-[#252326]/70 bg-white/70 px-1.5 py-0.5 rounded border border-[#A89B8A]/30">
+                          <span className="text-[11px] text-ink-muted bg-surface/70 px-1.5 py-0.5 rounded border border-border">
                             Room {v.roomNumber}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-[#252326]/90 leading-relaxed">{v.description}</p>
+                      <p className="text-xs text-ink/90 leading-relaxed">{v.description}</p>
                     </div>
                   </div>
 
@@ -272,7 +272,7 @@ export const ValidationReportModal: React.FC<ValidationReportModalProps> = ({
                     size="sm"
                     variant="ghost"
                     onClick={() => handleJump(v)}
-                    className="shrink-0 text-xs font-semibold text-[#6B2638] hover:bg-[#6B2638]/10"
+                    className="shrink-0 text-xs font-semibold text-accent hover:bg-accent-soft"
                     icon={<ExternalLink className="w-3.5 h-3.5" />}
                   >
                     Jump to cell

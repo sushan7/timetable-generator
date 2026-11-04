@@ -45,7 +45,7 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
       maxWidth="2xl"
       footer={
         <div className="flex items-center justify-between w-full">
-          <span className="text-xs text-[#5E5B61]">
+          <span className="text-xs text-ink-muted">
             Order-independent multi-day generation completed.
           </span>
           <Button variant="primary" onClick={onClose}>
@@ -57,43 +57,43 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
       <div className="space-y-4">
         {/* Metric Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E5E0D8]">
-            <span className="text-[11px] font-bold text-[#5E5B61] uppercase tracking-wider block">
+          <div className="p-3 bg-surface-muted rounded-lg border border-border">
+            <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider block">
               Total Batches
             </span>
-            <span className="text-2xl font-bold text-[#252326] mt-0.5 block">
+            <span className="text-2xl font-bold text-ink mt-0.5 block">
               {report.totalBatches}
             </span>
           </div>
 
-          <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200">
-            <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+          <div className="p-3 bg-surface-muted rounded-lg border border-border">
+            <span className="text-[11px] font-bold text-accent uppercase tracking-wider block">
               Within ±1 Quota Fit
             </span>
             <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-2xl font-bold text-emerald-900">
+              <span className="text-2xl font-bold text-ink">
                 {report.batchesWithFit}
               </span>
-              <span className="text-xs font-semibold text-emerald-700">
+              <span className="text-xs font-semibold text-ink-muted">
                 / {report.totalBatches}
               </span>
             </div>
           </div>
 
-          <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200">
-            <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider block">
+          <div className="p-3 bg-surface-muted rounded-lg border border-border">
+            <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider block">
               Perfect Fit (±0)
             </span>
-            <span className="text-2xl font-bold text-blue-900 mt-0.5 block">
+            <span className="text-2xl font-bold text-ink mt-0.5 block">
               {report.batchesWithPerfectFit}
             </span>
           </div>
 
-          <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E5E0D8]">
-            <span className="text-[11px] font-bold text-[#6B2638] uppercase tracking-wider block">
+          <div className="p-3 bg-surface-muted rounded-lg border border-border">
+            <span className="text-[11px] font-bold text-accent uppercase tracking-wider block">
               Fit Quality
             </span>
-            <span className="text-2xl font-bold text-[#6B2638] mt-0.5 block">
+            <span className="text-2xl font-bold text-accent mt-0.5 block">
               {report.fitPercentage}%
             </span>
           </div>
@@ -102,13 +102,13 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
         {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2">
           <div className="relative flex-1 max-w-xs">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#5E5B61]" />
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-ink-muted" />
             <input
               type="text"
               placeholder="Search batch..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-[#E5E0D8] rounded focus:border-[#6B2638] outline-none text-[#252326]"
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-surface border border-border rounded focus:border-accent outline-none text-ink"
             />
           </div>
 
@@ -118,8 +118,8 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
               onClick={() => setFilterType('ALL')}
               className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                 filterType === 'ALL'
-                  ? 'bg-[#6B2638] text-white'
-                  : 'bg-[#FAF7F2] text-[#5E5B61] hover:bg-[#E5E0D8]'
+                  ? 'bg-primary text-canvas'
+                  : 'bg-surface-muted text-ink-muted hover:bg-border'
               }`}
             >
               All ({report.totalBatches})
@@ -129,8 +129,8 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
               onClick={() => setFilterType('FIT')}
               className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                 filterType === 'FIT'
-                  ? 'bg-emerald-800 text-white'
-                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  ? 'bg-accent text-ink font-bold'
+                  : 'bg-accent-soft/40 text-ink hover:bg-accent-soft'
               }`}
             >
               Within ±1 ({report.batchesWithFit})
@@ -140,8 +140,8 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
               onClick={() => setFilterType('VARIANCE')}
               className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                 filterType === 'VARIANCE'
-                  ? 'bg-amber-800 text-white'
-                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  ? 'bg-cognac text-canvas'
+                  : 'bg-cognac-soft text-cognac hover:bg-cognac-soft/80'
               }`}
             >
               Variance ({report.totalBatches - report.batchesWithFit})
@@ -150,32 +150,32 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
         </div>
 
         {/* Batch Fit Table */}
-        <div className="border border-[#E5E0D8] rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+        <div className="border border-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-[#FAF7F2] border-b border-[#E5E0D8] sticky top-0 z-10">
+            <thead className="bg-surface-muted border-b border-border sticky top-0 z-10">
               <tr>
-                <th className="p-2.5 font-bold text-[#252326]">Batch Name</th>
-                <th className="p-2.5 font-bold text-[#252326] text-center">Weekly Slots</th>
-                <th className="p-2.5 font-bold text-[#252326]">Subject Breakdown (Allocated / Target)</th>
-                <th className="p-2.5 font-bold text-[#252326] text-right">Status</th>
+                <th className="p-2.5 font-bold text-ink">Batch Name</th>
+                <th className="p-2.5 font-bold text-ink text-center">Weekly Slots</th>
+                <th className="p-2.5 font-bold text-ink">Subject Breakdown (Allocated / Target)</th>
+                <th className="p-2.5 font-bold text-ink text-right">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5E0D8] bg-white">
+            <tbody className="divide-y divide-border bg-surface">
               {filteredBatches.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-6 text-center text-[#5E5B61]">
+                  <td colSpan={4} className="p-6 text-center text-ink-muted">
                     No batches matching filter criteria.
                   </td>
                 </tr>
               ) : (
                 filteredBatches.map(b => (
-                  <tr key={b.batchId} className="hover:bg-[#FAF7F2]/50 transition-colors">
-                    <td className="p-2.5 font-semibold text-[#252326]">
+                  <tr key={b.batchId} className="hover:bg-surface-muted/50 transition-colors">
+                    <td className="p-2.5 font-semibold text-ink">
                       {b.batchName}
                     </td>
-                    <td className="p-2.5 text-center text-[#5E5B61]">
-                      <span className="font-bold text-[#252326]">{b.totalAllocated}</span>
-                      <span className="text-[10px] text-[#5E5B61]"> / {b.totalTarget}</span>
+                    <td className="p-2.5 text-center text-ink-muted">
+                      <span className="font-bold text-ink">{b.totalAllocated}</span>
+                      <span className="text-[10px] text-ink-muted"> / {b.totalTarget}</span>
                     </td>
                     <td className="p-2.5">
                       <div className="flex flex-wrap gap-1.5">
@@ -184,11 +184,11 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
                           const isExact = delta === 0;
                           const isClose = Math.abs(delta) <= 1;
 
-                          let badgeTone = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+                          let badgeTone = 'bg-accent-soft text-ink border-accent/40';
                           if (!isClose) {
-                            badgeTone = 'bg-amber-50 text-amber-800 border-amber-300';
+                            badgeTone = 'bg-cognac-soft text-cognac border-cognac/30';
                           } else if (!isExact) {
-                            badgeTone = 'bg-blue-50 text-blue-800 border-blue-200';
+                            badgeTone = 'bg-surface-muted text-ink border-border';
                           }
 
                           return (
@@ -213,16 +213,16 @@ export const WeekQuotaFitModal: React.FC<WeekQuotaFitModalProps> = ({
                     </td>
                     <td className="p-2.5 text-right">
                       {b.isPerfectFit ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                          <CheckCircle2 className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-accent-soft text-ink border border-accent/40">
+                          <CheckCircle2 className="w-3 h-3 text-accent" />
                           <span>Exact</span>
                         </span>
                       ) : b.isFit ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-surface-muted text-ink border border-border">
                           <span>±1 Fit</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-cognac-soft text-cognac border border-cognac/30">
                           <AlertTriangle className="w-3 h-3" />
                           <span>Variance</span>
                         </span>

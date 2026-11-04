@@ -29,7 +29,7 @@ export default function AllocationCell({
   const hasNoTiming = !period || !period.startTime;
   if (hasNoTiming) {
     return (
-      <div className="h-18 flex items-center justify-center text-[11px] text-[#5E5B61]/50 italic select-none border border-dashed border-[#E5E0D8] rounded bg-[#FAF7F2]/40">
+      <div className="h-18 flex items-center justify-center text-[11px] text-ink-muted/50 italic select-none border border-dashed border-border rounded bg-surface-muted/40">
         Not in session
       </div>
     );
@@ -41,36 +41,36 @@ export default function AllocationCell({
   // Surface tone classes based on allocation state
   const getCellTone = () => {
     if (isViolated) {
-      return 'bg-[#FEF2F2] border-2 border-red-600 text-red-950 shadow-xs ring-1 ring-red-500';
+      return 'bg-burgundy-soft border-2 border-burgundy text-burgundy shadow-xs ring-1 ring-burgundy';
     }
     if (allocation?.overridden) {
-      return 'bg-[#FFF7ED] border-2 border-[#EA580C] text-[#9A3412] shadow-xs';
+      return 'bg-cognac-soft border-l-4 border-l-cognac border-t border-r border-b border-cognac/30 text-cognac shadow-xs';
     }
     if (allocation?.hasConflictOverride) {
-      return 'bg-[#FDF2F2] border-2 border-[#A63232] text-[#8F2424] shadow-xs';
+      return 'bg-burgundy-soft border-2 border-burgundy text-burgundy shadow-xs';
     }
     if (isGap) {
-      return 'bg-[#FDF2F2] border border-[#F6CECE] hover:border-[#E8AAAA] text-[#A63232]';
+      return 'bg-burgundy-soft border border-burgundy/30 hover:border-burgundy text-burgundy';
     }
     if (isTeacherAbsent && !isGap && allocation?.facultyId) {
-      return 'bg-[#FFF5F5] border-2 border-dashed border-[#DC2626] text-[#991B1B] shadow-2xs';
+      return 'bg-burgundy-soft border-2 border-dashed border-burgundy text-burgundy shadow-2xs';
     }
     if (isUnfilled) {
-      return 'bg-[#FEF7EC] border border-[#E9BF85] hover:border-[#B45309] text-[#92400E] shadow-2xs';
+      return 'bg-surface border border-dashed border-taupe hover:border-cognac text-cognac shadow-2xs';
     }
     if (isFree) {
-      return 'bg-[#FAF7F2]/60 border border-dashed border-[#E5E0D8] hover:border-[#6B2638] hover:bg-[#FAF7F2] text-[#5E5B61]';
+      return 'bg-surface-muted/40 border border-dashed border-border hover:border-accent hover:bg-surface-muted text-ink-muted';
     }
     if (allocation?.frozen) {
-      return 'bg-[#F8F3EA] border border-[#E7D7BD] hover:border-[#CDB795] text-[#7A5B28] shadow-2xs';
+      return 'bg-accent-soft border border-accent/40 hover:border-accent text-ink shadow-2xs';
     }
     if (allocation?.subjectChanged) {
-      return 'bg-[#FFFDF7] border-l-3 border-l-[#D97706] border-t border-r border-b border-[#FDE68A] hover:border-[#D97706] text-[#92400E] shadow-2xs';
+      return 'bg-accent-soft/30 border-l-4 border-l-accent border-t border-r border-b border-border hover:border-accent text-ink shadow-2xs';
     }
     if (allocation?.manualEdited) {
-      return 'bg-white border-l-3 border-l-[#A65E3B] border-t border-r border-b border-[#E5E0D8] hover:border-[#6B2638] text-[#252326] shadow-2xs';
+      return 'bg-surface border-l-4 border-l-cognac border-t border-r border-b border-border hover:border-accent text-ink shadow-2xs';
     }
-    return 'bg-white border border-[#E5E0D8] hover:border-[#6B2638] text-[#252326] shadow-2xs';
+    return 'bg-surface border border-border hover:border-accent text-ink shadow-2xs';
   };
 
   return (
@@ -84,7 +84,7 @@ export default function AllocationCell({
           onClickSlot?.();
         }
       }}
-      className={`group/cell relative flex flex-col justify-between h-18 p-2.5 rounded cursor-pointer transition-colors duration-120 select-none outline-none focus-visible:ring-2 focus-visible:ring-[#6B2638] focus-visible:ring-offset-1 ${getCellTone()}`}
+      className={`group/cell relative flex flex-col justify-between h-18 p-2.5 rounded cursor-pointer transition-colors duration-120 select-none outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 ${getCellTone()}`}
       title={
         isViolated
           ? `LOCKED SLOT CONSTRAINT VIOLATION:\n${violationReason || 'Slot violates constraints'}`
@@ -109,86 +109,86 @@ export default function AllocationCell({
       {isViolated ? (
         <div className="flex flex-col justify-between h-full">
           <div className="flex items-center justify-between gap-1">
-            <span className="font-bold text-xs text-red-900 truncate">
+            <span className="font-bold text-xs text-burgundy truncate">
               {allocation?.subject || 'Locked Slot'}
             </span>
             <div className="flex items-center gap-1 shrink-0">
               <span title="Locked constraint violation" className="inline-flex items-center">
-                <Lock className="w-3 h-3 text-red-600" />
+                <Lock className="w-3 h-3 text-burgundy" />
               </span>
-              <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+              <AlertTriangle className="w-3.5 h-3.5 text-burgundy shrink-0" />
             </div>
           </div>
-          <div className="text-[10px] text-red-700 font-medium truncate">
+          <div className="text-[10px] text-burgundy/90 font-medium truncate">
             {facultyName}
           </div>
-          <div className="text-[9px] text-red-600 truncate font-semibold uppercase">
+          <div className="text-[9px] text-burgundy truncate font-semibold uppercase">
             Violation
           </div>
         </div>
       ) : allocation?.overridden ? (
         <div className="flex flex-col justify-between h-full">
           <div className="flex items-center justify-between gap-1">
-            <span className="font-bold text-xs text-[#9A3412] truncate">
+            <span className="font-bold text-xs text-cognac truncate">
               {allocation.subject}
             </span>
             <div className="flex items-center gap-1 shrink-0">
-              <ShieldAlert className="w-3.5 h-3.5 text-[#C2410C]" />
-              <span className="text-[9px] font-bold px-1 py-0.5 bg-[#FFEDD5] text-[#C2410C] rounded border border-[#FDBA74]">
+              <ShieldAlert className="w-3.5 h-3.5 text-cognac" />
+              <span className="text-[9px] font-bold px-1 py-0.5 bg-cognac-soft text-cognac rounded border border-cognac/30">
                 OVERRIDDEN
               </span>
             </div>
           </div>
-          <div className="text-[11px] text-[#9A3412] font-medium truncate">
+          <div className="text-[11px] text-cognac font-medium truncate">
             {facultyName}
           </div>
         </div>
       ) : allocation?.hasConflictOverride ? (
         <div className="flex flex-col justify-center h-full text-center">
-          <div className="flex items-center justify-center gap-1 text-xs font-bold text-[#A63232]">
-            <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-[#A63232]" />
+          <div className="flex items-center justify-center gap-1 text-xs font-bold text-burgundy">
+            <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-burgundy" />
             <span className="truncate">{allocation.subject}</span>
           </div>
-          <div className="text-[10px] text-[#A63232]/90 mt-0.5 truncate font-medium">
+          <div className="text-[10px] text-burgundy/90 mt-0.5 truncate font-medium">
             Override: {facultyName}
           </div>
         </div>
       ) : isGap ? (
         <div className="flex flex-col justify-center h-full text-center">
-          <div className="flex items-center justify-center gap-1 text-xs font-semibold text-[#A63232]">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#A65E3B]" />
+          <div className="flex items-center justify-center gap-1 text-xs font-semibold text-burgundy">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-cognac" />
             <span>Gap (Absent)</span>
           </div>
-          <div className="text-[11px] text-[#A63232]/80 line-through mt-0.5 truncate font-medium">
+          <div className="text-[11px] text-burgundy/80 line-through mt-0.5 truncate font-medium">
             {allocation?.vacatedFacultyName || 'Teacher absent'}
           </div>
         </div>
       ) : isUnfilled ? (
         <div className="flex flex-col justify-center h-full text-center p-1">
-          <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-[#92400E]">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#C2410C]" />
+          <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-cognac">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-cognac" />
             <span className="truncate">Unfilled: {unfilledReason || 'Shortage'}</span>
           </div>
           {(allocation?.subject || requiredSubject) && (
-            <div className="text-[10px] text-[#A16207] truncate font-medium mt-0.5">
+            <div className="text-[10px] text-cognac truncate font-medium mt-0.5">
               {allocation?.subject || requiredSubject}
             </div>
           )}
         </div>
       ) : isFree ? (
-        <div className="flex items-center justify-center h-full text-xs font-medium text-[#5E5B61]">
+        <div className="flex items-center justify-center h-full text-xs font-medium text-ink-muted">
           <span>Free Period</span>
         </div>
       ) : (
         <>
           <div className="flex items-start justify-between gap-1">
             <div className="flex items-center gap-1.5 min-w-0">
-              <span className="font-semibold text-xs sm:text-sm text-[#252326] leading-snug truncate">
+              <span className="font-semibold text-xs sm:text-sm text-ink leading-snug truncate">
                 {allocation?.subject}
               </span>
               {allocation?.subjectChanged && (
                 <span
-                  className="px-1 py-0.5 rounded text-[9px] font-bold bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] shrink-0"
+                  className="px-1 py-0.5 rounded text-[9px] font-bold bg-accent-soft text-ink border border-accent/40 shrink-0"
                   title={allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join('\n') : undefined)}
                 >
                   Changed
@@ -198,20 +198,20 @@ export default function AllocationCell({
             <div className="flex items-center gap-1 shrink-0">
               {allocation?.manualEdited && !allocation?.frozen && (
                 <span
-                  className="w-1.5 h-1.5 rounded-full bg-[#A65E3B] shrink-0 mt-1"
+                  className="w-1.5 h-1.5 rounded-full bg-cognac shrink-0 mt-1"
                   title="Manually edited slot"
                 />
               )}
               {/* Persistent Lock Icon & Text when frozen (U1 & Accessibility) */}
               {allocation?.frozen && (
-                <span title="Locked slot (frozen)" className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-[#FAF2E6] text-[#7A5B28] border border-[#E7D7BD]">
-                  <Lock className="w-2.5 h-2.5" />
+                <span title="Locked slot (frozen)" className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-accent-soft text-ink border border-accent/40">
+                  <Lock className="w-2.5 h-2.5 text-accent" />
                   <span>Locked</span>
                 </span>
               )}
               {/* Flag Absent Teacher on grid even before Sync (Accessibility) */}
               {isTeacherAbsent && !isGap && allocation?.facultyId && (
-                <span title="Assigned teacher is absent today!" className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5]">
+                <span title="Assigned teacher is absent today!" className="shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-burgundy-soft text-burgundy border border-burgundy/20">
                   <UserX className="w-2.5 h-2.5" />
                   <span>Absent</span>
                 </span>
@@ -219,13 +219,13 @@ export default function AllocationCell({
             </div>
           </div>
 
-          <div className="flex flex-col text-xs text-[#5E5B61] mt-0.5 min-w-0">
-            <span className={`truncate font-medium ${isTeacherAbsent ? 'text-[#991B1B] line-through' : ''}`}>
+          <div className="flex flex-col text-xs text-ink-muted mt-0.5 min-w-0">
+            <span className={`truncate font-medium ${isTeacherAbsent ? 'text-burgundy line-through' : ''}`}>
               {facultyName}
             </span>
             {allocation?.subjectChanged && (allocation?.conflictNote || allocation?.explanation?.[0]) && (
               <span
-                className="text-[9px] text-[#B45309] truncate italic mt-0.5 leading-tight"
+                className="text-[9px] text-cognac truncate italic mt-0.5 leading-tight"
                 title={allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation.join(' ') : '')}
               >
                 {allocation.conflictNote || (Array.isArray(allocation.explanation) ? allocation.explanation[0] : '')}
@@ -246,17 +246,17 @@ export default function AllocationCell({
             }}
             className={`p-1 rounded shadow-2xs transition-colors ${
               allocation.frozen
-                ? 'bg-[#B08D57] text-white hover:bg-[#9A7947]'
-                : 'bg-white text-[#5E5B61] border border-[#E5E0D8] hover:text-[#6B2638] hover:border-[#6B2638]'
+                ? 'bg-accent text-ink hover:bg-accent-hover'
+                : 'bg-surface text-ink-muted border border-border hover:text-ink hover:border-accent'
             }`}
             title={allocation.frozen ? 'Unlock slot' : 'Lock slot against regeneration'}
             aria-label={allocation.frozen ? 'Unlock slot' : 'Lock slot'}
           >
-            {allocation.frozen ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+            {allocation.frozen ? <Lock className="w-3 h-3 text-ink" /> : <Unlock className="w-3 h-3" />}
           </button>
         )}
         <span
-          className="p-1 rounded bg-white text-[#5E5B61] border border-[#E5E0D8] shadow-2xs hover:text-[#6B2638]"
+          className="p-1 rounded bg-surface text-ink-muted border border-border shadow-2xs hover:text-ink hover:border-accent"
           title="Edit assignment"
         >
           <Edit2 className="w-3 h-3" />

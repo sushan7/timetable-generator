@@ -590,9 +590,9 @@ export default function Timetable() {
       const target = desktopCell || mobileCell;
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        target.classList.add('ring-4', 'ring-[#6B2638]', 'scale-105', 'transition-all');
+        target.classList.add('ring-4', 'ring-accent', 'scale-105', 'transition-all');
         setTimeout(() => {
-          target.classList.remove('ring-4', 'ring-[#6B2638]', 'scale-105', 'transition-all');
+          target.classList.remove('ring-4', 'ring-accent', 'scale-105', 'transition-all');
         }, 2200);
       }
     }, 150);
@@ -663,7 +663,7 @@ export default function Timetable() {
         id: 'excel',
         label: 'Export to Excel (.xlsx)',
         description: 'Multi-sheet workbook (Summary + individual section sheets)',
-        icon: <FileSpreadsheet className="w-4 h-4 text-[#6B2638]" />,
+        icon: <FileSpreadsheet className="w-4 h-4 text-primary" />,
         onClick: handleExportExcel,
         disabled: isExporting || !hasGenerated,
       },
@@ -671,7 +671,7 @@ export default function Timetable() {
         id: 'png',
         label: 'Download Image (PNG)',
         description: 'High-resolution snapshot of clean schedule grid',
-        icon: <ImageIcon className="w-4 h-4 text-[#B08D57]" />,
+        icon: <ImageIcon className="w-4 h-4 text-accent" />,
         onClick: handleExportPng,
         disabled: isExporting || !hasGenerated,
       },
@@ -679,7 +679,7 @@ export default function Timetable() {
         id: 'pdf',
         label: 'Export Document (PDF)',
         description: 'Real vector text with proper section pagination',
-        icon: <FileText className="w-4 h-4 text-[#6B2638]" />,
+        icon: <FileText className="w-4 h-4 text-primary" />,
         onClick: handleExportPdf,
         disabled: isExporting || !hasGenerated,
       },
@@ -687,7 +687,7 @@ export default function Timetable() {
         id: 'print',
         label: 'Print Timetable (A4 Landscape)',
         description: 'Printable formatted pages with section headers',
-        icon: <Printer className="w-4 h-4 text-[#252326]" />,
+        icon: <Printer className="w-4 h-4 text-ink" />,
         onClick: () => window.print(),
         disabled: !hasGenerated,
       },
@@ -702,7 +702,7 @@ export default function Timetable() {
         id: 'generate-week',
         label: 'Generate Full Week (N9)',
         description: 'Plan quotas across all days together, preserving frozen slots',
-        icon: <Sparkles className="w-4 h-4 text-[#B08D57]" />,
+        icon: <Sparkles className="w-4 h-4 text-accent" />,
         onClick: handleGenerateWeek,
         disabled: currentStatus === 'Finalized' || isGeneratingWeek,
       },
@@ -710,7 +710,7 @@ export default function Timetable() {
         id: 'quota-report',
         label: 'Weekly Quota Report (N9)',
         description: 'View batch curriculum quota fit and deviations across the week',
-        icon: <Layers className="w-4 h-4 text-[#6B2638]" />,
+        icon: <Layers className="w-4 h-4 text-primary" />,
         onClick: () => {
           const report = calculateWeekQuotaFit(batches, storage.getWeekTimetables());
           setWeekQuotaReport(report);
@@ -721,14 +721,14 @@ export default function Timetable() {
         id: 'validation-report',
         label: `Check timetable (${dayValidationReport.summary.totalIssues} issues)`,
         description: 'Verify teacher overlaps, daily limits, absences, and room clashes',
-        icon: <FileCheck className="w-4 h-4 text-[#6B2638]" />,
+        icon: <FileCheck className="w-4 h-4 text-primary" />,
         onClick: () => setIsValidationModalOpen(true),
       },
       {
         id: 'capacity-precheck',
         label: `Capacity Pre-Check (${capacityAnalysis.shortageCount} shortages)`,
         description: 'Evaluate curriculum demand vs faculty limits and overloaded teachers',
-        icon: <BarChart2 className="w-4 h-4 text-[#B08D57]" />,
+        icon: <BarChart2 className="w-4 h-4 text-accent" />,
         onClick: () => setIsCapacityModalOpen(true),
       },
       {
@@ -740,9 +740,9 @@ export default function Timetable() {
             : 'Lock timetable to safeguard official schedule',
         icon:
           currentStatus === 'Finalized' ? (
-            <Unlock className="w-4 h-4 text-[#B08D57]" />
+            <Unlock className="w-4 h-4 text-accent" />
           ) : (
-            <Lock className="w-4 h-4 text-[#6B2638]" />
+            <Lock className="w-4 h-4 text-primary" />
           ),
         onClick: () => handleStatusChange(currentStatus === 'Finalized' ? 'Draft' : 'Finalized'),
       },
@@ -780,7 +780,7 @@ export default function Timetable() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" ref={pageRef}>
       {/* Top Header */}
       <PageHeader
-        icon={<Calendar className="w-5 h-5 text-[#6B2638]" />}
+        icon={<Calendar className="w-5 h-5 text-primary" />}
         title="Timetable Studio"
         subtitle={`Generate, validate, and manage academic period assignments for ${currentDay}`}
         actions={
@@ -795,23 +795,23 @@ export default function Timetable() {
             </Badge>
 
             {/* Undo / Redo */}
-            <div className="flex items-center rounded border border-[#A89B8A]/30 bg-white">
+            <div className="flex items-center rounded border border-border bg-surface">
               <button
                 type="button"
                 onClick={handleUndo}
                 disabled={history.length === 0 || currentStatus === 'Finalized'}
-                className="p-1.5 text-[#252326]/70 hover:text-[#6B2638] disabled:opacity-30 disabled:pointer-events-none"
+                className="p-1.5 text-ink-muted hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
                 title="Undo (Ctrl+Z)"
                 aria-label="Undo"
               >
                 <Undo2 className="w-4 h-4" />
               </button>
-              <div className="h-4 w-px bg-[#A89B8A]/30" />
+              <div className="h-4 w-px bg-border" />
               <button
                 type="button"
                 onClick={handleRedo}
                 disabled={future.length === 0 || currentStatus === 'Finalized'}
-                className="p-1.5 text-[#252326]/70 hover:text-[#6B2638] disabled:opacity-30 disabled:pointer-events-none"
+                className="p-1.5 text-ink-muted hover:text-primary disabled:opacity-30 disabled:pointer-events-none"
                 title="Redo (Ctrl+Y)"
                 aria-label="Redo"
               >
@@ -830,11 +830,11 @@ export default function Timetable() {
                 placeholder="Seed (opt)"
                 value={manualSeedInput}
                 onChange={e => setManualSeedInput(e.target.value)}
-                className="w-24 px-2 py-1.5 text-xs bg-white border border-[#DDD5CE] rounded-md text-[#252326] focus:outline-none focus:border-[#252326]"
+                className="w-24 px-2 py-1.5 text-xs bg-surface border border-border rounded-md text-ink focus:outline-none focus:border-accent"
                 title="Enter custom PRNG seed for reproducible results"
               />
               {currentSeed !== undefined && (
-                <span className="text-[10px] text-[#6E6864] font-mono px-1.5 py-0.5 bg-[#F2EDE7] rounded border border-[#E8E2DC]" title="Last seed used for this timetable">
+                <span className="text-[10px] text-ink-muted font-mono px-1.5 py-0.5 bg-surface-muted rounded border border-border" title="Last seed used for this timetable">
                   #{currentSeed}
                 </span>
               )}
@@ -862,7 +862,7 @@ export default function Timetable() {
             >
               Check timetable
               {dayValidationReport.summary.totalIssues > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-[#FAF0F2] text-[#6B2638] rounded-full text-[10px] font-bold border border-[#ECD9DE]">
+                <span className="ml-1 px-1.5 py-0.2 bg-burgundy-soft text-burgundy rounded-full text-[10px] font-bold border border-burgundy/20">
                   {dayValidationReport.summary.totalIssues}
                 </span>
               )}
@@ -882,7 +882,7 @@ export default function Timetable() {
             {/* Global Action: Generate Week (N9) */}
             <Button
               variant="secondary"
-              icon={<Sparkles className="w-4 h-4 text-[#B08D57]" />}
+              icon={<Sparkles className="w-4 h-4 text-accent" />}
               loading={isGeneratingWeek}
               onClick={handleGenerateWeek}
               disabled={currentStatus === 'Finalized'}
@@ -905,9 +905,9 @@ export default function Timetable() {
 
       {/* Finalized Warning Banner */}
       {currentStatus === 'Finalized' && (
-        <div className="p-3 bg-[#FAF0F2] border border-[#ECD9DE] rounded-md flex items-center justify-between gap-3 text-xs text-[#252326] no-export">
+        <div className="p-3 bg-burgundy-soft border border-burgundy/20 rounded-md flex items-center justify-between gap-3 text-xs text-ink no-export">
           <div className="flex items-center gap-2">
-            <Lock className="w-4 h-4 text-[#6B2638]" />
+            <Lock className="w-4 h-4 text-burgundy" />
             <span>
               <strong>Timetable is Finalized:</strong> Editing and automatic regeneration are locked to safeguard this official schedule.
             </span>
@@ -925,17 +925,17 @@ export default function Timetable() {
 
       {/* Dedicated "Unfilled & Warnings" Panel (H3) */}
       {(unfilledSlots.length > 0 || warnings.length > 0) && (
-        <div className="bg-[#FAF7F2] border border-[#E5E0D8] rounded-lg p-4 space-y-3 no-export shadow-2xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E0D8] pb-3">
+        <div className="bg-surface-muted border border-border rounded-lg p-4 space-y-3 no-export shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-[#FEF7EC] text-[#C2410C] rounded border border-[#E9BF85]/60">
+              <div className="p-1.5 bg-cognac-soft text-cognac rounded border border-cognac/40">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-[#252326] leading-tight">
+                <h3 className="font-bold text-sm text-ink leading-tight">
                   Unfilled Slots & Schedule Warnings
                 </h3>
-                <p className="text-[11px] text-[#5E5B61]">
+                <p className="text-[11px] text-ink-muted">
                   Click any slot or warning below to immediately jump to and edit that cell.
                 </p>
               </div>
@@ -943,19 +943,19 @@ export default function Timetable() {
 
             <div className="flex items-center gap-2">
               {unfilledSlots.length > 0 && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FEF7EC] text-[#92400E] border border-[#E9BF85]">
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-cognac-soft text-cognac border border-cognac/30">
                   {unfilledSlots.length} Unfilled
                 </span>
               )}
               {warnings.length > 0 && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#FAF0F2] text-[#6B2638] border border-[#E8D0D6]">
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-burgundy-soft text-burgundy border border-burgundy/20">
                   {warnings.length} Warning{warnings.length !== 1 ? 's' : ''}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => setIsUnfilledPanelExpanded(!isUnfilledPanelExpanded)}
-                className="p-1 text-[#5E5B61] hover:text-[#252326] hover:bg-white rounded border border-transparent hover:border-[#E5E0D8] transition-colors"
+                className="p-1 text-ink-muted hover:text-ink hover:bg-surface rounded border border-transparent hover:border-border transition-colors"
                 title={isUnfilledPanelExpanded ? 'Collapse panel' : 'Expand panel'}
                 aria-label={isUnfilledPanelExpanded ? 'Collapse panel' : 'Expand panel'}
               >
@@ -972,13 +972,13 @@ export default function Timetable() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-1">
               {/* Left Column: Unfilled Slots */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-[#92400E]">
+                <div className="flex items-center justify-between text-xs font-bold text-cognac">
                   <span>Unfilled Slots ({unfilledSlots.length})</span>
                   {unfilledSlots.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setIsUnfilledModalOpen(true)}
-                      className="text-[11px] font-semibold text-[#6B2638] hover:underline"
+                      className="text-[11px] font-semibold text-primary hover:underline"
                     >
                       View Full Modal
                     </button>
@@ -986,7 +986,7 @@ export default function Timetable() {
                 </div>
 
                 {unfilledSlots.length === 0 ? (
-                  <p className="text-xs text-[#5E5B61] italic py-2">
+                  <p className="text-xs text-ink-muted italic py-2">
                     No unfilled slots. All scheduled periods are assigned!
                   </p>
                 ) : (
@@ -1008,24 +1008,24 @@ export default function Timetable() {
                               if (batch) handleCellClick(batch, u.periodIndex);
                             }
                           }}
-                          className="p-2.5 bg-[#FEF7EC] hover:bg-[#FDF2E2] border border-[#E9BF85] hover:border-[#B45309] rounded text-xs cursor-pointer transition-colors shadow-2xs group flex flex-col gap-1 outline-none focus-visible:ring-2 focus-visible:ring-[#B45309]"
+                          className="p-2.5 bg-cognac-soft hover:bg-cognac-soft/80 border border-cognac/40 hover:border-cognac rounded text-xs cursor-pointer transition-colors shadow-2xs group flex flex-col gap-1 outline-none focus-visible:ring-2 focus-visible:ring-accent"
                           title="Click to open and manually assign this cell"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-[#252326] truncate">
+                            <span className="font-bold text-ink truncate">
                               {u.batchName} · Period {u.periodIndex + 1}
                               {period?.startTime ? ` (${period.startTime} - ${period.endTime})` : ''}
                             </span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-[#92400E] border border-[#E9BF85] shrink-0">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface text-cognac border border-cognac/30 shrink-0">
                               Unfilled: {u.reason}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-[#78350F]">
+                          <div className="flex items-center justify-between text-[11px] text-cognac">
                             <span className="truncate">
                               Required: <strong>{u.requiredSubject || 'Any'}</strong>
                               {u.candidateIssue ? ` — ${u.candidateIssue}` : ''}
                             </span>
-                            <span className="shrink-0 text-[10px] font-medium text-[#C2410C] opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="shrink-0 text-[10px] font-medium text-cognac opacity-0 group-hover:opacity-100 transition-opacity">
                               Edit slot →
                             </span>
                           </div>
@@ -1038,12 +1038,12 @@ export default function Timetable() {
 
               {/* Right Column: Schedule Warnings */}
               <div className="space-y-2">
-                <div className="text-xs font-bold text-[#6B2638]">
+                <div className="text-xs font-bold text-burgundy">
                   Schedule Warnings ({warnings.length})
                 </div>
 
                 {warnings.length === 0 ? (
-                  <p className="text-xs text-[#5E5B61] italic py-2">
+                  <p className="text-xs text-ink-muted italic py-2">
                     No soft-rule warnings. All distribution preferences satisfied!
                   </p>
                 ) : (
@@ -1069,25 +1069,25 @@ export default function Timetable() {
                               }
                             }
                           }}
-                          className={`p-2.5 bg-white border border-[#E5E0D8] rounded text-xs transition-colors shadow-2xs group flex flex-col gap-1 ${
+                          className={`p-2.5 bg-surface border border-border rounded text-xs transition-colors shadow-2xs group flex flex-col gap-1 ${
                             hasCell
-                              ? 'cursor-pointer hover:border-[#6B2638] hover:bg-[#FAF7F2] outline-none focus-visible:ring-2 focus-visible:ring-[#6B2638]'
+                              ? 'cursor-pointer hover:border-primary hover:bg-surface-muted/50 outline-none focus-visible:ring-2 focus-visible:ring-accent'
                               : ''
                           }`}
                           title={hasCell ? 'Click to inspect slot' : undefined}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-[#252326] truncate">
+                            <span className="font-semibold text-ink truncate">
                               {batch ? `${batch.name} · P${(w.periodIndex || 0) + 1}` : w.type}
                             </span>
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FAF0F2] text-[#6B2638] border border-[#E8D0D6] shrink-0">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-burgundy-soft text-burgundy border border-burgundy/20 shrink-0">
                               {w.type.replace(/_/g, ' ')}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-[#5E5B61]">
+                          <div className="flex items-center justify-between text-[11px] text-ink-muted">
                             <span className="truncate">{w.message}</span>
                             {hasCell && (
-                              <span className="shrink-0 text-[10px] font-medium text-[#6B2638] opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="shrink-0 text-[10px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                                 Inspect →
                               </span>
                             )}
@@ -1116,14 +1116,14 @@ export default function Timetable() {
       {/* View Mode Switcher + Balance Bar */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 no-export">
         {/* View Mode Pills */}
-        <div className="inline-flex rounded-md bg-[#F3EEE6] p-0.5 text-xs font-semibold select-none border border-[#A89B8A]/30">
+        <div className="inline-flex rounded-md bg-surface-muted p-0.5 text-xs font-semibold select-none border border-border">
           <button
             type="button"
             onClick={() => setViewMode('batches')}
             className={`px-3 py-1.5 rounded transition-colors ${
               viewMode === 'batches'
-                ? 'bg-white text-[#6B2638] shadow-2xs font-bold'
-                : 'text-[#252326]/70 hover:text-[#252326]'
+                ? 'bg-surface text-primary shadow-2xs font-bold'
+                : 'text-ink-muted hover:text-ink'
             }`}
           >
             Batch Matrix View
@@ -1133,8 +1133,8 @@ export default function Timetable() {
             onClick={() => setViewMode('faculty')}
             className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors ${
               viewMode === 'faculty'
-                ? 'bg-white text-[#6B2638] shadow-2xs font-bold'
-                : 'text-[#252326]/70 hover:text-[#252326]'
+                ? 'bg-surface text-primary shadow-2xs font-bold'
+                : 'text-ink-muted hover:text-ink'
             }`}
           >
             <User className="w-3.5 h-3.5" />
@@ -1145,8 +1145,8 @@ export default function Timetable() {
             onClick={() => setViewMode('rooms')}
             className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors ${
               viewMode === 'rooms'
-                ? 'bg-white text-[#6B2638] shadow-2xs font-bold'
-                : 'text-[#252326]/70 hover:text-[#252326]'
+                ? 'bg-surface text-primary shadow-2xs font-bold'
+                : 'text-ink-muted hover:text-ink'
             }`}
           >
             <Building className="w-3.5 h-3.5" />
@@ -1164,15 +1164,15 @@ export default function Timetable() {
       {viewMode === 'batches' && (
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 no-export">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#252326]/60 font-medium">Campus:</span>
-            <div className="inline-flex rounded-md bg-[#F3EEE6] p-0.5 text-xs font-medium select-none border border-[#A89B8A]/30">
+            <span className="text-xs text-ink-muted font-medium">Campus:</span>
+            <div className="inline-flex rounded-md bg-surface-muted p-0.5 text-xs font-medium select-none border border-border">
               <button
                 type="button"
                 onClick={() => setActiveSectionFilter('ALL')}
                 className={`px-3 py-1 rounded transition-colors ${
                   activeSectionFilter === 'ALL'
-                    ? 'bg-white text-[#6B2638] font-bold shadow-2xs'
-                    : 'text-[#252326]/70 hover:text-[#252326]'
+                    ? 'bg-surface text-primary font-bold shadow-2xs'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 All Sections
@@ -1182,8 +1182,8 @@ export default function Timetable() {
                 onClick={() => setActiveSectionFilter('Building 1')}
                 className={`px-3 py-1 rounded transition-colors ${
                   activeSectionFilter === 'Building 1'
-                    ? 'bg-white text-[#6B2638] font-bold shadow-2xs'
-                    : 'text-[#252326]/70 hover:text-[#252326]'
+                    ? 'bg-surface text-primary font-bold shadow-2xs'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 Building 1
@@ -1193,8 +1193,8 @@ export default function Timetable() {
                 onClick={() => setActiveSectionFilter('Building 2')}
                 className={`px-3 py-1 rounded transition-colors ${
                   activeSectionFilter === 'Building 2'
-                    ? 'bg-white text-[#6B2638] font-bold shadow-2xs'
-                    : 'text-[#252326]/70 hover:text-[#252326]'
+                    ? 'bg-surface text-primary font-bold shadow-2xs'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 Building 2
@@ -1233,17 +1233,17 @@ export default function Timetable() {
             <div className="space-y-6">
               {/* Summary panel for frozen violations (C2) */}
               {frozenViolations.length > 0 && (
-                <div className="p-4 bg-[#FEF2F2] border border-red-300 rounded-lg space-y-2.5 text-xs text-red-950 no-export">
+                <div className="p-4 bg-burgundy-soft border border-burgundy/30 rounded-lg space-y-2.5 text-xs text-ink no-export">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 font-bold text-red-800 text-sm">
-                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <div className="flex items-center gap-2 font-bold text-burgundy text-sm">
+                      <AlertTriangle className="w-4 h-4 text-burgundy shrink-0" />
                       <span>Locked / Frozen Slot Violations ({frozenViolations.length})</span>
                     </div>
-                    <span className="text-[11px] font-semibold text-red-700 bg-red-100 px-2 py-0.5 rounded border border-red-200">
+                    <span className="text-[11px] font-semibold text-burgundy bg-burgundy-soft px-2 py-0.5 rounded border border-burgundy/30">
                       Preserved with Red Cell Edges
                     </span>
                   </div>
-                  <p className="text-red-900/80 leading-relaxed">
+                  <p className="text-ink-muted leading-relaxed">
                     The following locked slots violate hard constraints (such as an absent instructor, simultaneous time overlap, or daily period cap). They have been preserved in the timetable and marked with a red cell edge:
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
@@ -1251,17 +1251,17 @@ export default function Timetable() {
                       const b = batches.find(batch => batch.id === v.batchId);
                       const f = faculties.find(fac => fac.id === v.facultyId);
                       return (
-                        <div key={idx} className="p-2.5 bg-white border border-red-200 rounded shadow-xs space-y-1">
-                          <div className="flex items-center justify-between font-semibold text-red-900">
+                        <div key={idx} className="p-2.5 bg-surface border border-burgundy/20 rounded shadow-xs space-y-1">
+                          <div className="flex items-center justify-between font-semibold text-burgundy">
                             <span className="truncate">{b?.name || v.batchId} · Period {v.periodIndex + 1}</span>
-                            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold shrink-0">
+                            <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-burgundy-soft text-burgundy font-bold shrink-0">
                               {v.type}
                             </span>
                           </div>
-                          <div className="text-[11px] text-[#252326]">
-                            <span className="text-[#5E5B61]">Teacher:</span> <strong>{f?.name || v.facultyId || 'Unassigned'}</strong>
+                          <div className="text-[11px] text-ink">
+                            <span className="text-ink-muted">Teacher:</span> <strong>{f?.name || v.facultyId || 'Unassigned'}</strong>
                           </div>
-                          <div className="text-[11px] text-red-700 font-medium leading-tight">
+                          <div className="text-[11px] text-burgundy font-medium leading-tight">
                             {v.reason}
                           </div>
                         </div>
@@ -1278,18 +1278,18 @@ export default function Timetable() {
                   return (
                     <div key={section.id} className="print-section-page space-y-2">
                       {/* Dedicated Print & Export Header per section (M9) */}
-                      <div className="hidden print:flex items-center justify-between border-b-2 border-[#6B2638] pb-2 text-xs">
+                      <div className="hidden print:flex items-center justify-between border-b-2 border-primary pb-2 text-xs">
                         <div>
-                          <h2 className="text-base font-bold text-[#6B2638]">
+                          <h2 className="text-base font-bold text-primary">
                             Timetable Pro · {section.label}
                           </h2>
-                          <p className="text-[11px] text-[#5E5B61]">
+                          <p className="text-[11px] text-ink-muted">
                             Academic Day: <strong>{currentDay}</strong> · Status: <strong>{currentStatus}</strong> · {sectionBatches.length} Batches
                           </p>
                         </div>
-                        <div className="text-right text-[11px] text-[#5E5B61]">
+                        <div className="text-right text-[11px] text-ink-muted">
                           <div>Printed: {new Date().toLocaleDateString()}</div>
-                          <div className="font-semibold text-[#252326]">A4 Landscape</div>
+                          <div className="font-semibold text-ink">A4 Landscape</div>
                         </div>
                       </div>
 
@@ -1379,7 +1379,7 @@ export default function Timetable() {
         }
       >
         <div className="space-y-3">
-          <p className="text-xs text-[#252326]/70 leading-relaxed">
+          <p className="text-xs text-ink-muted leading-relaxed">
             The scheduler respects strict daily workload caps and avoids teacher double-booking. The following slots remain unassigned:
           </p>
           <div className="space-y-2 max-h-72 overflow-y-auto">
@@ -1401,27 +1401,27 @@ export default function Timetable() {
                       if (batch) handleCellClick(batch, u.periodIndex);
                     }
                   }}
-                  className="p-3 bg-[#FEF7EC] hover:bg-[#FDF2E2] rounded border border-[#E9BF85] hover:border-[#B45309] text-xs text-[#252326] space-y-1.5 cursor-pointer transition-colors shadow-2xs group outline-none focus-visible:ring-2 focus-visible:ring-[#B45309]"
+                  className="p-3 bg-cognac-soft hover:bg-cognac-soft/80 rounded border border-cognac/40 hover:border-cognac text-xs text-ink space-y-1.5 cursor-pointer transition-colors shadow-2xs group outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   title="Click to open and manually assign this cell"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#252326]">
+                    <span className="font-bold text-ink">
                       {u.batchName} · Period {u.periodIndex + 1}
                     </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-[#92400E] border border-[#E9BF85]">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface text-cognac border border-cognac/30">
                       Unfilled: {u.reason}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-[#78350F]">
+                  <div className="flex items-center justify-between text-[11px] text-cognac">
                     <span>
                       Required: <strong>{u.requiredSubject || 'Any'}</strong>
                     </span>
-                    <span className="text-[10px] text-[#C2410C] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] text-cognac font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
                       Click to assign →
                     </span>
                   </div>
                   {u.candidateIssue && (
-                    <p className="text-[10px] text-[#5E5B61] italic">{u.candidateIssue}</p>
+                    <p className="text-[10px] text-ink-muted italic">{u.candidateIssue}</p>
                   )}
                 </div>
               );
@@ -1440,11 +1440,11 @@ export default function Timetable() {
         confirmText="Reopen for Editing"
         cancelText="Keep Finalized"
         message={
-          <div className="space-y-3 text-xs text-[#252326]">
+          <div className="space-y-3 text-xs text-ink">
             <p>
               Reopening the <strong>{currentDay}</strong> timetable will change its status to <strong>Draft</strong> and allow manual edits or regeneration of unfrozen slots.
             </p>
-            <p className="text-[#252326]/70">
+            <p className="text-ink-muted">
               Frozen slots will continue to be preserved. Are you sure you want to unlock this day?
             </p>
           </div>
